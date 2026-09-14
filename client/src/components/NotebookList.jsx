@@ -121,7 +121,7 @@ export default function NotebookList({ onSelectNote, onNewNote }) {
       </div>
 
       {/* Notes List */}
-      <div className="space-y-2 max-h-[640px] overflow-y-auto pr-1 mt-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5 max-h-[calc(100vh-220px)] overflow-y-auto pr-1 mt-4">
         {loading ? (
           <div className="p-8 text-center text-xs text-slate-500">Cargando notas...</div>
         ) : notes.length === 0 ? (

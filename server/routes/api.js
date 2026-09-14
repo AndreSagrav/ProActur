@@ -6,7 +6,7 @@ const fs = require('fs');
 const aiService = require('../services/aiService');
 const notionService = require('../services/notionService');
 const storageService = require('../services/storageService');
-const { checkSupabaseStatus } = require('../services/supabaseClient');
+const { checkSupabaseStatus, keepAliveSupabase } = require('../services/supabaseClient');
 const eventService = require('../services/eventService');
 const noteService = require('../services/noteService');
 
@@ -29,6 +29,26 @@ const upload = multer({
 });
 
 // Health check ampliado con Supabase y estado de proveedores de IA
+// Supabase Keep-Alive Endpoint para Vercel Cron, GitHub Actions y Heartbeat proactivo
+router.get('/keep-alive', async (req, res) => {
+  try {
+    const result = await keepAliveSupabase();
+    const statusCode = result.success || !result.configured ? 200 : 500;
+    res.status(statusCode).json({
+      status: result.success ? 'ok' : 'warning',
+      timestamp: new Date().toISOString(),
+      service: 'ProActur Supabase Keep-Alive',
+      ...result
+    });
+  } catch (err) {
+    res.status(500).json({
+      status: 'error',
+      message: err.message,
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
 router.get('/health', async (req, res) => {
   try {
     const supabaseStatus = await checkSupabaseStatus();

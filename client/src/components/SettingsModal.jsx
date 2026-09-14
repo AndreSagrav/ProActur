@@ -1,11 +1,19 @@
 ﻿import React, { useState } from 'react';
-import { X, Key, Database, CheckCircle2, AlertCircle, Loader2, Sparkles, Cpu, Layers } from 'lucide-react';
+import { X, Key, Database, CheckCircle2, AlertCircle, Loader2, Sparkles, Cpu, Layers, Activity, RefreshCw } from 'lucide-react';
 
-export default function SettingsModal({ isOpen, onClose, healthData, onRefreshHealth }) {
+export default function SettingsModal({
+  isOpen,
+  onClose,
+  healthData,
+  keepAliveData,
+  onTriggerKeepAlive,
+  onRefreshHealth
+}) {
   const [notionKey, setNotionKey] = useState('');
   const [notionDb, setNotionDb] = useState('');
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState(null);
+  const [pingingKeepAlive, setPingingKeepAlive] = useState(false);
 
   if (!isOpen) return null;
 
@@ -33,14 +41,23 @@ export default function SettingsModal({ isOpen, onClose, healthData, onRefreshHe
     }
   };
 
+  const handleManualPing = async () => {
+    setPingingKeepAlive(true);
+    try {
+      if (onTriggerKeepAlive) await onTriggerKeepAlive();
+    } finally {
+      setPingingKeepAlive(false);
+    }
+  };
+
   const providers = healthData?.aiProviders || {};
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-fade-in">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/75 backdrop-blur-sm animate-fade-in">
       <div className="bg-slate-900 border border-slate-800 w-full max-w-xl rounded-2xl shadow-2xl overflow-hidden max-h-[90vh] flex flex-col">
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-800 bg-slate-900/90">
-          <div className="flex items-center gap-2 text-slate-100 font-bold">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-800 bg-slate-900/90">
+          <div className="flex items-center gap-2 text-slate-100 font-bold text-sm sm:text-base">
             <Key className="w-5 h-5 text-indigo-400" />
             Configuración, Base de Datos e IA
           </div>
@@ -52,10 +69,10 @@ export default function SettingsModal({ isOpen, onClose, healthData, onRefreshHe
           </button>
         </div>
 
-        <div className="p-6 space-y-5 overflow-y-auto">
+        <div className="p-5 sm:p-6 space-y-5 overflow-y-auto">
           {/* Base de Datos & Supabase */}
           <div className="p-4 bg-slate-800/40 border border-slate-800 rounded-xl space-y-2.5 text-xs">
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between flex-wrap gap-2">
               <span className="font-semibold text-slate-200 flex items-center gap-1.5">
                 <Database className="w-4 h-4 text-emerald-400" />
                 Base de Datos (Supabase):
@@ -68,24 +85,62 @@ export default function SettingsModal({ isOpen, onClose, healthData, onRefreshHe
                   : 'bg-red-500/10 text-red-400 border border-red-500/30'
               }`}>
                 {healthData?.supabase?.tableReady
-                  ? 'Tabla Lista en Supabase'
+                  ? 'Tablas Listas en Supabase'
                   : healthData?.supabase?.configured
-                  ? 'Conectado (Falta correr SQL)'
+                  ? 'Conectado (Pendiente correr SQL)'
                   : 'No Configurado'}
               </span>
             </div>
 
             <p className="text-[11px] text-slate-400 leading-relaxed">
               {healthData?.supabase?.tableReady ? (
-                'Tus reuniones y tareas se sincronizan en tiempo real con Supabase Cloud.'
+                'Tus reuniones, eventos de agenda y libretas de notas se sincronizan en tiempo real con Supabase Cloud.'
               ) : (
                 <>
-                  Las credenciales están conectadas. Para activar la persistencia en la nube, copia y ejecuta el archivo{' '}
-                  <code className="text-indigo-300 font-mono bg-slate-800 px-1 py-0.5 rounded">supabase/schema.sql</code>{' '}
-                  en el <strong>SQL Editor</strong> de Supabase. (Mientras tanto, se guarda en caché local automáticamente).
+                  Las credenciales están conectadas. Para activar las tablas, copia y ejecuta en el <strong>SQL Editor</strong> de Supabase los scripts:{' '}
+                  <code className="text-indigo-300 font-mono bg-slate-800 px-1 py-0.5 rounded">schema.sql</code>,{' '}
+                  <code className="text-indigo-300 font-mono bg-slate-800 px-1 py-0.5 rounded">schema_events.sql</code> y{' '}
+                  <code className="text-indigo-300 font-mono bg-slate-800 px-1 py-0.5 rounded">schema_notes.sql</code>.
                 </>
               )}
             </p>
+          </div>
+
+          {/* Supabase Keep-Alive (Prevencion de suspension) */}
+          <div className="p-4 bg-emerald-950/20 border border-emerald-500/20 rounded-xl space-y-2.5 text-xs">
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <span className="font-semibold text-emerald-300 flex items-center gap-1.5">
+                <Activity className="w-4 h-4 text-emerald-400" />
+                Supabase Keep-Alive (Anti-Suspensión):
+              </span>
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-semibold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 flex items-center gap-1">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                {keepAliveData?.success ? `Activo (${keepAliveData.latencyMs}ms)` : 'Activo (Automático)'}
+              </span>
+            </div>
+
+            <p className="text-[11px] text-slate-300 leading-relaxed">
+              El plan gratuito de Supabase pausa los proyectos tras 7 días de inactividad. Proactor implementa un <strong>sistema de Keep-Alive triple</strong>:
+            </p>
+            <ul className="text-[10px] text-slate-400 space-y-1 pl-4 list-disc">
+              <li><strong>Vercel Cron:</strong> Toca automáticamente <code className="text-indigo-300 bg-slate-900 px-1 py-0.2 rounded">/api/keep-alive</code> todos los días a las 12:00 UTC.</li>
+              <li><strong>GitHub Actions:</strong> Ejecuta pings programados a las 06:00 y 18:00 UTC como respaldo.</li>
+              <li><strong>Heartbeat Proactivo:</strong> Pulso cada 15 min mientras la app esté abierta.</li>
+            </ul>
+
+            <div className="flex items-center justify-between pt-1">
+              <span className="text-[10px] text-slate-400">
+                Último pulso: {keepAliveData?.timestamp ? new Date(keepAliveData.timestamp).toLocaleTimeString() : 'Al cargar'}
+              </span>
+              <button
+                onClick={handleManualPing}
+                disabled={pingingKeepAlive}
+                className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-semibold bg-emerald-600/30 hover:bg-emerald-600/40 text-emerald-300 border border-emerald-500/40 transition-all"
+              >
+                {pingingKeepAlive ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" />}
+                <span>Ping Supabase Ahora</span>
+              </button>
+            </div>
           </div>
 
           {/* Modelos de Inteligencia Artificial */}
@@ -100,137 +155,120 @@ export default function SettingsModal({ isOpen, onClose, healthData, onRefreshHe
               </span>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
-              {/* Google Gemini */}
-              <div className="p-2.5 rounded-lg bg-slate-900/80 border border-slate-700/80 flex items-center justify-between">
-                <div>
-                  <div className="font-semibold text-slate-100 flex items-center gap-1">
-                    Google Gemini
+            <div className="space-y-2">
+              <div className="flex items-center justify-between p-2.5 rounded-lg bg-slate-900/60 border border-slate-700/50">
+                <div className="flex items-center gap-2">
+                  <span className={`w-2 h-2 rounded-full ${providers.gemini ? 'bg-emerald-400' : 'bg-slate-600'}`} />
+                  <div>
+                    <div className="font-semibold text-slate-200">Google Gemini 2.5 Flash</div>
+                    <div className="text-[10px] text-slate-400">Transcribe audio nativo (hasta 2 horas) + síntesis avanzada</div>
                   </div>
-                  <div className="text-[10px] text-slate-400 font-mono">{providers.gemini?.model || 'gemini-3.6-flash'}</div>
-                  <div className="text-[9px] text-indigo-300 mt-0.5">Audio Nativo + Transcripción</div>
                 </div>
-                <span className="text-[10px] font-bold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">
-                  Activo
+                <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-indigo-500/10 text-indigo-300 border border-indigo-500/20">
+                  {providers.gemini ? 'Conectado' : 'No detectado'}
                 </span>
               </div>
 
-              {/* OpenRouter */}
-              <div className="p-2.5 rounded-lg bg-slate-900/80 border border-slate-700/80 flex items-center justify-between">
-                <div>
-                  <div className="font-semibold text-slate-100">OpenRouter</div>
-                  <div className="text-[10px] text-slate-400 font-mono">{providers.openrouter?.model || 'deepseek/deepseek-chat'}</div>
-                  <div className="text-[9px] text-purple-300 mt-0.5">Segundo Cerebro & Síntesis</div>
+              <div className="flex items-center justify-between p-2.5 rounded-lg bg-slate-900/60 border border-slate-700/50">
+                <div className="flex items-center gap-2">
+                  <span className={`w-2 h-2 rounded-full ${providers.groq ? 'bg-emerald-400' : 'bg-slate-600'}`} />
+                  <div>
+                    <div className="font-semibold text-slate-200">Groq Whisper Large v3</div>
+                    <div className="text-[10px] text-slate-400">Transcripción de voz ultra-rápida (fallback automático)</div>
+                  </div>
                 </div>
-                <span className="text-[10px] font-bold text-purple-400 bg-purple-500/10 px-2 py-0.5 rounded border border-purple-500/20">
-                  Activo
+                <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-indigo-500/10 text-indigo-300 border border-indigo-500/20">
+                  {providers.groq ? 'Conectado' : 'Opcional'}
                 </span>
               </div>
 
-              {/* Groq LPU */}
-              <div className="p-2.5 rounded-lg bg-slate-900/80 border border-slate-700/80 flex items-center justify-between">
-                <div>
-                  <div className="font-semibold text-slate-100">Groq LPU</div>
-                  <div className="text-[10px] text-slate-400 font-mono">{providers.groq?.model || 'openai/gpt-oss-120b'}</div>
-                  <div className="text-[9px] text-amber-300 mt-0.5">Inferencia Ultrarrápida</div>
+              <div className="flex items-center justify-between p-2.5 rounded-lg bg-slate-900/60 border border-slate-700/50">
+                <div className="flex items-center gap-2">
+                  <span className={`w-2 h-2 rounded-full ${providers.openai ? 'bg-emerald-400' : 'bg-slate-600'}`} />
+                  <div>
+                    <div className="font-semibold text-slate-200">OpenAI Whisper + GPT-4o</div>
+                    <div className="text-[10px] text-slate-400">Motor de respaldo adicional para procesamiento</div>
+                  </div>
                 </div>
-                <span className="text-[10px] font-bold text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20">
-                  Activo
-                </span>
-              </div>
-
-              {/* Auto-Fallback */}
-              <div className="p-2.5 rounded-lg bg-slate-900/50 border border-dashed border-slate-700 flex items-center justify-between">
-                <div>
-                  <div className="font-semibold text-slate-300">Cascada Auto-Fallback</div>
-                  <div className="text-[10px] text-slate-400">Si un motor falla, salta al siguiente</div>
-                </div>
-                <span className="text-[10px] font-bold text-cyan-400 bg-cyan-500/10 px-2 py-0.5 rounded border border-cyan-500/20">
-                  Auto
+                <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-indigo-500/10 text-indigo-300 border border-indigo-500/20">
+                  {providers.openai ? 'Conectado' : 'Opcional'}
                 </span>
               </div>
             </div>
           </div>
 
-          {/* Test Notion Credentials Live */}
-          <div className="space-y-3 pt-1">
-            <h4 className="text-xs uppercase tracking-wider font-bold text-slate-400 flex items-center gap-1.5">
-              <Layers className="w-3.5 h-3.5 text-indigo-400" />
-              Integración con Notion (Opcional)
-            </h4>
-            <div>
-              <label className="block text-xs text-slate-400 mb-1">
-                Notion Secret Key (Internal Integration Token):
-              </label>
-              <input
-                type="password"
-                value={notionKey}
-                onChange={(e) => setNotionKey(e.target.value)}
-                placeholder="secret_..."
-                className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-indigo-500"
-              />
-            </div>
-            <div>
-              <label className="block text-xs text-slate-400 mb-1">
-                Notion Database ID o Page ID:
-              </label>
-              <input
-                type="text"
-                value={notionDb}
-                onChange={(e) => setNotionDb(e.target.value)}
-                placeholder="ID de 32 caracteres de tu página o base en Notion..."
-                className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-indigo-500 font-mono"
-              />
-            </div>
+          {/* Notion Integration */}
+          <div className="p-4 bg-slate-800/40 border border-slate-800 rounded-xl space-y-3 text-xs">
+            <span className="font-semibold text-slate-200 flex items-center gap-1.5">
+              <Layers className="w-4 h-4 text-violet-400" />
+              Sincronización con Notion:
+            </span>
 
-            <button
-              onClick={handleTestNotion}
-              disabled={testing}
-              className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold shadow-md shadow-indigo-600/20 transition-all disabled:opacity-50"
-            >
-              {testing ? (
-                <>
-                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                  Probando conexión con Notion...
-                </>
-              ) : (
-                <>
-                  <Sparkles className="w-3.5 h-3.5" />
+            <div className="space-y-3">
+              <div>
+                <label className="block text-[11px] text-slate-400 mb-1">
+                  Notion API Key (Secret Key):
+                </label>
+                <input
+                  type="password"
+                  placeholder="secret_... (déjalo vacío si usas variable de entorno)"
+                  value={notionKey}
+                  onChange={(e) => setNotionKey(e.target.value)}
+                  className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-indigo-500 font-mono"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[11px] text-slate-400 mb-1">
+                  Notion Database ID:
+                </label>
+                <input
+                  type="text"
+                  placeholder="ID de 32 caracteres (déjalo vacío si usas variable)"
+                  value={notionDb}
+                  onChange={(e) => setNotionDb(e.target.value)}
+                  className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-indigo-500 font-mono"
+                />
+              </div>
+
+              <div className="flex items-center justify-between pt-1">
+                <button
+                  onClick={handleTestNotion}
+                  disabled={testing}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-violet-600/30 hover:bg-violet-600/40 text-violet-300 border border-violet-500/40 transition-all disabled:opacity-50"
+                >
+                  {testing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
                   Probar Conexión con Notion
-                </>
-              )}
-            </button>
-          </div>
+                </button>
 
-          {/* Test result display */}
-          {testResult && (
-            <div
-              className={`p-3 rounded-xl text-xs flex items-start gap-2 border ${
-                testResult.success
-                  ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300'
-                  : 'bg-red-500/10 border-red-500/30 text-red-400'
-              }`}
-            >
-              {testResult.success ? (
-                <>
-                  <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-400" />
-                  <div>
-                    <div className="font-semibold">¡Conexión Exitosa con Notion!</div>
-                    <div>Bot/Usuario: {testResult.user}</div>
-                    <div className="text-[11px] opacity-80">{testResult.connectedTo}</div>
+                {testResult && (
+                  <div className={`text-xs flex items-center gap-1 font-medium ${testResult.success ? 'text-emerald-400' : 'text-red-400'}`}>
+                    {testResult.success ? (
+                      <>
+                        <CheckCircle2 className="w-3.5 h-3.5" />
+                        Conectado a "{testResult.databaseTitle}"
+                      </>
+                    ) : (
+                      <>
+                        <AlertCircle className="w-3.5 h-3.5" />
+                        {testResult.error || 'Fallo de conexión'}
+                      </>
+                    )}
                   </div>
-                </>
-              ) : (
-                <>
-                  <AlertCircle className="w-4 h-4 shrink-0 text-red-400" />
-                  <div>
-                    <div className="font-semibold">Error al conectar:</div>
-                    <div>{testResult.error}</div>
-                  </div>
-                </>
-              )}
+                )}
+              </div>
             </div>
-          )}
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="px-6 py-3 border-t border-slate-800 bg-slate-900/90 flex justify-end">
+          <button
+            onClick={onClose}
+            className="px-4 py-1.5 rounded-lg text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-200 transition-colors"
+          >
+            Cerrar
+          </button>
         </div>
       </div>
     </div>

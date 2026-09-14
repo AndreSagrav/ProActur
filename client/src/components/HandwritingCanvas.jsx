@@ -1,7 +1,7 @@
 ﻿import { useState, useRef, useCallback, useEffect } from 'react';
 import {
   Pen, Highlighter, Eraser, Undo2, Redo2, Minus, Plus, Trash2,
-  Circle, Square, Type, MoveRight, Grid3X3, GitBranch, ZoomIn, ZoomOut, RotateCcw
+  Circle, Square, Type, MoveRight, Grid3X3, GitBranch, ZoomIn, ZoomOut, RotateCcw, Maximize2, Minimize2
 } from 'lucide-react';
 
 const COLORS = [
@@ -42,6 +42,7 @@ export default function HandwritingCanvas({ strokes: initialStrokes, onStrokesCh
   const [zoom, setZoom] = useState(1);
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [gridVisible, setGridVisible] = useState(true);
+  const [isFullscreen, setIsFullscreen] = useState(false);
   const currentStroke = useRef([]);
   const lastPoint = useRef(null);
   const textInputRef = useRef(null);
@@ -287,7 +288,7 @@ export default function HandwritingCanvas({ strokes: initialStrokes, onStrokesCh
     ctx.globalAlpha = 1;
   }
 
-  // Resize canvas
+  // Resize canvas con ResizeObserver para adaptabilidad a rotacion de tabletas y cambio de ventana
   useEffect(() => {
     const canvas = canvasRef.current;
     const container = containerRef.current;
@@ -296,6 +297,7 @@ export default function HandwritingCanvas({ strokes: initialStrokes, onStrokesCh
     const resize = () => {
       const dpr = window.devicePixelRatio || 1;
       const rect = container.getBoundingClientRect();
+      if (rect.width === 0 || rect.height === 0) return;
       canvas.width = rect.width * dpr;
       canvas.height = rect.height * dpr;
       canvas.style.width = rect.width + 'px';
@@ -304,9 +306,17 @@ export default function HandwritingCanvas({ strokes: initialStrokes, onStrokesCh
     };
 
     resize();
+    let ro = null;
+    if (typeof ResizeObserver !== 'undefined') {
+      ro = new ResizeObserver(() => resize());
+      ro.observe(container);
+    }
     window.addEventListener('resize', resize);
-    return () => window.removeEventListener('resize', resize);
-  }, [redrawCanvas]);
+    return () => {
+      if (ro) ro.disconnect();
+      window.removeEventListener('resize', resize);
+    };
+  }, [redrawCanvas, isFullscreen]);
 
   useEffect(() => { redrawCanvas(); }, [redrawCanvas]);
 
@@ -599,6 +609,14 @@ export default function HandwritingCanvas({ strokes: initialStrokes, onStrokesCh
           <div className="w-px h-3 bg-slate-700 mx-0.5" />
           <button onClick={() => { setZoom(1); setPan({ x: 0, y: 0 }); }} className="text-slate-400 hover:text-slate-200 p-0.5" title="Reset vista">
             <RotateCcw className="w-3.5 h-3.5" />
+          </button>
+          <div className="w-px h-3 bg-slate-700 mx-0.5" />
+          <button
+            onClick={() => setIsFullscreen(f => !f)}
+            className="text-slate-400 hover:text-indigo-300 p-0.5"
+            title={isFullscreen ? "Salir de pantalla completa" : "Modo Lienzo Completo (Tableta)"}
+          >
+            {isFullscreen ? <Minimize2 className="w-3.5 h-3.5 text-indigo-400" /> : <Maximize2 className="w-3.5 h-3.5" />}
           </button>
         </div>
 

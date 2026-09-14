@@ -1,7 +1,8 @@
-﻿import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect, useCallback } from 'react';
 import {
   Sparkles, Brain, Settings, Plus, Search, Calendar, Share2, CheckCircle2,
-  Clock, CheckSquare, ChevronRight, Radio, FileText, BookOpen, PenTool
+  Clock, CheckSquare, ChevronRight, Radio, FileText, BookOpen, PenTool,
+  ArrowLeft, Activity, ShieldCheck
 } from 'lucide-react';
 
 import AudioRecorder from './components/AudioRecorder';
@@ -20,11 +21,15 @@ export default function App() {
   const [selectedMeetingId, setSelectedMeetingId] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [healthData, setHealthData] = useState(null);
+  const [keepAliveData, setKeepAliveData] = useState(null);
   const [isSecondBrainOpen, setIsSecondBrainOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
   // Tabs: 'meetings' | 'calendar' | 'notebook'
   const [activeTab, setActiveTab] = useState('meetings');
+
+  // En movil, controla si mostramos la lista o el detalle de reunion
+  const [showMobileDetail, setShowMobileDetail] = useState(false);
 
   // Calendar state
   const [eventModalOpen, setEventModalOpen] = useState(false);
@@ -36,10 +41,31 @@ export default function App() {
   const [isEditingNote, setIsEditingNote] = useState(false);
   const [linkedMeetingForNote, setLinkedMeetingForNote] = useState(null);
 
+  // Carga inicial y heartbeat keep-alive
   useEffect(() => {
     fetchMeetings();
     fetchHealth();
+    triggerKeepAlive();
+
+    // Heartbeat proactivo cada 15 minutos para mantener Supabase caliente
+    const interval = setInterval(() => {
+      triggerKeepAlive();
+    }, 15 * 60 * 1000);
+
+    return () => clearInterval(interval);
   }, []);
+
+  const triggerKeepAlive = async () => {
+    try {
+      const res = await fetch(`${API}/api/keep-alive`);
+      if (res.ok) {
+        const data = await res.json();
+        setKeepAliveData(data);
+      }
+    } catch (err) {
+      console.warn('[Keep-Alive] Ping warn:', err.message);
+    }
+  };
 
   const fetchMeetings = async () => {
     try {
@@ -69,6 +95,7 @@ export default function App() {
     setMeetings(prev => [meeting, ...prev]);
     setSelectedMeetingId(meeting.id);
     setActiveTab('meetings');
+    setShowMobileDetail(true);
   };
 
   const handleUpdateMeeting = async (id, updates) => {
@@ -93,6 +120,7 @@ export default function App() {
       await fetch(`${API}/api/meetings/${id}`, { method: 'DELETE' });
       setMeetings(prev => prev.filter(m => m.id !== id));
       setSelectedMeetingId(null);
+      setShowMobileDetail(false);
     } catch (err) {
       console.error('Error eliminando reunion:', err);
     }
@@ -119,6 +147,7 @@ export default function App() {
   const handleSelectMeetingFromCalendar = (meetingId) => {
     setSelectedMeetingId(meetingId);
     setActiveTab('meetings');
+    setShowMobileDetail(true);
   };
 
   // Notebook handlers
@@ -172,91 +201,120 @@ export default function App() {
   ];
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 text-white flex flex-col">
-      {/* Header */}
-      <header className="border-b border-slate-800/60 bg-slate-950/80 backdrop-blur-xl sticky top-0 z-40">
-        <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
-          {/* Logo */}
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-indigo-600 to-violet-600 flex items-center justify-center shadow-lg shadow-indigo-500/20">
-              <Radio className="w-4 h-4 text-white" />
+    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 text-white flex flex-col pb-20 lg:pb-6">
+      {/* Header Responsivo */}
+      <header className="border-b border-slate-800/70 bg-slate-950/85 backdrop-blur-xl sticky top-0 z-40">
+        <div className="max-w-7xl mx-auto px-3 sm:px-6 py-2.5 sm:py-3 flex items-center justify-between gap-2">
+          {/* Logo y Titulo */}
+          <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
+            <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-gradient-to-br from-indigo-600 to-violet-600 flex items-center justify-center shadow-lg shadow-indigo-500/20 shrink-0">
+              <Radio className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
             </div>
-            <div>
-              <h1 className="text-sm font-bold tracking-tight text-slate-100 leading-tight">
-                Proactor
-                <span className="text-[10px] ml-1.5 px-1.5 py-0.5 rounded-md bg-indigo-500/20 text-indigo-300 font-semibold border border-indigo-500/30">
+            <div className="min-w-0">
+              <div className="flex items-center gap-1.5">
+                <h1 className="text-sm sm:text-base font-bold tracking-tight text-slate-100 truncate leading-tight">
+                  Proactor
+                </h1>
+                <span className="text-[10px] px-1.5 py-0.2 rounded-md bg-indigo-500/20 text-indigo-300 font-semibold border border-indigo-500/30 hidden xs:inline-block">
                   AI + Notion
                 </span>
-              </h1>
-              <p className="text-[11px] text-slate-400">
-                Tu asistente proactivo de reuniones y segundo cerebro
+              </div>
+              <p className="text-[11px] text-slate-400 hidden sm:block truncate">
+                Asistente proactivo, agenda y libreta inteligente
               </p>
             </div>
           </div>
 
-          {/* Action Buttons */}
-          <div className="flex items-center gap-2.5">
-            {/* Second Brain */}
+          {/* Selector de pestañas para Desktop / Tablet Grande */}
+          <div className="hidden md:flex items-center bg-slate-900/90 border border-slate-800 rounded-xl p-1 shadow-inner">
+            {TABS.map(tab => {
+              const Icon = tab.icon;
+              const isActive = activeTab === tab.key;
+              return (
+                <button
+                  key={tab.key}
+                  onClick={() => {
+                    setActiveTab(tab.key);
+                    if (tab.key === 'meetings') setShowMobileDetail(false);
+                  }}
+                  className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                    isActive
+                      ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/30'
+                      : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
+                  }`}
+                >
+                  <Icon className="w-3.5 h-3.5" />
+                  <span>{tab.label}</span>
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Botones de Accion */}
+          <div className="flex items-center gap-1.5 sm:gap-2.5 shrink-0">
+            {/* Supabase Keep-Alive Indicator */}
+            {keepAliveData?.success && (
+              <div
+                className="hidden xl:flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/20"
+                title={`Keep-Alive activo: Latencia ${keepAliveData.latencyMs}ms. Base de datos protegida de suspension.`}
+              >
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                <span>Supabase Activo</span>
+              </div>
+            )}
+
+            {/* Segundo Cerebro */}
             <button
               onClick={() => setIsSecondBrainOpen(true)}
-              className="flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-300 border border-indigo-500/30 transition-all shadow-sm"
+              className="flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3.5 py-1.5 sm:py-2 rounded-xl text-xs font-semibold bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-300 border border-indigo-500/30 transition-all shadow-sm"
+              title="Consultar Segundo Cerebro"
             >
-              <Brain className="w-4 h-4 text-indigo-400" />
+              <Brain className="w-4 h-4 text-indigo-400 shrink-0" />
               <span className="hidden sm:inline">Segundo Cerebro</span>
-              <span className="w-5 h-5 rounded-full bg-indigo-500/30 text-indigo-300 text-[10px] flex items-center justify-center font-bold">
+              <span className="w-4 h-4 sm:w-5 sm:h-5 rounded-full bg-indigo-500/30 text-indigo-300 text-[10px] flex items-center justify-center font-bold">
                 {meetings.length}
               </span>
             </button>
 
-            {/* Settings */}
+            {/* Ajustes */}
             <button
               onClick={() => setIsSettingsOpen(true)}
-              className="p-2 rounded-xl text-slate-400 hover:text-slate-200 hover:bg-slate-800 transition-colors border border-transparent hover:border-slate-700"
-              title="Ajustes e Integraciones"
+              className="p-1.5 sm:p-2 rounded-xl text-slate-400 hover:text-slate-200 hover:bg-slate-800 transition-colors border border-transparent hover:border-slate-700"
+              title="Ajustes y Conexiones"
             >
-              <Settings className="w-5 h-5" />
+              <Settings className="w-4 h-4 sm:w-5 sm:h-5" />
             </button>
           </div>
         </div>
       </header>
 
-      {/* Main Grid Content */}
-      <div className="max-w-7xl mx-auto px-4 py-6 flex-1 w-full grid grid-cols-1 lg:grid-cols-12 gap-6">
-        {/* Left Column: Sidebar with Tabs */}
-        <aside className="lg:col-span-4 flex flex-col gap-4">
-          {/* Tab Switcher */}
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-1.5 shadow-md">
-            <div className="flex gap-1">
-              {TABS.map(tab => (
-                <button
-                  key={tab.key}
-                  onClick={() => setActiveTab(tab.key)}
-                  className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-semibold transition-all ${
-                    activeTab === tab.key
-                      ? 'bg-indigo-600/25 text-indigo-300 shadow-sm border border-indigo-500/30'
-                      : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 border border-transparent'
-                  }`}
-                >
-                  <tab.icon className="w-3.5 h-3.5" />
-                  <span className="hidden sm:inline">{tab.label}</span>
-                </button>
-              ))}
-            </div>
-          </div>
+      {/* Contenedor Principal Adaptativo */}
+      <main className="max-w-7xl mx-auto px-3 sm:px-6 py-4 sm:py-6 flex-1 w-full">
+        {/* =================================================================== */}
+        {/* PESTAÑA: REUNIONES                                                  */}
+        {/* =================================================================== */}
+        {activeTab === 'meetings' && (
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 sm:gap-6">
+            {/* Columna Izquierda: Grabadora + Lista de Reuniones (Desktop o Movil si no hay detalle) */}
+            <aside className={`lg:col-span-4 flex flex-col gap-4 ${showMobileDetail ? 'hidden lg:flex' : 'flex'}`}>
+              {/* Grabador de Audio siempre visible en el listado para movil y desktop */}
+              <div className="lg:hidden">
+                <AudioRecorder onMeetingProcessed={handleMeetingProcessed} />
+              </div>
 
-          {/* Tab Content */}
-          {activeTab === 'meetings' && (
-            <>
-              {/* Meetings Header + Search */}
-              <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 shadow-md space-y-3">
+              {/* Encabezado de Historial con Buscador */}
+              <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-4 shadow-md space-y-3">
                 <div className="flex items-center justify-between">
-                  <h3 className="text-sm font-bold text-slate-200 uppercase tracking-wider flex items-center gap-2">
+                  <h3 className="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center gap-2">
                     <FileText className="w-4 h-4 text-indigo-400" />
-                    Historial
+                    Reuniones ({filteredMeetings.length})
                   </h3>
                   <button
-                    onClick={() => setSelectedMeetingId(null)}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-indigo-600 hover:bg-indigo-500 text-white shadow transition-all"
+                    onClick={() => {
+                      setSelectedMeetingId(null);
+                      setShowMobileDetail(false);
+                    }}
+                    className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold bg-indigo-600 hover:bg-indigo-500 text-white shadow transition-all"
                   >
                     <Plus className="w-3.5 h-3.5" />
                     Nueva
@@ -270,16 +328,16 @@ export default function App() {
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                     placeholder="Buscar reuniones o temas..."
-                    className="w-full bg-slate-800/80 border border-slate-700 rounded-xl pl-9 pr-3 py-2 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-indigo-500"
+                    className="w-full bg-slate-800/80 border border-slate-700 rounded-xl pl-9 pr-3 py-2 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-indigo-500 transition-colors"
                   />
                 </div>
               </div>
 
-              {/* Meetings List */}
-              <div className="space-y-2 max-h-[640px] overflow-y-auto pr-1">
+              {/* Lista de Reuniones */}
+              <div className="space-y-2 max-h-[580px] overflow-y-auto pr-1">
                 {filteredMeetings.length === 0 ? (
                   <div className="p-8 text-center bg-slate-900/40 border border-slate-800/60 rounded-2xl text-xs text-slate-500">
-                    No hay reuniones registradas todavia. Graba o sube un audio para empezar.
+                    No hay reuniones registradas todavía. Graba o sube un audio para empezar.
                   </div>
                 ) : (
                   filteredMeetings.map((m) => {
@@ -290,8 +348,11 @@ export default function App() {
                     return (
                       <div
                         key={m.id}
-                        onClick={() => setSelectedMeetingId(m.id)}
-                        className={`p-4 rounded-xl border transition-all cursor-pointer text-left relative overflow-hidden group ${
+                        onClick={() => {
+                          setSelectedMeetingId(m.id);
+                          setShowMobileDetail(true);
+                        }}
+                        className={`p-3.5 sm:p-4 rounded-xl border transition-all cursor-pointer text-left relative overflow-hidden group ${
                           isSelected
                             ? 'bg-slate-800/90 border-indigo-500/60 shadow-lg shadow-indigo-500/10'
                             : 'bg-slate-900/70 hover:bg-slate-800/60 border-slate-800'
@@ -324,49 +385,26 @@ export default function App() {
                   })
                 )}
               </div>
-            </>
-          )}
+            </aside>
 
-          {activeTab === 'calendar' && (
-            <CalendarView
-              onSelectMeeting={handleSelectMeetingFromCalendar}
-              onCreateEvent={handleCreateEvent}
-              onEditEvent={handleEditEvent}
-            />
-          )}
+            {/* Columna Derecha: AudioRecorder (Desktop) + Detalle de Reunion */}
+            <section className={`lg:col-span-8 space-y-5 sm:space-y-6 ${!showMobileDetail ? 'hidden lg:block' : 'block'}`}>
+              {/* Boton de regreso en vista movil */}
+              <div className="lg:hidden">
+                <button
+                  onClick={() => setShowMobileDetail(false)}
+                  className="flex items-center gap-2 text-xs font-semibold text-indigo-400 hover:text-indigo-300 mb-2 py-1 px-2 rounded-lg bg-indigo-950/40 border border-indigo-900/50"
+                >
+                  <ArrowLeft className="w-3.5 h-3.5" /> Volver al listado de reuniones
+                </button>
+              </div>
 
-          {activeTab === 'notebook' && !isEditingNote && (
-            <NotebookList
-              onSelectNote={handleSelectNote}
-              onNewNote={() => handleNewNote()}
-            />
-          )}
+              {/* Grabador en desktop */}
+              <div className="hidden lg:block">
+                <AudioRecorder onMeetingProcessed={handleMeetingProcessed} />
+              </div>
 
-          {activeTab === 'notebook' && isEditingNote && (
-            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-3 shadow-md">
-              <button
-                onClick={() => { setIsEditingNote(false); setSelectedNote(null); }}
-                className="flex items-center gap-2 text-xs text-slate-400 hover:text-slate-200 transition-colors mb-2"
-              >
-                <ChevronRight className="w-3 h-3 rotate-180" /> Volver a la lista
-              </button>
-              <p className="text-[11px] text-slate-500">
-                {selectedNote ? `Editando: ${selectedNote.title}` : 'Creando nueva nota...'}
-              </p>
-            </div>
-          )}
-        </aside>
-
-        {/* Right Column: Main Content */}
-        <main className="lg:col-span-8 space-y-6">
-          {/* Audio Recorder - always accessible in meetings tab */}
-          {activeTab === 'meetings' && (
-            <AudioRecorder onMeetingProcessed={handleMeetingProcessed} />
-          )}
-
-          {/* Content based on active tab */}
-          {activeTab === 'meetings' && (
-            <>
+              {/* Detalle o Placeholder */}
               {selectedMeeting ? (
                 <MeetingDetails
                   meeting={selectedMeeting}
@@ -376,7 +414,7 @@ export default function App() {
                   onCreateNote={handleCreateNoteFromMeeting}
                 />
               ) : (
-                <div className="bg-slate-900/40 border border-dashed border-slate-800 rounded-2xl p-12 text-center">
+                <div className="bg-slate-900/40 border border-dashed border-slate-800 rounded-2xl p-8 sm:p-12 text-center">
                   <div className="w-12 h-12 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-400 mx-auto mb-3">
                     <Sparkles className="w-6 h-6" />
                   </div>
@@ -386,58 +424,96 @@ export default function App() {
                   </p>
                 </div>
               )}
-            </>
-          )}
+            </section>
+          </div>
+        )}
 
-          {activeTab === 'calendar' && (
-            <div className="bg-slate-900/40 border border-dashed border-slate-800 rounded-2xl p-8 text-center">
-              <div className="w-12 h-12 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-400 mx-auto mb-3">
-                <Calendar className="w-6 h-6" />
+        {/* =================================================================== */}
+        {/* PESTAÑA: AGENDA / CALENDARIO                                        */}
+        {/* =================================================================== */}
+        {activeTab === 'calendar' && (
+          <div className="w-full">
+            <CalendarView
+              onSelectMeeting={handleSelectMeetingFromCalendar}
+              onCreateEvent={handleCreateEvent}
+              onEditEvent={handleEditEvent}
+            />
+          </div>
+        )}
+
+        {/* =================================================================== */}
+        {/* PESTAÑA: LIBRETA DE NOTAS                                           */}
+        {/* =================================================================== */}
+        {activeTab === 'notebook' && (
+          <div className="w-full">
+            {isEditingNote ? (
+              <div className="bg-slate-900/90 border border-slate-800 rounded-2xl shadow-xl overflow-hidden min-h-[75vh]">
+                <NoteEditor
+                  note={selectedNote}
+                  linkedMeeting={linkedMeetingForNote}
+                  meetings={meetings}
+                  onSave={handleNoteSaved}
+                  onClose={() => {
+                    setIsEditingNote(false);
+                    setSelectedNote(null);
+                    setLinkedMeetingForNote(null);
+                  }}
+                />
               </div>
-              <h3 className="text-base font-bold text-slate-200">Agenda ProActur</h3>
-              <p className="text-xs text-slate-400 max-w-sm mx-auto mt-1">
-                Selecciona un dia en el calendario para ver tus eventos o crear uno nuevo. Los eventos vinculados a reuniones te llevaran directamente a las notas.
-              </p>
-              <button
-                onClick={() => handleCreateEvent({ date: new Date() })}
-                className="mt-4 inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold bg-indigo-600 hover:bg-indigo-500 text-white shadow-lg shadow-indigo-500/20 transition-all"
-              >
-                <Plus className="w-4 h-4" /> Crear Evento
-              </button>
-            </div>
-          )}
-
-          {activeTab === 'notebook' && isEditingNote && (
-            <div className="bg-slate-900 border border-slate-800 rounded-2xl shadow-md overflow-hidden" style={{ minHeight: '70vh' }}>
-              <NoteEditor
-                note={selectedNote}
-                linkedMeeting={linkedMeetingForNote}
-                meetings={meetings}
-                onSave={handleNoteSaved}
-                onClose={() => { setIsEditingNote(false); setSelectedNote(null); setLinkedMeetingForNote(null); }}
+            ) : (
+              <NotebookList
+                onSelectNote={handleSelectNote}
+                onNewNote={() => handleNewNote()}
               />
-            </div>
-          )}
+            )}
+          </div>
+        )}
+      </main>
 
-          {activeTab === 'notebook' && !isEditingNote && (
-            <div className="bg-slate-900/40 border border-dashed border-slate-800 rounded-2xl p-8 text-center">
-              <div className="w-12 h-12 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-400 mx-auto mb-3">
-                <PenTool className="w-6 h-6" />
-              </div>
-              <h3 className="text-base font-bold text-slate-200">Libreta ProActur</h3>
-              <p className="text-xs text-slate-400 max-w-sm mx-auto mt-1">
-                Crea notas con teclado o escribe a mano con lapiz. Dibuja diagramas, tablas y arboles de estudio directamente en el canvas.
-              </p>
+      {/* =================================================================== */}
+      {/* BARRA DE NAVEGACION INFERIOR PARA MOVILES Y TABLETS (< md)          */}
+      {/* =================================================================== */}
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-slate-950/95 backdrop-blur-2xl border-t border-slate-800/80 px-2 py-1.5 safe-bottom shadow-2xl">
+        <div className="flex items-center justify-around">
+          {TABS.map(tab => {
+            const Icon = tab.icon;
+            const isActive = activeTab === tab.key;
+            return (
               <button
-                onClick={() => handleNewNote()}
-                className="mt-4 inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold bg-indigo-600 hover:bg-indigo-500 text-white shadow-lg shadow-indigo-500/20 transition-all"
+                key={tab.key}
+                onClick={() => {
+                  setActiveTab(tab.key);
+                  if (tab.key === 'meetings') setShowMobileDetail(false);
+                }}
+                className={`flex flex-col items-center justify-center py-1 px-3 rounded-xl transition-all ${
+                  isActive
+                    ? 'text-indigo-400 font-semibold'
+                    : 'text-slate-400 hover:text-slate-200'
+                }`}
               >
-                <Plus className="w-4 h-4" /> Nueva Nota
+                <div className={`p-1 rounded-lg ${isActive ? 'bg-indigo-600/20' : ''}`}>
+                  <Icon className="w-5 h-5" />
+                </div>
+                <span className="text-[10px] mt-0.5">{tab.label}</span>
               </button>
+            );
+          })}
+
+          {/* Boton Segundo Cerebro en Barra Movil */}
+          <button
+            onClick={() => setIsSecondBrainOpen(true)}
+            className="flex flex-col items-center justify-center py-1 px-3 rounded-xl text-slate-400 hover:text-indigo-300 transition-all"
+          >
+            <div className="p-1 rounded-lg relative">
+              <Brain className="w-5 h-5 text-indigo-400" />
+              <span className="absolute -top-0.5 -right-0.5 w-3.5 h-3.5 bg-indigo-600 text-[9px] text-white rounded-full flex items-center justify-center font-bold">
+                {meetings.length}
+              </span>
             </div>
-          )}
-        </main>
-      </div>
+            <span className="text-[10px] mt-0.5">Cerebro</span>
+          </button>
+        </div>
+      </nav>
 
       {/* Modals */}
       <SecondBrainModal
@@ -450,12 +526,14 @@ export default function App() {
         isOpen={isSettingsOpen}
         onClose={() => setIsSettingsOpen(false)}
         healthData={healthData}
+        keepAliveData={keepAliveData}
+        onTriggerKeepAlive={triggerKeepAlive}
         onRefreshHealth={fetchHealth}
       />
 
       <EventModal
         isOpen={eventModalOpen}
-        onClose={() => { setEventModalOpen(false); setEditingEvent(null); }}
+        onClose={() => setEventModalOpen(false)}
         event={editingEvent}
         initialDate={eventInitialDate}
         meetings={meetings}

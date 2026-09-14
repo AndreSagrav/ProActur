@@ -102,10 +102,13 @@ export default function CalendarView({ onSelectMeeting, onCreateEvent, onEditEve
     }
   }
 
+  const displayDay = selectedDate || today.getDate();
+  const displayEvents = getEventsForDay(displayDay);
+
   return (
-    <div className="space-y-4">
-      {/* Calendar Card */}
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-md">
+    <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 w-full">
+      {/* Calendar Card (7 cols on desktop) */}
+      <div className="lg:col-span-7 bg-slate-900 border border-slate-800 rounded-2xl p-4 sm:p-5 shadow-md flex flex-col justify-between">
         {/* Month Navigation */}
         <div className="flex items-center justify-between mb-5">
           <div className="flex items-center gap-3">
@@ -185,29 +188,37 @@ export default function CalendarView({ onSelectMeeting, onCreateEvent, onEditEve
         </div>
       </div>
 
-      {/* Selected Day Events */}
-      {selectedDate && (
-        <div className="bg-slate-900/70 border border-slate-800 rounded-2xl p-4">
-          <div className="flex items-center justify-between mb-3">
-            <h3 className="text-xs font-bold text-slate-200 flex items-center gap-2">
+      {/* Day Events Column (5 cols on desktop, debajo en moviles) */}
+      <div className="lg:col-span-5 bg-slate-900/90 border border-slate-800 rounded-2xl p-4 sm:p-5 shadow-md flex flex-col">
+        <div className="flex items-center justify-between mb-3.5 pb-2.5 border-b border-slate-800/80">
+          <div>
+            <h3 className="text-xs sm:text-sm font-bold text-slate-200 flex items-center gap-2">
               <Calendar className="w-4 h-4 text-indigo-400" />
-              {selectedDate} de {MONTHS[currentMonth]}
+              {displayDay} de {MONTHS[currentMonth]}
             </h3>
-            <button
-              onClick={() => onCreateEvent?.({
-                date: new Date(currentYear, currentMonth, selectedDate)
-              })}
-              className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-semibold bg-indigo-600 hover:bg-indigo-500 text-white transition-all"
-            >
-              <Plus className="w-3 h-3" /> Evento
-            </button>
+            <span className="text-[10px] text-slate-400">
+              {displayEvents.length} evento{displayEvents.length === 1 ? '' : 's'} agendado{displayEvents.length === 1 ? '' : 's'}
+            </span>
           </div>
+          <button
+            onClick={() => onCreateEvent?.({
+              date: new Date(currentYear, currentMonth, displayDay)
+            })}
+            className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-indigo-600 hover:bg-indigo-500 text-white shadow-sm transition-all"
+          >
+            <Plus className="w-3.5 h-3.5" /> Evento
+          </button>
+        </div>
 
-          {selectedEvents.length === 0 ? (
-            <p className="text-[11px] text-slate-500 text-center py-4">Sin eventos este dia</p>
-          ) : (
-            <div className="space-y-2">
-              {selectedEvents.map(ev => (
+        {displayEvents.length === 0 ? (
+          <div className="p-8 text-center bg-slate-800/20 border border-dashed border-slate-800 rounded-xl my-auto">
+            <Clock className="w-6 h-6 text-slate-600 mx-auto mb-2" />
+            <p className="text-xs text-slate-400 font-medium">Sin eventos para este día</p>
+            <p className="text-[10px] text-slate-500 mt-0.5">Toca '+ Evento' para agendar reuniones, tareas o seguimientos.</p>
+          </div>
+        ) : (
+          <div className="space-y-2.5 max-h-[500px] overflow-y-auto pr-1">
+            {displayEvents.map(ev => (
                 <div
                   key={ev.id}
                   onClick={() => ev.meetingId ? onSelectMeeting?.(ev.meetingId) : onEditEvent?.(ev)}
@@ -250,8 +261,7 @@ export default function CalendarView({ onSelectMeeting, onCreateEvent, onEditEve
               ))}
             </div>
           )}
-        </div>
-      )}
+      </div>
     </div>
   );
 }
