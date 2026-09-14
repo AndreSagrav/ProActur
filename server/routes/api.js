@@ -10,10 +10,14 @@ const { checkSupabaseStatus } = require('../services/supabaseClient');
 
 const router = express.Router();
 
-// Configurar multer para subida de audio
-const uploadDir = path.join(__dirname, '..', '..', 'uploads');
-if (!fs.existsSync(uploadDir)) {
-  fs.mkdirSync(uploadDir, { recursive: true });
+// Configurar multer para subida de audio (seguro para serverless)
+const uploadDir = process.env.VERCEL ? path.join('/tmp', 'uploads') : path.join(__dirname, '..', '..', 'uploads');
+try {
+  if (!fs.existsSync(uploadDir)) {
+    fs.mkdirSync(uploadDir, { recursive: true });
+  }
+} catch (err) {
+  // Manejo silencioso en filesystem de solo lectura
 }
 
 const storage = multer.memoryStorage();
@@ -31,7 +35,7 @@ router.get('/health', async (req, res) => {
     res.json({
       status: 'ok',
       hasGeminiKey: Boolean(process.env.GEMINI_API_KEY),
-      activeAiModel: aiService.defaultModel,
+      activeAiModel: aiService.geminiModel,
       aiProviders: providers,
       supabase: supabaseStatus,
       hasNotionKey: Boolean(process.env.NOTION_API_KEY),
@@ -105,7 +109,7 @@ router.post('/meetings/process-audio', upload.single('audio'), async (req, res) 
     const meetingTitle = req.body.title || 'Reunión Grabada ' + new Date().toLocaleString('es-ES');
     const mimeType = req.file.mimetype || 'audio/webm';
 
-    console.log(`[Proactor AI] Procesando audio de reunión: ${req.file.size} bytes (${mimeType}) con modelo ${aiService.defaultModel}`);
+    console.log(`[Proactor AI] Procesando audio de reunión: ${req.file.size} bytes (${mimeType})`);
 
     const result = await aiService.processMeeting({
       audioBuffer: req.file.buffer,
@@ -135,7 +139,7 @@ router.post('/meetings/process-text', async (req, res) => {
       return res.status(400).json({ error: 'El texto o notas de la reunión están vacíos.' });
     }
 
-    console.log(`[Proactor AI] Analizando notas de reunión con IA (${aiService.defaultModel})...`);
+    console.log(`[Proactor AI] Analizando notas de reunión con IA...`);
 
     const result = await aiService.processMeeting({
       rawText,
@@ -169,7 +173,6 @@ router.post('/meetings/:id/sync-notion', async (req, res) => {
       databaseId
     });
 
-    // Actualizar registro local y Supabase con enlace a Notion
     const updated = await storageService.updateMeeting(meeting.id, {
       notionSync: {
         syncedAt: new Date().toISOString(),

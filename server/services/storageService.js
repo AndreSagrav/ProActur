@@ -2,7 +2,9 @@
 const path = require('path');
 const { getSupabaseClient } = require('./supabaseClient');
 
-const DATA_FILE = path.join(__dirname, '..', 'data', 'meetings.json');
+const DATA_FILE = process.env.VERCEL
+  ? path.join('/tmp', 'meetings.json')
+  : path.join(__dirname, '..', 'data', 'meetings.json');
 
 class StorageService {
   constructor() {
@@ -11,12 +13,16 @@ class StorageService {
   }
 
   ensureLocalFileExists() {
-    const dir = path.dirname(DATA_FILE);
-    if (!fs.existsSync(dir)) {
-      fs.mkdirSync(dir, { recursive: true });
-    }
-    if (!fs.existsSync(DATA_FILE)) {
-      fs.writeFileSync(DATA_FILE, JSON.stringify([], null, 2), 'utf8');
+    try {
+      const dir = path.dirname(DATA_FILE);
+      if (!fs.existsSync(dir)) {
+        fs.mkdirSync(dir, { recursive: true });
+      }
+      if (!fs.existsSync(DATA_FILE)) {
+        fs.writeFileSync(DATA_FILE, JSON.stringify([], null, 2), 'utf8');
+      }
+    } catch (err) {
+      // Silencioso en entornos serverless donde el sistema de archivos es read-only
     }
   }
 
@@ -64,12 +70,14 @@ class StorageService {
   getLocalMeetings() {
     try {
       this.ensureLocalFileExists();
-      const content = fs.readFileSync(DATA_FILE, 'utf8');
-      return JSON.parse(content || '[]');
+      if (fs.existsSync(DATA_FILE)) {
+        const content = fs.readFileSync(DATA_FILE, 'utf8');
+        return JSON.parse(content || '[]');
+      }
     } catch (err) {
-      console.error('[Storage] Error leyendo meetings.json:', err.message);
-      return [];
+      // Silencioso
     }
+    return [];
   }
 
   saveLocalMeeting(meeting) {
@@ -83,7 +91,7 @@ class StorageService {
       }
       fs.writeFileSync(DATA_FILE, JSON.stringify(meetings, null, 2), 'utf8');
     } catch (err) {
-      console.error('[Storage] Error guardando copia local:', err.message);
+      // Silencioso en Vercel
     }
   }
 
@@ -93,7 +101,7 @@ class StorageService {
       meetings = meetings.filter(m => m.id !== id);
       fs.writeFileSync(DATA_FILE, JSON.stringify(meetings, null, 2), 'utf8');
     } catch (err) {
-      console.error('[Storage] Error eliminando de copia local:', err.message);
+      // Silencioso en Vercel
     }
   }
 
@@ -113,12 +121,12 @@ class StorageService {
         }
 
         if (error && error.code === 'PGRST205') {
-          console.warn("[Storage] Tabla 'meetings' no existe en Supabase aún. Usando persistencia local (meetings.json).");
+          console.warn("[Storage] Tabla 'meetings' no existe en Supabase aún. Usando persistencia local.");
         } else if (error) {
           console.warn('[Storage] Error consultando Supabase:', error.message);
         }
       } catch (err) {
-        console.warn('[Storage] Fallback a local por error de red Supabase:', err.message);
+        console.warn('[Storage] Fallback a local por error Supabase:', err.message);
       }
     }
 
@@ -155,10 +163,10 @@ class StorageService {
       createdAt: meeting.createdAt || new Date().toISOString()
     };
 
-    // Guardar en copia local siempre (como backup y resiliencia)
+    // Intentar backup local
     this.saveLocalMeeting(normalized);
 
-    // Guardar en Supabase si está disponible
+    // Guardar en Supabase Cloud
     const supabase = getSupabaseClient();
     if (supabase && this.useSupabase) {
       try {
@@ -168,11 +176,7 @@ class StorageService {
           .upsert(row, { onConflict: 'id' });
 
         if (error) {
-          if (error.code === 'PGRST205') {
-            console.warn("[Storage] La tabla 'meetings' aún no existe en Supabase. Se guardó localmente.");
-          } else {
-            console.warn('[Storage] Error al guardar en Supabase:', error.message);
-          }
+          console.warn('[Storage] Error al guardar en Supabase:', error.message);
         } else {
           console.log(`[Storage] Reunión ${meetingId} sincronizada con Supabase exitosamente.`);
         }
@@ -190,10 +194,8 @@ class StorageService {
 
     const merged = { ...current, ...updates, id };
 
-    // Actualizar copia local
     this.saveLocalMeeting(merged);
 
-    // Actualizar Supabase
     const supabase = getSupabaseClient();
     if (supabase && this.useSupabase) {
       try {
