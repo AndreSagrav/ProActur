@@ -1,12 +1,13 @@
 ﻿const { createClient } = require('@supabase/supabase-js');
+const config = require('../config');
 
 let supabaseInstance = null;
 
 function getSupabaseClient() {
   if (supabaseInstance) return supabaseInstance;
 
-  const url = process.env.SUPABASE_URL;
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY;
+  const url = config.SUPABASE_URL;
+  const key = config.SUPABASE_SERVICE_ROLE_KEY || config.SUPABASE_ANON_KEY;
 
   if (!url || !key) {
     return null;

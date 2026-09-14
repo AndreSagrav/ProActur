@@ -1,9 +1,10 @@
-﻿class AIService {
+﻿const config = require('../config');
+
+class AIService {
   constructor() {
-    this.defaultProvider = process.env.AI_PROVIDER || 'gemini';
-    this.geminiModel = process.env.GEMINI_MODEL || 'gemini-3.6-flash';
-    this.openRouterModel = process.env.OPENROUTER_MODEL || 'deepseek/deepseek-chat';
-    this.groqModel = process.env.GROQ_CHAT_MODEL || 'openai/gpt-oss-120b';
+    this.geminiModel = config.GEMINI_MODEL || 'gemini-3.6-flash';
+    this.openRouterModel = config.OPENROUTER_MODEL || 'deepseek/deepseek-chat';
+    this.groqModel = config.GROQ_CHAT_MODEL || 'openai/gpt-oss-120b';
     this.timeoutMs = 120000;
   }
 
@@ -12,19 +13,19 @@
       gemini: {
         name: 'Google Gemini',
         model: this.geminiModel,
-        configured: Boolean(process.env.GEMINI_API_KEY),
+        configured: Boolean(config.GEMINI_API_KEY),
         type: 'multimodal (audio nativo + texto)'
       },
       openrouter: {
         name: 'OpenRouter (DeepSeek / Claude / GPT)',
         model: this.openRouterModel,
-        configured: Boolean(process.env.OPENROUTER_API_KEY),
+        configured: Boolean(config.OPENROUTER_API_KEY),
         type: 'razonamiento avanzado y síntesis'
       },
       groq: {
         name: 'Groq LPU (Ultra-Fast)',
         model: this.groqModel,
-        configured: Boolean(process.env.GROQ_API_KEY),
+        configured: Boolean(config.GROQ_API_KEY),
         type: 'inferencia ultrarrápida + whisper'
       }
     };
@@ -84,8 +85,8 @@ Debes responder ÚNICAMENTE con un objeto JSON válido (sin markdown, sin bloque
 
   // --- 1. LLAMADA CON GEMINI (Multimodal Audio & Texto) ---
   async processWithGemini({ audioBuffer, mimeType, rawText, meetingTitle }) {
-    const key = process.env.GEMINI_API_KEY;
-    if (!key) throw new Error('GEMINI_API_KEY no configurada en .env');
+    const key = config.GEMINI_API_KEY;
+    if (!key) throw new Error('GEMINI_API_KEY no configurada');
 
     const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${this.geminiModel}:generateContent`;
     const prompt = this.buildMeetingPrompt(meetingTitle, rawText);
@@ -139,7 +140,7 @@ Debes responder ÚNICAMENTE con un objeto JSON válido (sin markdown, sin bloque
 
   // --- 2. LLAMADA CON OPENROUTER (Texto / Notas) ---
   async processWithOpenRouter({ rawText, meetingTitle }) {
-    const key = process.env.OPENROUTER_API_KEY;
+    const key = config.OPENROUTER_API_KEY;
     if (!key) throw new Error('OPENROUTER_API_KEY no configurada');
 
     const prompt = this.buildMeetingPrompt(meetingTitle, rawText);
@@ -152,7 +153,7 @@ Debes responder ÚNICAMENTE con un objeto JSON válido (sin markdown, sin bloque
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${key}`,
-          'HTTP-Referer': 'http://localhost:5173',
+          'HTTP-Referer': 'https://vercel.app',
           'X-Title': 'Proactor AI'
         },
         body: JSON.stringify({
@@ -184,7 +185,7 @@ Debes responder ÚNICAMENTE con un objeto JSON válido (sin markdown, sin bloque
 
   // --- 3. LLAMADA CON GROQ (Inferencia Rápida) ---
   async processWithGroq({ rawText, meetingTitle }) {
-    const key = process.env.GROQ_API_KEY;
+    const key = config.GROQ_API_KEY;
     if (!key) throw new Error('GROQ_API_KEY no configurada');
 
     const prompt = this.buildMeetingPrompt(meetingTitle, rawText);
@@ -229,29 +230,22 @@ Debes responder ÚNICAMENTE con un objeto JSON válido (sin markdown, sin bloque
    * Router Inteligente de Procesamiento de Reuniones (con auto-fallback)
    */
   async processMeeting(options) {
-    const { audioBuffer, rawText } = options;
+    const { audioBuffer } = options;
 
     // Si hay audioBuffer, Gemini es el motor nativo ideal
     if (audioBuffer) {
-      try {
-        console.log(`[AI] Procesando audio nativo con Gemini (${this.geminiModel})...`);
-        return await this.processWithGemini(options);
-      } catch (geminiErr) {
-        console.warn('[AI] Error procesando con Gemini:', geminiErr.message);
-        throw geminiErr;
-      }
+      return await this.processWithGemini(options);
     }
 
     // Si es texto, intentamos según preferencia con fallback en cascada
     const attempts = [];
-    if (process.env.OPENROUTER_API_KEY) attempts.push('openrouter');
-    if (process.env.GROQ_API_KEY) attempts.push('groq');
-    if (process.env.GEMINI_API_KEY) attempts.push('gemini');
+    if (config.OPENROUTER_API_KEY) attempts.push('openrouter');
+    if (config.GROQ_API_KEY) attempts.push('groq');
+    if (config.GEMINI_API_KEY) attempts.push('gemini');
 
     let lastError = null;
     for (const provider of attempts) {
       try {
-        console.log(`[AI] Estructurando minuta con proveedor: ${provider}...`);
         if (provider === 'openrouter') return await this.processWithOpenRouter(options);
         if (provider === 'groq') return await this.processWithGroq(options);
         if (provider === 'gemini') return await this.processWithGemini(options);
@@ -295,16 +289,15 @@ Instrucciones:
 2. Si la información no aparece en las reuniones registradas, indícalo cortésmente y sugiere qué buscar o registrar.
 `;
 
-    // Intentar con OpenRouter (DeepSeek / Claude) primero si está disponible para razonamiento fino, o Gemini
-    if (process.env.OPENROUTER_API_KEY) {
+    // Intentar con OpenRouter (DeepSeek) primero si está disponible
+    if (config.OPENROUTER_API_KEY) {
       try {
-        console.log(`[SecondBrain] Consultando con OpenRouter (${this.openRouterModel})...`);
         const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': `Bearer ${process.env.OPENROUTER_API_KEY}`,
-            'HTTP-Referer': 'http://localhost:5173',
+            'Authorization': `Bearer ${config.OPENROUTER_API_KEY}`,
+            'HTTP-Referer': 'https://vercel.app',
             'X-Title': 'Proactor AI'
           },
           body: JSON.stringify({
@@ -324,7 +317,7 @@ Instrucciones:
     }
 
     // Fallback con Gemini
-    const key = process.env.GEMINI_API_KEY;
+    const key = config.GEMINI_API_KEY;
     if (!key) throw new Error('GEMINI_API_KEY no configurada');
 
     const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${this.geminiModel}:generateContent`;
