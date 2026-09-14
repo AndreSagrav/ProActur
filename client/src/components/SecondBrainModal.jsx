@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { X, Brain, Send, Loader2, Sparkles, MessageSquare } from 'lucide-react';
+﻿import React, { useState } from 'react';
+import { X, Brain, Send, Loader2, Sparkles } from 'lucide-react';
 
 export default function SecondBrainModal({ isOpen, onClose, totalMeetings }) {
   const [question, setQuestion] = useState('');

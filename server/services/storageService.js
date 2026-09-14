@@ -1,14 +1,16 @@
-const fs = require('fs');
+﻿const fs = require('fs');
 const path = require('path');
+const { getSupabaseClient } = require('./supabaseClient');
 
 const DATA_FILE = path.join(__dirname, '..', 'data', 'meetings.json');
 
 class StorageService {
   constructor() {
-    this.ensureFileExists();
+    this.ensureLocalFileExists();
+    this.useSupabase = true;
   }
 
-  ensureFileExists() {
+  ensureLocalFileExists() {
     const dir = path.dirname(DATA_FILE);
     if (!fs.existsSync(dir)) {
       fs.mkdirSync(dir, { recursive: true });
@@ -18,45 +20,217 @@ class StorageService {
     }
   }
 
-  getAllMeetings() {
+  // Mapear de formato JS (camelCase) a Supabase (snake_case)
+  toSupabaseRow(m) {
+    return {
+      id: m.id,
+      title: m.title || 'Reunión sin título',
+      summary: m.summary || '',
+      key_topics: m.keyTopics || [],
+      key_decisions: m.keyDecisions || [],
+      action_items: m.actionItems || [],
+      proactive_advice: m.proactiveAdvice || [],
+      transcript: m.transcript || '',
+      tags: m.tags || [],
+      source: m.source || 'audio',
+      audio_size: m.audioSize || 0,
+      notion_sync: m.notionSync || null,
+      created_at: m.createdAt || new Date().toISOString()
+    };
+  }
+
+  // Mapear de Supabase (snake_case) a formato JS (camelCase)
+  fromSupabaseRow(row) {
+    if (!row) return null;
+    return {
+      id: row.id,
+      title: row.title,
+      summary: row.summary,
+      keyTopics: row.key_topics || [],
+      keyDecisions: row.key_decisions || [],
+      actionItems: row.action_items || [],
+      proactiveAdvice: row.proactive_advice || [],
+      transcript: row.transcript || '',
+      tags: row.tags || [],
+      source: row.source || 'audio',
+      audioSize: row.audio_size || 0,
+      notionSync: row.notion_sync || null,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at
+    };
+  }
+
+  // --- Fallback Local (meetings.json) ---
+  getLocalMeetings() {
     try {
-      this.ensureFileExists();
+      this.ensureLocalFileExists();
       const content = fs.readFileSync(DATA_FILE, 'utf8');
       return JSON.parse(content || '[]');
     } catch (err) {
-      console.error('Error leyendo meetings.json:', err);
+      console.error('[Storage] Error leyendo meetings.json:', err.message);
       return [];
     }
   }
 
-  getMeetingById(id) {
-    const meetings = this.getAllMeetings();
-    return meetings.find(m => m.id === id);
+  saveLocalMeeting(meeting) {
+    try {
+      const meetings = this.getLocalMeetings();
+      const idx = meetings.findIndex(m => m.id === meeting.id);
+      if (idx >= 0) {
+        meetings[idx] = { ...meetings[idx], ...meeting };
+      } else {
+        meetings.unshift(meeting);
+      }
+      fs.writeFileSync(DATA_FILE, JSON.stringify(meetings, null, 2), 'utf8');
+    } catch (err) {
+      console.error('[Storage] Error guardando copia local:', err.message);
+    }
   }
 
-  saveMeeting(meeting) {
-    const meetings = this.getAllMeetings();
-    const newMeeting = {
-      id: meeting.id || 'meet_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6),
-      createdAt: new Date().toISOString(),
-      ...meeting
-    };
+  deleteLocalMeeting(id) {
+    try {
+      let meetings = this.getLocalMeetings();
+      meetings = meetings.filter(m => m.id !== id);
+      fs.writeFileSync(DATA_FILE, JSON.stringify(meetings, null, 2), 'utf8');
+    } catch (err) {
+      console.error('[Storage] Error eliminando de copia local:', err.message);
+    }
+  }
 
-    const existingIndex = meetings.findIndex(m => m.id === newMeeting.id);
-    if (existingIndex >= 0) {
-      meetings[existingIndex] = newMeeting;
-    } else {
-      meetings.unshift(newMeeting); // Más reciente primero
+  // --- Métodos Públicos Híbridos (Async) ---
+
+  async getAllMeetings() {
+    const supabase = getSupabaseClient();
+    if (supabase && this.useSupabase) {
+      try {
+        const { data, error } = await supabase
+          .from('meetings')
+          .select('*')
+          .order('created_at', { ascending: false });
+
+        if (!error && data) {
+          return data.map(r => this.fromSupabaseRow(r));
+        }
+
+        if (error && error.code === 'PGRST205') {
+          console.warn("[Storage] Tabla 'meetings' no existe en Supabase aún. Usando persistencia local (meetings.json).");
+        } else if (error) {
+          console.warn('[Storage] Error consultando Supabase:', error.message);
+        }
+      } catch (err) {
+        console.warn('[Storage] Fallback a local por error de red Supabase:', err.message);
+      }
     }
 
-    fs.writeFileSync(DATA_FILE, JSON.stringify(meetings, null, 2), 'utf8');
-    return newMeeting;
+    return this.getLocalMeetings();
   }
 
-  deleteMeeting(id) {
-    let meetings = this.getAllMeetings();
-    meetings = meetings.filter(m => m.id !== id);
-    fs.writeFileSync(DATA_FILE, JSON.stringify(meetings, null, 2), 'utf8');
+  async getMeetingById(id) {
+    const supabase = getSupabaseClient();
+    if (supabase && this.useSupabase) {
+      try {
+        const { data, error } = await supabase
+          .from('meetings')
+          .select('*')
+          .eq('id', id)
+          .single();
+
+        if (!error && data) {
+          return this.fromSupabaseRow(data);
+        }
+      } catch (err) {
+        // Silencioso fallback
+      }
+    }
+
+    const localList = this.getLocalMeetings();
+    return localList.find(m => m.id === id) || null;
+  }
+
+  async saveMeeting(meeting) {
+    const meetingId = meeting.id || 'meet_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6);
+    const normalized = {
+      ...meeting,
+      id: meetingId,
+      createdAt: meeting.createdAt || new Date().toISOString()
+    };
+
+    // Guardar en copia local siempre (como backup y resiliencia)
+    this.saveLocalMeeting(normalized);
+
+    // Guardar en Supabase si está disponible
+    const supabase = getSupabaseClient();
+    if (supabase && this.useSupabase) {
+      try {
+        const row = this.toSupabaseRow(normalized);
+        const { error } = await supabase
+          .from('meetings')
+          .upsert(row, { onConflict: 'id' });
+
+        if (error) {
+          if (error.code === 'PGRST205') {
+            console.warn("[Storage] La tabla 'meetings' aún no existe en Supabase. Se guardó localmente.");
+          } else {
+            console.warn('[Storage] Error al guardar en Supabase:', error.message);
+          }
+        } else {
+          console.log(`[Storage] Reunión ${meetingId} sincronizada con Supabase exitosamente.`);
+        }
+      } catch (err) {
+        console.warn('[Storage] Error de red Supabase:', err.message);
+      }
+    }
+
+    return normalized;
+  }
+
+  async updateMeeting(id, updates) {
+    const current = await this.getMeetingById(id);
+    if (!current) return null;
+
+    const merged = { ...current, ...updates, id };
+
+    // Actualizar copia local
+    this.saveLocalMeeting(merged);
+
+    // Actualizar Supabase
+    const supabase = getSupabaseClient();
+    if (supabase && this.useSupabase) {
+      try {
+        const updatePayload = {};
+        if (updates.actionItems !== undefined) updatePayload.action_items = updates.actionItems;
+        if (updates.title !== undefined) updatePayload.title = updates.title;
+        if (updates.summary !== undefined) updatePayload.summary = updates.summary;
+        if (updates.keyDecisions !== undefined) updatePayload.key_decisions = updates.keyDecisions;
+        if (updates.notionSync !== undefined) updatePayload.notion_sync = updates.notionSync;
+
+        await supabase
+          .from('meetings')
+          .update(updatePayload)
+          .eq('id', id);
+      } catch (err) {
+        console.warn('[Storage] Error actualizando reunión en Supabase:', err.message);
+      }
+    }
+
+    return merged;
+  }
+
+  async deleteMeeting(id) {
+    this.deleteLocalMeeting(id);
+
+    const supabase = getSupabaseClient();
+    if (supabase && this.useSupabase) {
+      try {
+        await supabase
+          .from('meetings')
+          .delete()
+          .eq('id', id);
+      } catch (err) {
+        console.warn('[Storage] Error eliminando reunión en Supabase:', err.message);
+      }
+    }
+
     return true;
   }
 }

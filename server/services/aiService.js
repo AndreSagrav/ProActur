@@ -1,35 +1,43 @@
-const fs = require('fs');
-
-class AIService {
+﻿class AIService {
   constructor() {
-    this.apiKey = process.env.GEMINI_API_KEY || '';
+    this.defaultProvider = process.env.AI_PROVIDER || 'gemini';
+    this.geminiModel = process.env.GEMINI_MODEL || 'gemini-3.6-flash';
+    this.openRouterModel = process.env.OPENROUTER_MODEL || 'deepseek/deepseek-chat';
+    this.groqModel = process.env.GROQ_CHAT_MODEL || 'openai/gpt-oss-120b';
+    this.timeoutMs = 120000;
   }
 
-  getApiKey() {
-    return this.apiKey || process.env.GEMINI_API_KEY;
+  getAvailableProviders() {
+    return {
+      gemini: {
+        name: 'Google Gemini',
+        model: this.geminiModel,
+        configured: Boolean(process.env.GEMINI_API_KEY),
+        type: 'multimodal (audio nativo + texto)'
+      },
+      openrouter: {
+        name: 'OpenRouter (DeepSeek / Claude / GPT)',
+        model: this.openRouterModel,
+        configured: Boolean(process.env.OPENROUTER_API_KEY),
+        type: 'razonamiento avanzado y síntesis'
+      },
+      groq: {
+        name: 'Groq LPU (Ultra-Fast)',
+        model: this.groqModel,
+        configured: Boolean(process.env.GROQ_API_KEY),
+        type: 'inferencia ultrarrápida + whisper'
+      }
+    };
   }
 
-  setApiKey(key) {
-    this.apiKey = key;
-  }
-
-  /**
-   * Transcribe and analyze audio or raw meeting text
-   */
-  async processMeeting({ audioBuffer, mimeType, rawText, meetingTitle }) {
-    const key = this.getApiKey();
-    if (!key) {
-      throw new Error('GEMINI_API_KEY no configurada. Añádela en el archivo .env o en la configuración.');
-    }
-
-    const model = 'gemini-2.0-flash';
-    const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`;
-
-    const prompt = `
+  buildMeetingPrompt(meetingTitle, rawText) {
+    return `
 Eres Proactor AI, un asistente ejecutivo y compañero de equipo proactivo de clase mundial.
 Tu trabajo es escuchar/leer esta reunión y generar un análisis exhaustivo, estructurado y de alto impacto.
 
-Debes responder ÚNICAMENTE con un objeto JSON válido (sin markdown, sin bloques de código \`\`\`json, solo el JSON puro) con la siguiente estructura:
+${rawText ? `Notas o transcripción previa provista:\n${rawText}\n` : ''}
+
+Debes responder ÚNICAMENTE con un objeto JSON válido (sin markdown, sin bloques de código \`\`\`json, solo el JSON puro) con la siguiente estructura exacta:
 {
   "title": "${meetingTitle || 'Título conciso y profesional de la reunión'}",
   "summary": "Resumen ejecutivo de 2 o 3 párrafos claros y directos",
@@ -43,7 +51,8 @@ Debes responder ÚNICAMENTE con un objeto JSON válido (sin markdown, sin bloque
       "task": "Descripción clara de la tarea a realizar",
       "assignee": "Nombre del responsable (o 'Por asignar' si no se especifica)",
       "priority": "Alta | Media | Baja",
-      "deadline": "Fecha límite o 'Pendiente de definir'"
+      "deadline": "Fecha límite o 'Pendiente de definir'",
+      "completed": false
     }
   ],
   "proactiveAdvice": [
@@ -53,86 +62,227 @@ Debes responder ÚNICAMENTE con un objeto JSON válido (sin markdown, sin bloque
   "tags": ["Categoría1", "Categoría2"]
 }
 `;
+  }
 
+  cleanJsonResponse(rawText) {
+    if (!rawText) throw new Error('No se recibió texto de respuesta del modelo.');
+    const cleaned = rawText
+      .replace(/^```json\s*/i, '')
+      .replace(/^```\s*/i, '')
+      .replace(/\s*```$/i, '')
+      .trim();
+
+    const parsed = JSON.parse(cleaned);
+    if (Array.isArray(parsed.actionItems)) {
+      parsed.actionItems = parsed.actionItems.map(item => ({
+        ...item,
+        completed: Boolean(item.completed)
+      }));
+    }
+    return parsed;
+  }
+
+  // --- 1. LLAMADA CON GEMINI (Multimodal Audio & Texto) ---
+  async processWithGemini({ audioBuffer, mimeType, rawText, meetingTitle }) {
+    const key = process.env.GEMINI_API_KEY;
+    if (!key) throw new Error('GEMINI_API_KEY no configurada en .env');
+
+    const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${this.geminiModel}:generateContent`;
+    const prompt = this.buildMeetingPrompt(meetingTitle, rawText);
     const parts = [];
 
     if (audioBuffer) {
-      const base64Data = audioBuffer.toString('base64');
       parts.push({
         inlineData: {
           mimeType: mimeType || 'audio/webm',
-          data: base64Data
+          data: audioBuffer.toString('base64')
         }
       });
     }
-
-    if (rawText) {
-      parts.push({
-        text: `Notas o transcripción previa provista:\n${rawText}\n`
-      });
-    }
-
     parts.push({ text: prompt });
 
-    const response = await fetch(endpoint, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        contents: [{ parts }],
-        generationConfig: {
-          temperature: 0.2,
-          responseMimeType: 'application/json'
-        }
-      })
-    });
-
-    if (!response.ok) {
-      const errText = await response.text();
-      throw new Error(`Error en API de Gemini (${response.status}): ${errText}`);
-    }
-
-    const data = await response.json();
-    const rawResult = data.candidates?.[0]?.content?.parts?.[0]?.text;
-    if (!rawResult) {
-      throw new Error('No se recibió respuesta válida del modelo de IA');
-    }
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), this.timeoutMs);
 
     try {
-      // Limpiar posibles delimitadores de código markdown si los hubiera
-      const cleaned = rawResult.replace(/^```json\s*/i, '').replace(/\s*```$/i, '').trim();
-      return JSON.parse(cleaned);
-    } catch (parseError) {
-      console.error('Error parseando JSON de Gemini:', rawResult);
-      throw new Error('Error al interpretar el JSON generado por el modelo de IA');
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-goog-api-key': key
+        },
+        body: JSON.stringify({
+          contents: [{ parts }],
+          generationConfig: {
+            temperature: 0.2,
+            responseMimeType: 'application/json'
+          }
+        }),
+        signal: controller.signal
+      });
+
+      clearTimeout(timer);
+
+      if (!response.ok) {
+        const errText = await response.text();
+        throw new Error(`Error Gemini (${response.status}): ${errText}`);
+      }
+
+      const data = await response.json();
+      const raw = data.candidates?.[0]?.content?.parts?.[0]?.text;
+      return this.cleanJsonResponse(raw);
+    } catch (err) {
+      clearTimeout(timer);
+      throw err;
+    }
+  }
+
+  // --- 2. LLAMADA CON OPENROUTER (Texto / Notas) ---
+  async processWithOpenRouter({ rawText, meetingTitle }) {
+    const key = process.env.OPENROUTER_API_KEY;
+    if (!key) throw new Error('OPENROUTER_API_KEY no configurada');
+
+    const prompt = this.buildMeetingPrompt(meetingTitle, rawText);
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), this.timeoutMs);
+
+    try {
+      const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${key}`,
+          'HTTP-Referer': 'http://localhost:5173',
+          'X-Title': 'Proactor AI'
+        },
+        body: JSON.stringify({
+          model: this.openRouterModel,
+          messages: [
+            { role: 'system', content: 'Eres un asistente ejecutivo experto en estructurar minutas de reunión en formato JSON estricto.' },
+            { role: 'user', content: prompt }
+          ],
+          temperature: 0.2,
+          response_format: { type: 'json_object' }
+        }),
+        signal: controller.signal
+      });
+
+      clearTimeout(timer);
+      if (!response.ok) {
+        const err = await response.text();
+        throw new Error(`Error OpenRouter (${response.status}): ${err}`);
+      }
+
+      const data = await response.json();
+      const raw = data.choices?.[0]?.message?.content;
+      return this.cleanJsonResponse(raw);
+    } catch (err) {
+      clearTimeout(timer);
+      throw err;
+    }
+  }
+
+  // --- 3. LLAMADA CON GROQ (Inferencia Rápida) ---
+  async processWithGroq({ rawText, meetingTitle }) {
+    const key = process.env.GROQ_API_KEY;
+    if (!key) throw new Error('GROQ_API_KEY no configurada');
+
+    const prompt = this.buildMeetingPrompt(meetingTitle, rawText);
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), this.timeoutMs);
+
+    try {
+      const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${key}`
+        },
+        body: JSON.stringify({
+          model: this.groqModel,
+          messages: [
+            { role: 'system', content: 'Eres un asistente ejecutivo que responde estrictamente en JSON.' },
+            { role: 'user', content: prompt }
+          ],
+          temperature: 0.2,
+          response_format: { type: 'json_object' }
+        }),
+        signal: controller.signal
+      });
+
+      clearTimeout(timer);
+      if (!response.ok) {
+        const err = await response.text();
+        throw new Error(`Error Groq (${response.status}): ${err}`);
+      }
+
+      const data = await response.json();
+      const raw = data.choices?.[0]?.message?.content;
+      return this.cleanJsonResponse(raw);
+    } catch (err) {
+      clearTimeout(timer);
+      throw err;
     }
   }
 
   /**
-   * Second Brain: Chat across past meetings
+   * Router Inteligente de Procesamiento de Reuniones (con auto-fallback)
    */
-  async askSecondBrain(question, meetingsList) {
-    const key = this.getApiKey();
-    if (!key) {
-      throw new Error('GEMINI_API_KEY no configurada.');
+  async processMeeting(options) {
+    const { audioBuffer, rawText } = options;
+
+    // Si hay audioBuffer, Gemini es el motor nativo ideal
+    if (audioBuffer) {
+      try {
+        console.log(`[AI] Procesando audio nativo con Gemini (${this.geminiModel})...`);
+        return await this.processWithGemini(options);
+      } catch (geminiErr) {
+        console.warn('[AI] Error procesando con Gemini:', geminiErr.message);
+        throw geminiErr;
+      }
     }
 
-    const model = 'gemini-2.0-flash';
-    const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`;
+    // Si es texto, intentamos según preferencia con fallback en cascada
+    const attempts = [];
+    if (process.env.OPENROUTER_API_KEY) attempts.push('openrouter');
+    if (process.env.GROQ_API_KEY) attempts.push('groq');
+    if (process.env.GEMINI_API_KEY) attempts.push('gemini');
 
-    const context = meetingsList.map((m, idx) => `
+    let lastError = null;
+    for (const provider of attempts) {
+      try {
+        console.log(`[AI] Estructurando minuta con proveedor: ${provider}...`);
+        if (provider === 'openrouter') return await this.processWithOpenRouter(options);
+        if (provider === 'groq') return await this.processWithGroq(options);
+        if (provider === 'gemini') return await this.processWithGemini(options);
+      } catch (err) {
+        console.warn(`[AI] Falló ${provider}: ${err.message}. Intentando siguiente proveedor...`);
+        lastError = err;
+      }
+    }
+
+    throw lastError || new Error('No hay proveedores de IA configurados o disponibles.');
+  }
+
+  /**
+   * Segundo Cerebro: Chat cruzado inteligente
+   */
+  async askSecondBrain(question, meetingsList) {
+    const recentMeetings = (meetingsList || []).slice(0, 20);
+    const context = recentMeetings.map((m, idx) => `
 Reunión #${idx + 1}:
 Título: ${m.title}
 Fecha: ${m.createdAt || m.date}
 Resumen: ${m.summary}
 Decisiones: ${(m.keyDecisions || []).join('; ')}
-Tareas pendientes: ${(m.actionItems || []).map(a => `${a.task} (${a.assignee})`).join('; ')}
-Transcripción / Notas: ${m.transcript || ''}
+Tareas: ${(m.actionItems || []).map(a => `${a.task} [Resp: ${a.assignee}] [Estado: ${a.completed ? 'Completada' : 'Pendiente'}]`).join('; ')}
+Consejos: ${(m.proactiveAdvice || []).join('; ')}
 ---
 `).join('\n');
 
     const prompt = `
 Eres el "Segundo Cerebro" (Second Brain) de Proactor AI.
-Tienes acceso al historial completo de reuniones y notas del usuario.
+Tienes acceso al historial de reuniones del usuario.
 
 Historial de Reuniones:
 ${context || 'No hay reuniones previas registradas aún.'}
@@ -141,13 +291,49 @@ Pregunta del usuario:
 "${question}"
 
 Instrucciones:
-1. Responde de forma clara, directa, profesional y citando específicamente qué reunión, fecha o responsable está relacionado.
+1. Responde de forma concisa, ejecutiva, profesional y citando específicamente qué reunión, fecha o responsable está relacionado.
 2. Si la información no aparece en las reuniones registradas, indícalo cortésmente y sugiere qué buscar o registrar.
 `;
 
+    // Intentar con OpenRouter (DeepSeek / Claude) primero si está disponible para razonamiento fino, o Gemini
+    if (process.env.OPENROUTER_API_KEY) {
+      try {
+        console.log(`[SecondBrain] Consultando con OpenRouter (${this.openRouterModel})...`);
+        const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${process.env.OPENROUTER_API_KEY}`,
+            'HTTP-Referer': 'http://localhost:5173',
+            'X-Title': 'Proactor AI'
+          },
+          body: JSON.stringify({
+            model: this.openRouterModel,
+            messages: [{ role: 'user', content: prompt }],
+            temperature: 0.3
+          })
+        });
+        if (res.ok) {
+          const data = await res.json();
+          const ans = data.choices?.[0]?.message?.content;
+          if (ans) return ans;
+        }
+      } catch (err) {
+        console.warn('[SecondBrain] Fallback desde OpenRouter a Gemini:', err.message);
+      }
+    }
+
+    // Fallback con Gemini
+    const key = process.env.GEMINI_API_KEY;
+    if (!key) throw new Error('GEMINI_API_KEY no configurada');
+
+    const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${this.geminiModel}:generateContent`;
     const response = await fetch(endpoint, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'x-goog-api-key': key
+      },
       body: JSON.stringify({
         contents: [{ parts: [{ text: prompt }] }],
         generationConfig: { temperature: 0.3 }
@@ -160,7 +346,7 @@ Instrucciones:
     }
 
     const data = await response.json();
-    return data.candidates?.[0]?.content?.parts?.[0]?.text || 'Sin respuesta';
+    return data.candidates?.[0]?.content?.parts?.[0]?.text || 'Sin respuesta generada';
   }
 }
 

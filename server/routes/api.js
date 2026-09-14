@@ -1,4 +1,4 @@
-const express = require('express');
+﻿const express = require('express');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
@@ -6,10 +6,11 @@ const fs = require('fs');
 const aiService = require('../services/aiService');
 const notionService = require('../services/notionService');
 const storageService = require('../services/storageService');
+const { checkSupabaseStatus } = require('../services/supabaseClient');
 
 const router = express.Router();
 
-// Configurar multer para subida de audio en memoria / disco
+// Configurar multer para subida de audio
 const uploadDir = path.join(__dirname, '..', '..', 'uploads');
 if (!fs.existsSync(uploadDir)) {
   fs.mkdirSync(uploadDir, { recursive: true });
@@ -21,30 +22,40 @@ const upload = multer({
   limits: { fileSize: 50 * 1024 * 1024 } // 50MB
 });
 
-// Health check
-router.get('/health', (req, res) => {
-  res.json({
-    status: 'ok',
-    hasGeminiKey: Boolean(process.env.GEMINI_API_KEY),
-    hasNotionKey: Boolean(process.env.NOTION_API_KEY),
-    hasNotionDb: Boolean(process.env.NOTION_DATABASE_ID)
-  });
+// Health check ampliado con Supabase y estado de proveedores de IA
+router.get('/health', async (req, res) => {
+  try {
+    const supabaseStatus = await checkSupabaseStatus();
+    const providers = aiService.getAvailableProviders();
+
+    res.json({
+      status: 'ok',
+      hasGeminiKey: Boolean(process.env.GEMINI_API_KEY),
+      activeAiModel: aiService.defaultModel,
+      aiProviders: providers,
+      supabase: supabaseStatus,
+      hasNotionKey: Boolean(process.env.NOTION_API_KEY),
+      hasNotionDb: Boolean(process.env.NOTION_DATABASE_ID)
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // Obtener todas las reuniones
-router.get('/meetings', (req, res) => {
+router.get('/meetings', async (req, res) => {
   try {
-    const meetings = storageService.getAllMeetings();
+    const meetings = await storageService.getAllMeetings();
     res.json(meetings);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
-// Obtener una reunión
-router.get('/meetings/:id', (req, res) => {
+// Obtener una reunión por ID
+router.get('/meetings/:id', async (req, res) => {
   try {
-    const meeting = storageService.getMeetingById(req.params.id);
+    const meeting = await storageService.getMeetingById(req.params.id);
     if (!meeting) return res.status(404).json({ error: 'Reunión no encontrada' });
     res.json(meeting);
   } catch (err) {
@@ -52,10 +63,32 @@ router.get('/meetings/:id', (req, res) => {
   }
 });
 
-// Eliminar una reunión
-router.delete('/meetings/:id', (req, res) => {
+// Actualizar campos o tareas de una reunión (PATCH)
+router.patch('/meetings/:id', async (req, res) => {
   try {
-    storageService.deleteMeeting(req.params.id);
+    const { actionItems, title, summary, keyDecisions } = req.body;
+    const updated = await storageService.updateMeeting(req.params.id, {
+      ...(actionItems !== undefined && { actionItems }),
+      ...(title !== undefined && { title }),
+      ...(summary !== undefined && { summary }),
+      ...(keyDecisions !== undefined && { keyDecisions })
+    });
+
+    if (!updated) {
+      return res.status(404).json({ error: 'Reunión no encontrada' });
+    }
+
+    res.json(updated);
+  } catch (err) {
+    console.error('[API] Error actualizando reunión:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Eliminar una reunión
+router.delete('/meetings/:id', async (req, res) => {
+  try {
+    await storageService.deleteMeeting(req.params.id);
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -69,10 +102,10 @@ router.post('/meetings/process-audio', upload.single('audio'), async (req, res) 
       return res.status(400).json({ error: 'No se envió ningún archivo de audio.' });
     }
 
-    const meetingTitle = req.body.title || 'Reunión Grabada ' + new Date().toLocaleString();
+    const meetingTitle = req.body.title || 'Reunión Grabada ' + new Date().toLocaleString('es-ES');
     const mimeType = req.file.mimetype || 'audio/webm';
 
-    console.log(`[Proactor AI] Procesando audio de reunión: ${req.file.size} bytes (${mimeType})`);
+    console.log(`[Proactor AI] Procesando audio de reunión: ${req.file.size} bytes (${mimeType}) con modelo ${aiService.defaultModel}`);
 
     const result = await aiService.processMeeting({
       audioBuffer: req.file.buffer,
@@ -80,8 +113,8 @@ router.post('/meetings/process-audio', upload.single('audio'), async (req, res) 
       meetingTitle
     });
 
-    // Guardar la reunión analizada
-    const saved = storageService.saveMeeting({
+    // Guardar la reunión analizada en Supabase y local
+    const saved = await storageService.saveMeeting({
       ...result,
       source: 'audio',
       audioSize: req.file.size
@@ -102,14 +135,14 @@ router.post('/meetings/process-text', async (req, res) => {
       return res.status(400).json({ error: 'El texto o notas de la reunión están vacíos.' });
     }
 
-    console.log(`[Proactor AI] Analizando notas de reunión con IA...`);
+    console.log(`[Proactor AI] Analizando notas de reunión con IA (${aiService.defaultModel})...`);
 
     const result = await aiService.processMeeting({
       rawText,
       meetingTitle: title
     });
 
-    const saved = storageService.saveMeeting({
+    const saved = await storageService.saveMeeting({
       ...result,
       source: 'text'
     });
@@ -124,7 +157,7 @@ router.post('/meetings/process-text', async (req, res) => {
 // Sincronizar reunión con Notion
 router.post('/meetings/:id/sync-notion', async (req, res) => {
   try {
-    const meeting = storageService.getMeetingById(req.params.id);
+    const meeting = await storageService.getMeetingById(req.params.id);
     if (!meeting) {
       return res.status(404).json({ error: 'Reunión no encontrada' });
     }
@@ -136,18 +169,19 @@ router.post('/meetings/:id/sync-notion', async (req, res) => {
       databaseId
     });
 
-    // Actualizar registro local con enlace a Notion
-    meeting.notionSync = {
-      syncedAt: new Date().toISOString(),
-      pageId: syncResult.id,
-      url: syncResult.url
-    };
-    storageService.saveMeeting(meeting);
+    // Actualizar registro local y Supabase con enlace a Notion
+    const updated = await storageService.updateMeeting(meeting.id, {
+      notionSync: {
+        syncedAt: new Date().toISOString(),
+        pageId: syncResult.id,
+        url: syncResult.url
+      }
+    });
 
     res.json({
       success: true,
       url: syncResult.url,
-      meeting
+      meeting: updated
     });
   } catch (err) {
     console.error('[Proactor AI] Error sincronizando con Notion:', err);
@@ -174,7 +208,7 @@ router.post('/second-brain/ask', async (req, res) => {
       return res.status(400).json({ error: 'Pregunta requerida' });
     }
 
-    const allMeetings = storageService.getAllMeetings();
+    const allMeetings = await storageService.getAllMeetings();
     const answer = await aiService.askSecondBrain(question, allMeetings);
 
     res.json({

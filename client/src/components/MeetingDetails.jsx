@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import { 
   CheckSquare, 
   Square, 
@@ -24,12 +24,30 @@ export default function MeetingDetails({ meeting, onUpdateMeeting, onDeleteMeeti
   const [showTranscript, setShowTranscript] = useState(false);
   const [actionItems, setActionItems] = useState(meeting.actionItems || []);
 
-  const toggleTask = (index) => {
+  // Sincronizar tareas si cambia la reunión seleccionada
+  useEffect(() => {
+    setActionItems(meeting.actionItems || []);
+    setSyncStatus(null);
+  }, [meeting.id, meeting.actionItems]);
+
+  // Alternar tarea y persistir inmediatamente en el servidor y Supabase
+  const toggleTask = async (index) => {
     const updated = [...actionItems];
     updated[index] = { ...updated[index], completed: !updated[index].completed };
     setActionItems(updated);
+
     if (onUpdateMeeting) {
       onUpdateMeeting({ ...meeting, actionItems: updated });
+    }
+
+    try {
+      await fetch(`/api/meetings/${meeting.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ actionItems: updated })
+      });
+    } catch (err) {
+      console.error('[MeetingDetails] Error persistiendo estado de tareas:', err);
     }
   };
 
@@ -78,49 +96,44 @@ export default function MeetingDetails({ meeting, onUpdateMeeting, onDeleteMeeti
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-5 border-b border-slate-800">
         <div>
           <div className="flex items-center gap-2 mb-1.5 flex-wrap">
-            <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
-              Proactor AI Analysis
-            </span>
             <span className="text-xs text-slate-400 flex items-center gap-1">
               <Calendar className="w-3.5 h-3.5" />
               {new Date(meeting.createdAt || Date.now()).toLocaleDateString('es-ES', {
+                weekday: 'long',
                 year: 'numeric',
-                month: 'short',
-                day: 'numeric',
-                hour: '2-digit',
-                minute: '2-digit'
+                month: 'long',
+                day: 'numeric'
               })}
             </span>
-            {meeting.tags?.map((t, idx) => (
-              <span key={idx} className="text-xs px-2 py-0.5 rounded bg-slate-800 text-slate-300">
-                #{t}
-              </span>
-            ))}
+            <span className="text-slate-600">•</span>
+            <span className="text-xs text-indigo-400 font-semibold uppercase tracking-wider">
+              {meeting.source === 'audio' ? '🎙️ Audio Procesado' : '📝 Notas Procesadas'}
+            </span>
+            {meeting.notionSync?.url && (
+              <a
+                href={meeting.notionSync.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 text-[11px] px-2.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-semibold hover:bg-emerald-500/20 transition-colors"
+              >
+                <CheckCircle2 className="w-3 h-3" />
+                Sincronizado en Notion
+                <ExternalLink className="w-2.5 h-2.5 ml-0.5" />
+              </a>
+            )}
           </div>
-          <h2 className="text-2xl font-bold text-slate-100 tracking-tight">
+          <h2 className="text-xl font-bold text-slate-100">
             {meeting.title || 'Reunión sin título'}
           </h2>
         </div>
 
         {/* Action buttons */}
-        <div className="flex items-center gap-2 shrink-0">
-          {/* Notion Sync Button */}
-          {meeting.notionSync?.url ? (
-            <a
-              href={meeting.notionSync.url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 border border-emerald-500/30 transition-all"
-            >
-              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
-              Abierto en Notion
-              <ExternalLink className="w-3 h-3" />
-            </a>
-          ) : (
+        <div className="flex items-center gap-2">
+          {!meeting.notionSync?.url && (
             <button
               onClick={handleSyncNotion}
               disabled={syncingNotion}
-              className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold bg-gradient-to-r from-slate-800 to-slate-700 hover:from-slate-700 hover:to-slate-600 text-white border border-slate-600/50 shadow-sm hover:shadow transition-all disabled:opacity-50"
+              className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-300 border border-indigo-500/30 transition-all shadow-sm disabled:opacity-50"
             >
               {syncingNotion ? (
                 <>
