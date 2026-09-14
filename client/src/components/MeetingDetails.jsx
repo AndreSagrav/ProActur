@@ -1,74 +1,49 @@
 ﻿import React, { useState, useEffect } from 'react';
-import { 
-  CheckSquare, 
-  Square, 
-  ExternalLink, 
-  Share2, 
-  CheckCircle2, 
-  AlertTriangle, 
-  ChevronDown, 
-  ChevronUp, 
-  Calendar, 
-  User, 
-  Clock, 
-  Lightbulb, 
-  Target, 
-  FileText, 
-  Loader2,
-  Trash2
+import {
+  CheckSquare, Square, ExternalLink, Share2, CheckCircle2,
+  AlertTriangle, ChevronDown, ChevronUp, Calendar, User, Clock,
+  Lightbulb, Target, FileText, Loader2, Trash2, BookOpen, CalendarPlus
 } from 'lucide-react';
 
-export default function MeetingDetails({ meeting, onUpdateMeeting, onDeleteMeeting }) {
+const API = import.meta.env.VITE_API_URL || '';
+
+export default function MeetingDetails({ meeting, onUpdateMeeting, onDeleteMeeting, onScheduleFollowUp, onCreateNote }) {
   const [syncingNotion, setSyncingNotion] = useState(false);
   const [syncStatus, setSyncStatus] = useState(null);
   const [showTranscript, setShowTranscript] = useState(false);
   const [actionItems, setActionItems] = useState(meeting.actionItems || []);
 
-  // Sincronizar tareas si cambia la reunión seleccionada
   useEffect(() => {
     setActionItems(meeting.actionItems || []);
     setSyncStatus(null);
-  }, [meeting.id, meeting.actionItems]);
+  }, [meeting.id]);
 
-  // Alternar tarea y persistir inmediatamente en el servidor y Supabase
-  const toggleTask = async (index) => {
+  const toggleTask = async (idx) => {
     const updated = [...actionItems];
-    updated[index] = { ...updated[index], completed: !updated[index].completed };
+    updated[idx] = { ...updated[idx], completed: !updated[idx].completed };
     setActionItems(updated);
 
     if (onUpdateMeeting) {
-      onUpdateMeeting({ ...meeting, actionItems: updated });
-    }
-
-    try {
-      await fetch(`/api/meetings/${meeting.id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ actionItems: updated })
-      });
-    } catch (err) {
-      console.error('[MeetingDetails] Error persistiendo estado de tareas:', err);
+      onUpdateMeeting(meeting.id, { actionItems: updated });
     }
   };
 
-  const handleSyncNotion = async () => {
+  const syncToNotion = async () => {
     setSyncingNotion(true);
     setSyncStatus(null);
 
     try {
-      const res = await fetch(`/api/meetings/${meeting.id}/sync-notion`, {
+      const res = await fetch(`${API}/api/meetings/${meeting.id}/sync-notion`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' }
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
       });
 
       const data = await res.json();
-      if (!res.ok) {
-        throw new Error(data.error || 'Error al sincronizar con Notion');
-      }
-
-      setSyncStatus({ success: true, url: data.url });
-      if (onUpdateMeeting) {
-        onUpdateMeeting(data.meeting);
+      if (data.success) {
+        setSyncStatus({ success: true, url: data.url });
+      } else {
+        setSyncStatus({ success: false, error: data.error || 'Error al sincronizar.' });
       }
     } catch (err) {
       setSyncStatus({ success: false, error: err.message });
@@ -77,83 +52,78 @@ export default function MeetingDetails({ meeting, onUpdateMeeting, onDeleteMeeti
     }
   };
 
-  const priorityColor = (priority) => {
-    switch (priority?.toLowerCase()) {
-      case 'alta':
-      case 'high':
-        return 'bg-red-500/10 text-red-400 border-red-500/30';
-      case 'media':
-      case 'medium':
-        return 'bg-amber-500/10 text-amber-400 border-amber-500/30';
-      default:
-        return 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30';
-    }
+  const priorityColor = (p) => {
+    const l = (p || '').toLowerCase();
+    if (l === 'alta' || l === 'high') return 'bg-red-500/15 text-red-400 border-red-500/30';
+    if (l === 'media' || l === 'medium') return 'bg-amber-500/15 text-amber-400 border-amber-500/30';
+    return 'bg-slate-700/40 text-slate-400 border-slate-600/30';
   };
 
   return (
-    <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-6">
+    <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-md space-y-4">
       {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-5 border-b border-slate-800">
+      <div className="flex items-start justify-between gap-4">
         <div>
-          <div className="flex items-center gap-2 mb-1.5 flex-wrap">
-            <span className="text-xs text-slate-400 flex items-center gap-1">
-              <Calendar className="w-3.5 h-3.5" />
-              {new Date(meeting.createdAt || Date.now()).toLocaleDateString('es-ES', {
-                weekday: 'long',
-                year: 'numeric',
-                month: 'long',
-                day: 'numeric'
-              })}
+          <h2 className="text-lg font-bold text-slate-100">{meeting.title || 'Reunion sin titulo'}</h2>
+          <div className="flex items-center gap-3 mt-1 text-[11px] text-slate-400">
+            <span className="flex items-center gap-1">
+              <Calendar className="w-3 h-3" />
+              {new Date(meeting.createdAt || Date.now()).toLocaleDateString('es-ES', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
             </span>
-            <span className="text-slate-600">•</span>
-            <span className="text-xs text-indigo-400 font-semibold uppercase tracking-wider">
-              {meeting.source === 'audio' ? '🎙️ Audio Procesado' : '📝 Notas Procesadas'}
-            </span>
-            {meeting.notionSync?.url && (
-              <a
-                href={meeting.notionSync.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-1 text-[11px] px-2.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-semibold hover:bg-emerald-500/20 transition-colors"
-              >
-                <CheckCircle2 className="w-3 h-3" />
-                Sincronizado en Notion
-                <ExternalLink className="w-2.5 h-2.5 ml-0.5" />
-              </a>
+            {meeting.source && (
+              <span className="px-2 py-0.5 rounded-full bg-slate-800 border border-slate-700 text-slate-400 text-[10px] font-semibold">
+                {meeting.source === 'audio' ? 'Audio' : 'Texto'}
+              </span>
             )}
           </div>
-          <h2 className="text-xl font-bold text-slate-100">
-            {meeting.title || 'Reunión sin título'}
-          </h2>
         </div>
 
-        {/* Action buttons */}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 shrink-0">
+          {/* Sync to Notion */}
           {!meeting.notionSync?.url && (
             <button
-              onClick={handleSyncNotion}
+              onClick={syncToNotion}
               disabled={syncingNotion}
-              className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-300 border border-indigo-500/30 transition-all shadow-sm disabled:opacity-50"
+              className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition-all disabled:opacity-50"
             >
               {syncingNotion ? (
-                <>
-                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                  Sincronizando con Notion...
-                </>
+                <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Sincronizando...</>
               ) : (
-                <>
-                  <Share2 className="w-3.5 h-3.5 text-indigo-400" />
-                  Exportar a Notion
-                </>
+                <><Share2 className="w-3.5 h-3.5 text-indigo-400" /> Exportar a Notion</>
               )}
             </button>
           )}
 
+          {/* Schedule Follow-up */}
+          {onScheduleFollowUp && (
+            <button
+              onClick={() => onScheduleFollowUp(meeting)}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold bg-emerald-600/15 hover:bg-emerald-600/25 text-emerald-300 border border-emerald-500/25 transition-all"
+              title="Agendar seguimiento"
+            >
+              <CalendarPlus className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Agendar</span>
+            </button>
+          )}
+
+          {/* Create Note */}
+          {onCreateNote && (
+            <button
+              onClick={() => onCreateNote(meeting)}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold bg-violet-600/15 hover:bg-violet-600/25 text-violet-300 border border-violet-500/25 transition-all"
+              title="Crear nota vinculada"
+            >
+              <BookOpen className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Nota</span>
+            </button>
+          )}
+
+          {/* Delete */}
           {onDeleteMeeting && (
             <button
               onClick={() => onDeleteMeeting(meeting.id)}
               className="p-2 rounded-xl text-slate-400 hover:text-red-400 hover:bg-slate-800/80 transition-colors"
-              title="Eliminar reunión"
+              title="Eliminar reunion"
             >
               <Trash2 className="w-4 h-4" />
             </button>
@@ -161,51 +131,46 @@ export default function MeetingDetails({ meeting, onUpdateMeeting, onDeleteMeeti
         </div>
       </div>
 
-      {/* Sync Status Banner */}
+      {/* Sync Status */}
       {syncStatus && (
-        <div
-          className={`p-3 rounded-xl text-xs flex items-center justify-between gap-2 border ${
-            syncStatus.success
-              ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300'
-              : 'bg-red-500/10 border-red-500/30 text-red-400'
-          }`}
-        >
-          <span>
-            {syncStatus.success
-              ? '✅ ¡Reunión exportada a Notion con éxito!'
-              : `❌ ${syncStatus.error}`}
-          </span>
+        <div className={`p-3 rounded-xl text-xs flex items-center justify-between gap-2 border ${
+          syncStatus.success
+            ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300'
+            : 'bg-red-500/10 border-red-500/30 text-red-400'
+        }`}>
+          <span>{syncStatus.success ? 'Reunion exportada a Notion con exito!' : syncStatus.error}</span>
           {syncStatus.url && (
-            <a
-              href={syncStatus.url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="underline flex items-center gap-1 font-semibold"
-            >
-              Ver página en Notion <ExternalLink className="w-3 h-3" />
+            <a href={syncStatus.url} target="_blank" rel="noopener noreferrer"
+              className="underline flex items-center gap-1 font-semibold">
+              Ver en Notion <ExternalLink className="w-3 h-3" />
             </a>
           )}
         </div>
       )}
 
+      {/* Notion synced badge */}
+      {meeting.notionSync?.url && (
+        <a href={meeting.notionSync.url} target="_blank" rel="noopener noreferrer"
+          className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-semibold bg-emerald-500/10 text-emerald-300 border border-emerald-500/20 hover:bg-emerald-500/15 transition-colors">
+          <CheckCircle2 className="w-3.5 h-3.5" />
+          Sincronizada con Notion
+          <ExternalLink className="w-3 h-3" />
+        </a>
+      )}
+
       {/* Executive Summary */}
       <div className="bg-indigo-950/20 border border-indigo-500/20 rounded-xl p-4">
         <div className="flex items-center gap-2 text-indigo-400 text-xs font-bold uppercase tracking-wider mb-2">
-          <Lightbulb className="w-4 h-4" />
-          Resumen Ejecutivo
+          <Lightbulb className="w-4 h-4" /> Resumen Ejecutivo
         </div>
-        <p className="text-sm text-slate-200 leading-relaxed whitespace-pre-line">
-          {meeting.summary}
-        </p>
+        <p className="text-sm text-slate-200 leading-relaxed whitespace-pre-line">{meeting.summary}</p>
       </div>
 
       {/* Grid: Decisions & Proactive Advice */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {/* Key Decisions */}
         <div className="bg-slate-800/40 border border-slate-800 rounded-xl p-4">
           <div className="flex items-center gap-2 text-slate-200 text-xs font-bold uppercase tracking-wider mb-3">
-            <Target className="w-4 h-4 text-amber-400" />
-            Decisiones Clave
+            <Target className="w-4 h-4 text-amber-400" /> Decisiones Clave
           </div>
           {meeting.keyDecisions && meeting.keyDecisions.length > 0 ? (
             <ul className="space-y-2">
@@ -221,11 +186,9 @@ export default function MeetingDetails({ meeting, onUpdateMeeting, onDeleteMeeti
           )}
         </div>
 
-        {/* Proactive Advice */}
         <div className="bg-slate-800/40 border border-slate-800 rounded-xl p-4">
           <div className="flex items-center gap-2 text-slate-200 text-xs font-bold uppercase tracking-wider mb-3">
-            <AlertTriangle className="w-4 h-4 text-indigo-400" />
-            Consejos Proactivos del Asistente
+            <AlertTriangle className="w-4 h-4 text-indigo-400" /> Consejos Proactivos del Asistente
           </div>
           {meeting.proactiveAdvice && meeting.proactiveAdvice.length > 0 ? (
             <ul className="space-y-2">
@@ -242,7 +205,7 @@ export default function MeetingDetails({ meeting, onUpdateMeeting, onDeleteMeeti
         </div>
       </div>
 
-      {/* Action Items (Checklist) */}
+      {/* Action Items */}
       <div className="bg-slate-800/40 border border-slate-800 rounded-xl p-4">
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-2 text-slate-200 text-xs font-bold uppercase tracking-wider">
@@ -265,11 +228,7 @@ export default function MeetingDetails({ meeting, onUpdateMeeting, onDeleteMeeti
               >
                 <div className="flex items-start gap-3">
                   <button className="mt-0.5 text-slate-400 hover:text-emerald-400 transition-colors">
-                    {item.completed ? (
-                      <CheckSquare className="w-4 h-4 text-emerald-400" />
-                    ) : (
-                      <Square className="w-4 h-4 text-slate-500" />
-                    )}
+                    {item.completed ? <CheckSquare className="w-4 h-4 text-emerald-400" /> : <Square className="w-4 h-4 text-slate-500" />}
                   </button>
                   <div>
                     <p className={`text-sm text-slate-100 ${item.completed ? 'line-through text-slate-400' : ''}`}>
@@ -277,16 +236,10 @@ export default function MeetingDetails({ meeting, onUpdateMeeting, onDeleteMeeti
                     </p>
                     <div className="flex items-center gap-3 mt-1 text-xs text-slate-400">
                       {item.assignee && (
-                        <span className="flex items-center gap-1">
-                          <User className="w-3 h-3 text-slate-500" />
-                          {item.assignee}
-                        </span>
+                        <span className="flex items-center gap-1"><User className="w-3 h-3 text-slate-500" />{item.assignee}</span>
                       )}
                       {item.deadline && (
-                        <span className="flex items-center gap-1">
-                          <Clock className="w-3 h-3 text-slate-500" />
-                          {item.deadline}
-                        </span>
+                        <span className="flex items-center gap-1"><Clock className="w-3 h-3 text-slate-500" />{item.deadline}</span>
                       )}
                     </div>
                   </div>
@@ -305,7 +258,7 @@ export default function MeetingDetails({ meeting, onUpdateMeeting, onDeleteMeeti
         )}
       </div>
 
-      {/* Transcript collapsible */}
+      {/* Transcript */}
       {meeting.transcript && (
         <div className="border border-slate-800 rounded-xl overflow-hidden">
           <button
@@ -313,8 +266,7 @@ export default function MeetingDetails({ meeting, onUpdateMeeting, onDeleteMeeti
             className="w-full flex items-center justify-between p-3.5 bg-slate-800/30 hover:bg-slate-800/60 text-left transition-colors text-xs font-semibold text-slate-400"
           >
             <span className="flex items-center gap-2">
-              <FileText className="w-4 h-4 text-slate-400" />
-              Ver Transcripción / Notas Originales
+              <FileText className="w-4 h-4 text-slate-400" /> Ver Transcripcion / Notas Originales
             </span>
             {showTranscript ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
           </button>

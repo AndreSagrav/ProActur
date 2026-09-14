@@ -7,6 +7,8 @@ const aiService = require('../services/aiService');
 const notionService = require('../services/notionService');
 const storageService = require('../services/storageService');
 const { checkSupabaseStatus } = require('../services/supabaseClient');
+const eventService = require('../services/eventService');
+const noteService = require('../services/noteService');
 
 const router = express.Router();
 
@@ -225,4 +227,138 @@ router.post('/second-brain/ask', async (req, res) => {
   }
 });
 
+
+// ==========================================
+// EVENTOS / AGENDA
+// ==========================================
+
+router.get('/events', async (req, res) => {
+  try {
+    const { month, year } = req.query;
+    const events = await eventService.getAllEvents(
+      month ? parseInt(month) : undefined,
+      year ? parseInt(year) : undefined
+    );
+    res.json(events);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.get('/events/:id', async (req, res) => {
+  try {
+    const event = await eventService.getEventById(req.params.id);
+    if (!event) return res.status(404).json({ error: 'Evento no encontrado' });
+    res.json(event);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post('/events', async (req, res) => {
+  try {
+    const event = await eventService.createEvent(req.body);
+    res.status(201).json(event);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.patch('/events/:id', async (req, res) => {
+  try {
+    const updated = await eventService.updateEvent(req.params.id, req.body);
+    if (!updated) return res.status(404).json({ error: 'Evento no encontrado' });
+    res.json(updated);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.delete('/events/:id', async (req, res) => {
+  try {
+    await eventService.deleteEvent(req.params.id);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post('/events/:id/link', async (req, res) => {
+  try {
+    const { meetingId } = req.body;
+    const updated = await eventService.linkMeeting(req.params.id, meetingId);
+    if (!updated) return res.status(404).json({ error: 'Evento no encontrado' });
+    res.json(updated);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ==========================================
+// NOTAS / LIBRETA
+// ==========================================
+
+router.get('/notes', async (req, res) => {
+  try {
+    const { filter, search } = req.query;
+    const filters = {};
+    if (filter === 'favorite') filters.favorite = true;
+    if (filter === 'meeting') filters.meetingLinked = true;
+    if (search) filters.search = search;
+    const notes = await noteService.getAllNotes(filters);
+    res.json(notes);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.get('/notes/:id', async (req, res) => {
+  try {
+    const note = await noteService.getNoteById(req.params.id);
+    if (!note) return res.status(404).json({ error: 'Nota no encontrada' });
+    res.json(note);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post('/notes', async (req, res) => {
+  try {
+    const note = await noteService.createNote(req.body);
+    res.status(201).json(note);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.patch('/notes/:id', async (req, res) => {
+  try {
+    const updated = await noteService.updateNote(req.params.id, req.body);
+    if (!updated) return res.status(404).json({ error: 'Nota no encontrada' });
+    res.json(updated);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.delete('/notes/:id', async (req, res) => {
+  try {
+    await noteService.deleteNote(req.params.id);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.patch('/notes/:id/favorite', async (req, res) => {
+  try {
+    const updated = await noteService.toggleFavorite(req.params.id);
+    if (!updated) return res.status(404).json({ error: 'Nota no encontrada' });
+    res.json(updated);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 module.exports = router;
+
