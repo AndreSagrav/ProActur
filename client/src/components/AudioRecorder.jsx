@@ -222,7 +222,7 @@ export default function AudioRecorder({ onMeetingProcessed }) {
       // Disparar analisis de copiloto en tiempo real cada 18 segundos
       liveAnalysisTimerRef.current = setInterval(() => {
         triggerLiveAnalysis();
-      }, 18000);
+      }, 12000);
 
     } catch (err) {
       console.error('Error accediendo al microfono:', err);
@@ -482,33 +482,98 @@ export default function AudioRecorder({ onMeetingProcessed }) {
                 </div>
               </div>
 
-              {/* TABLERO DE RESULTADOS EN TIEMPO REAL (4 PANELES) */}
+              {/* MINUTA EJECUTIVA ESTRUCTURADA EN TIEMPO REAL (LOS 4 PILARES DE PROACTOR) */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
-                {/* Panel 1: Compromisos y Tareas en Vivo (Action Items) */}
-                <div className="bg-slate-950/60 border border-slate-800 rounded-xl p-3.5 flex flex-col justify-between min-h-[160px]">
+                {/* Pilar 1: Resumen Ejecutivo en Vivo */}
+                <div className="bg-slate-950/70 border border-indigo-500/20 rounded-xl p-4 flex flex-col justify-between min-h-[170px] shadow-sm">
                   <div>
-                    <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center justify-between mb-2.5">
                       <h5 className="text-xs font-bold text-indigo-300 flex items-center gap-1.5 uppercase tracking-wider">
-                        <CheckSquare className="w-3.5 h-3.5 text-indigo-400" />
-                        Tareas Detectadas ({liveActionItems.length})
+                        <FileText className="w-3.5 h-3.5 text-indigo-400" />
+                        Resumen Ejecutivo en Vivo
                       </h5>
-                      <span className="text-[10px] text-slate-500">Tiempo Real</span>
+                      <span className="text-[10px] font-semibold text-indigo-400 bg-indigo-500/10 px-2 py-0.5 rounded-full border border-indigo-500/20">
+                        Síntesis en Tiempo Real
+                      </span>
+                    </div>
+
+                    {liveSummary ? (
+                      <p className="text-xs text-slate-200 leading-relaxed max-h-[140px] overflow-y-auto pr-1 bg-slate-900/50 p-2.5 rounded-lg border border-slate-800/60">
+                        {liveSummary}
+                      </p>
+                    ) : (
+                      <div className="text-center py-6 text-slate-500 text-xs italic">
+                        <Sparkles className="w-5 h-5 text-indigo-500/40 mx-auto mb-1 animate-pulse" />
+                        Sintetizando puntos clave conforme se discuten...
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Pilar 2: Decisiones Clave en Vivo */}
+                <div className="bg-slate-950/70 border border-emerald-500/20 rounded-xl p-4 flex flex-col justify-between min-h-[170px] shadow-sm">
+                  <div>
+                    <div className="flex items-center justify-between mb-2.5">
+                      <h5 className="text-xs font-bold text-emerald-300 flex items-center gap-1.5 uppercase tracking-wider">
+                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                        Decisiones Clave ({liveDecisions.length})
+                      </h5>
+                      <span className="text-[10px] font-semibold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20">
+                        Acuerdos en Vivo
+                      </span>
+                    </div>
+
+                    {liveDecisions.length === 0 ? (
+                      <div className="text-center py-6 text-slate-500 text-xs italic">
+                        <CheckCircle2 className="w-5 h-5 text-emerald-500/40 mx-auto mb-1 animate-pulse" />
+                        Esperando acuerdos y decisiones en la sesión...
+                      </div>
+                    ) : (
+                      <div className="space-y-1.5 max-h-[140px] overflow-y-auto pr-1">
+                        {liveDecisions.map((dec, i) => (
+                          <div key={i} className="p-2.5 rounded-lg bg-emerald-950/20 border border-emerald-500/25 text-xs flex items-start gap-2 text-slate-200">
+                            <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                            <span className="leading-snug font-medium">{dec}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Pilar 3: Compromisos y Tareas (Action Items) */}
+                <div className="bg-slate-950/70 border border-blue-500/20 rounded-xl p-4 flex flex-col justify-between min-h-[170px] shadow-sm">
+                  <div>
+                    <div className="flex items-center justify-between mb-2.5">
+                      <h5 className="text-xs font-bold text-blue-300 flex items-center gap-1.5 uppercase tracking-wider">
+                        <CheckSquare className="w-3.5 h-3.5 text-blue-400" />
+                        Compromisos y Tareas ({liveActionItems.length})
+                      </h5>
+                      <span className="text-[10px] font-semibold text-blue-400 bg-blue-500/10 px-2 py-0.5 rounded-full border border-blue-500/20">
+                        Responsables y Fechas
+                      </span>
                     </div>
 
                     {liveActionItems.length === 0 ? (
-                      <p className="text-[11px] text-slate-500 italic py-4 text-center">
-                        La IA ira agregando tareas y responsables automaticamente conforme se acuerden en la llamada...
-                      </p>
+                      <div className="text-center py-6 text-slate-500 text-xs italic">
+                        <CheckSquare className="w-5 h-5 text-blue-500/40 mx-auto mb-1 animate-pulse" />
+                        Detectando compromisos y asignando responsables en vivo...
+                      </div>
                     ) : (
-                      <div className="space-y-1.5 max-h-[180px] overflow-y-auto pr-1">
+                      <div className="space-y-1.5 max-h-[140px] overflow-y-auto pr-1">
                         {liveActionItems.map((item, i) => (
-                          <div key={i} className="p-2 rounded-lg bg-slate-900/80 border border-slate-800 text-xs flex items-start gap-2">
-                            <span className="w-1.5 h-1.5 rounded-full bg-indigo-400 mt-1.5 shrink-0" />
+                          <div key={i} className="p-2.5 rounded-lg bg-slate-900/90 border border-slate-800 text-xs flex items-start gap-2">
+                            <span className="w-2 h-2 rounded-full bg-blue-400 mt-1.5 shrink-0" />
                             <div className="min-w-0 flex-1">
-                              <p className="text-slate-200 font-medium leading-snug">{item.task}</p>
-                              <div className="flex items-center gap-2 mt-1 text-[10px] text-slate-400">
-                                <span>👤 {item.assignee || 'Por asignar'}</span>
-                                {item.deadline && <span>📅 {item.deadline}</span>}
+                              <p className="text-slate-200 font-semibold leading-snug">{item.task}</p>
+                              <div className="flex items-center flex-wrap gap-2 mt-1 text-[10px] text-slate-400">
+                                <span className="bg-slate-800 px-1.5 py-0.5 rounded text-indigo-300 font-medium">👤 {item.assignee || 'Por asignar'}</span>
+                                {item.deadline && <span className="bg-slate-800 px-1.5 py-0.5 rounded text-amber-300 font-medium">📅 {item.deadline}</span>}
+                                {item.priority && (
+                                  <span className="px-1.5 py-0.5 rounded font-bold bg-slate-800 text-indigo-300">
+                                    {item.priority}
+                                  </span>
+                                )}
                               </div>
                             </div>
                           </div>
@@ -518,85 +583,34 @@ export default function AudioRecorder({ onMeetingProcessed }) {
                   </div>
                 </div>
 
-                {/* Panel 2: Decisiones Clave en Vivo */}
-                <div className="bg-slate-950/60 border border-slate-800 rounded-xl p-3.5 flex flex-col justify-between min-h-[160px]">
+                {/* Pilar 4: Consejos Proactivos y Alertas de Riesgo */}
+                <div className="bg-slate-950/70 border border-amber-500/20 rounded-xl p-4 flex flex-col justify-between min-h-[170px] shadow-sm">
                   <div>
-                    <div className="flex items-center justify-between mb-2">
-                      <h5 className="text-xs font-bold text-emerald-300 flex items-center gap-1.5 uppercase tracking-wider">
-                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
-                        Decisiones Clave ({liveDecisions.length})
-                      </h5>
-                      <span className="text-[10px] text-slate-500">Tiempo Real</span>
-                    </div>
-
-                    {liveDecisions.length === 0 ? (
-                      <p className="text-[11px] text-slate-500 italic py-4 text-center">
-                        Esperando que se pacten decisiones en la conversacion...
-                      </p>
-                    ) : (
-                      <div className="space-y-1.5 max-h-[180px] overflow-y-auto pr-1">
-                        {liveDecisions.map((dec, i) => (
-                          <div key={i} className="p-2 rounded-lg bg-emerald-950/20 border border-emerald-500/20 text-xs flex items-start gap-2 text-slate-200">
-                            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0 mt-0.5" />
-                            <span className="leading-snug">{dec}</span>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                {/* Panel 3: Consejos Proactivos y Alertas de Riesgo */}
-                <div className="bg-slate-950/60 border border-slate-800 rounded-xl p-3.5 flex flex-col justify-between min-h-[140px]">
-                  <div>
-                    <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center justify-between mb-2.5">
                       <h5 className="text-xs font-bold text-amber-300 flex items-center gap-1.5 uppercase tracking-wider">
                         <ShieldAlert className="w-3.5 h-3.5 text-amber-400" />
                         Consejos Proactivos &amp; Alertas
                       </h5>
-                      <span className="text-[10px] text-slate-500">Proactor</span>
+                      <span className="text-[10px] font-semibold text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded-full border border-amber-500/20">
+                        Estratégico
+                      </span>
                     </div>
 
                     {liveAdvice.length === 0 ? (
-                      <p className="text-[11px] text-slate-500 italic py-3 text-center">
-                        Proactor evaluara riesgos y sugerencias estrategicas en los proximos minutos de la reunion...
-                      </p>
+                      <div className="text-center py-6 text-slate-500 text-xs italic">
+                        <ShieldAlert className="w-5 h-5 text-amber-500/40 mx-auto mb-1 animate-pulse" />
+                        Proactor evalúa riesgos y recomendaciones estratégicas durante la charla...
+                      </div>
                     ) : (
-                      <div className="space-y-1.5 max-h-[160px] overflow-y-auto pr-1">
+                      <div className="space-y-1.5 max-h-[140px] overflow-y-auto pr-1">
                         {liveAdvice.map((adv, i) => (
-                          <div key={i} className="p-2 rounded-lg bg-amber-950/20 border border-amber-500/20 text-xs text-amber-200 flex items-start gap-2">
-                            <Sparkles className="w-3.5 h-3.5 text-amber-400 shrink-0 mt-0.5" />
+                          <div key={i} className="p-2.5 rounded-lg bg-amber-950/20 border border-amber-500/25 text-xs text-amber-200 flex items-start gap-2">
+                            <Sparkles className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
                             <span className="leading-snug">{adv}</span>
                           </div>
                         ))}
                       </div>
                     )}
-                  </div>
-                </div>
-
-                {/* Panel 4: Transcripcion y Resumen en Vivo */}
-                <div className="bg-slate-950/60 border border-slate-800 rounded-xl p-3.5 flex flex-col justify-between min-h-[140px]">
-                  <div>
-                    <div className="flex items-center justify-between mb-2">
-                      <h5 className="text-xs font-bold text-slate-300 flex items-center gap-1.5 uppercase tracking-wider">
-                        <Volume2 className="w-3.5 h-3.5 text-indigo-400" />
-                        Transcripcion en Vivo
-                      </h5>
-                      <span className="text-[10px] text-slate-500">Streaming</span>
-                    </div>
-
-                    <div className="p-2.5 rounded-lg bg-slate-900/90 border border-slate-800/80 max-h-[160px] overflow-y-auto text-xs text-slate-300 leading-relaxed font-mono">
-                      {liveTranscript || liveInterim ? (
-                        <>
-                          <span>{liveTranscript}</span>
-                          {liveInterim && <span className="text-indigo-400 italic"> {liveInterim}</span>}
-                        </>
-                      ) : (
-                        <span className="text-slate-500 italic font-sans">
-                          Habla por el microfono... Cada palabra aparecera aqui al instante.
-                        </span>
-                      )}
-                    </div>
                   </div>
                 </div>
               </div>
