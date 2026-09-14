@@ -2,7 +2,7 @@
 import {
   CheckSquare, Square, ExternalLink, Share2, CheckCircle2,
   AlertTriangle, ChevronDown, ChevronUp, Calendar, User, Clock,
-  Lightbulb, Target, FileText, Loader2, Trash2, BookOpen, CalendarPlus
+  Lightbulb, Target, FileText, Loader2, Trash2, BookOpen, CalendarPlus, Copy, Check, Volume2
 } from 'lucide-react';
 
 const API = import.meta.env.VITE_API_URL || '';
@@ -11,12 +11,20 @@ export default function MeetingDetails({ meeting, onUpdateMeeting, onDeleteMeeti
   const [syncingNotion, setSyncingNotion] = useState(false);
   const [syncStatus, setSyncStatus] = useState(null);
   const [showTranscript, setShowTranscript] = useState(false);
+  const [copied, setCopied] = useState(false);
   const [actionItems, setActionItems] = useState(meeting.actionItems || []);
 
   useEffect(() => {
     setActionItems(meeting.actionItems || []);
     setSyncStatus(null);
   }, [meeting.id]);
+
+  const handleCopyTranscript = () => {
+    if (!meeting.transcript) return;
+    navigator.clipboard.writeText(meeting.transcript);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
 
   const toggleTask = async (idx) => {
     const updated = [...actionItems];
@@ -258,21 +266,53 @@ export default function MeetingDetails({ meeting, onUpdateMeeting, onDeleteMeeti
         )}
       </div>
 
-      {/* Transcript */}
-      {meeting.transcript && (
-        <div className="border border-slate-800 rounded-xl overflow-hidden">
+      {/* Seccion Dedicada: Grabacion & Transcripcion Completa */}
+      {(meeting.transcript || meeting.audioUrl) && (
+        <div className="border border-slate-800 rounded-2xl overflow-hidden bg-slate-900/60 shadow-md">
           <button
             onClick={() => setShowTranscript(!showTranscript)}
-            className="w-full flex items-center justify-between p-3.5 bg-slate-800/30 hover:bg-slate-800/60 text-left transition-colors text-xs font-semibold text-slate-400"
+            className="w-full flex items-center justify-between p-4 bg-slate-800/40 hover:bg-slate-800/70 text-left transition-colors text-xs font-bold text-slate-300"
           >
             <span className="flex items-center gap-2">
-              <FileText className="w-4 h-4 text-slate-400" /> Ver Transcripcion / Notas Originales
+              <FileText className="w-4 h-4 text-indigo-400" />
+              <span>Registro Completo: Grabación y Transcripción Textual</span>
             </span>
-            {showTranscript ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] font-mono text-slate-400 font-normal">
+                {meeting.transcript ? meeting.transcript.split(/\s+/).filter(Boolean).length + ' palabras' : ''}
+              </span>
+              {showTranscript ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+            </div>
           </button>
+
           {showTranscript && (
-            <div className="p-4 bg-slate-950/60 text-xs font-mono text-slate-300 leading-relaxed max-h-80 overflow-y-auto whitespace-pre-wrap border-t border-slate-800">
-              {meeting.transcript}
+            <div className="p-4 bg-slate-950/80 border-t border-slate-800 space-y-3">
+              {meeting.audioUrl && (
+                <div className="p-3 bg-slate-900 rounded-xl border border-slate-800 flex items-center gap-3">
+                  <Volume2 className="w-4 h-4 text-indigo-400 shrink-0" />
+                  <audio controls src={meeting.audioUrl} className="w-full h-8" />
+                </div>
+              )}
+
+              {meeting.transcript && (
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
+                      Transcripción Íntegra de la Sesión
+                    </span>
+                    <button
+                      onClick={handleCopyTranscript}
+                      className="flex items-center gap-1 text-[11px] px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 transition-colors"
+                    >
+                      {copied ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
+                      {copied ? 'Copiado' : 'Copiar Texto'}
+                    </button>
+                  </div>
+                  <div className="p-3.5 bg-slate-900/90 rounded-xl border border-slate-800 text-xs font-mono text-slate-300 leading-relaxed max-h-80 overflow-y-auto whitespace-pre-wrap selection:bg-indigo-600">
+                    {meeting.transcript}
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>
