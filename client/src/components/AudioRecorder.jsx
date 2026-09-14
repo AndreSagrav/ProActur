@@ -1,8 +1,17 @@
-﻿import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   Mic, Square, Upload, FileText, Loader2, Sparkles, Volume2, AlertCircle,
-  CheckCircle2, CheckSquare, Clock, Zap, Brain, ShieldAlert, ArrowRight
+  CheckCircle2, CheckSquare, Clock, Zap, Brain, ShieldAlert, ArrowRight,
+  RotateCcw, ShieldCheck, Trash2
 } from 'lucide-react';
+
+import {
+  initEmergencyRecording,
+  appendAudioChunk,
+  checkUnfinalizedRecording,
+  recoverUnfinalizedAudio,
+  clearEmergencyRecording
+} from '../utils/audioStorage';
 
 const API = import.meta.env.VITE_API_URL || '';
 
@@ -17,6 +26,17 @@ export default function AudioRecorder({ onMeetingProcessed }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
+  // Estados de recuperacion de emergencia (Caja Negra IndexedDB)
+  const [hasRecoverableAudio, setHasRecoverableAudio] = useState(false);
+  const [recoverableSeconds, setRecoverableSeconds] = useState(0);
+  const [recovering, setRecovering] = useState(false);
+
+  // Medidor de voz en vivo (Audio Activity Analyzer)
+  const [audioLevel, setAudioLevel] = useState(0);
+  const audioContextRef = useRef(null);
+  const analyserRef = useRef(null);
+  const animFrameRef = useRef(null);
+
   // Estados del copiloto en tiempo real (Live Proactor AI)
   const [liveTranscript, setLiveTranscript] = useState('');
   const [liveInterim, setLiveInterim] = useState('');
@@ -25,7 +45,6 @@ export default function AudioRecorder({ onMeetingProcessed }) {
   const [liveAdvice, setLiveAdvice] = useState([]);
   const [liveSummary, setLiveSummary] = useState('');
   const [isAnalyzingLive, setIsAnalyzingLive] = useState(false);
-  const [lastAnalyzedLength, setLastAnalyzedLength] = useState(0);
 
   const mediaRecorderRef = useRef(null);
   const audioChunksRef = useRef([]);
@@ -33,7 +52,7 @@ export default function AudioRecorder({ onMeetingProcessed }) {
   const recognitionRef = useRef(null);
   const liveAnalysisTimerRef = useRef(null);
 
-  // Referencias mutables para evitar stale closures en intervalos
+  // Referencias mutables para evitar stale closures
   const stateRef = useRef({
     transcript: '',
     decisions: [],
@@ -58,23 +77,84 @@ export default function AudioRecorder({ onMeetingProcessed }) {
     };
   }, [liveTranscript, liveDecisions, liveActionItems, liveAdvice, liveSummary, meetingTitle, isRecording, isAnalyzingLive]);
 
+  // 1. Verificacion de grabaciones no finalizadas en IndexedDB al cargar
+  useEffect(() => {
+    checkUnfinalizedRecording().then(res => {
+      if (res && res.hasUnfinalized) {
+        setHasRecoverableAudio(true);
+        setRecoverableSeconds(res.chunkCount);
+      }
+    });
+  }, []);
+
+  // 2. Proteccion contra cierre o refresco accidental de pestana (beforeunload)
+  useEffect(() => {
+    const handleBeforeUnload = (e) => {
+      if (isRecording) {
+        e.preventDefault();
+        e.returnValue = 'Hay una reunion activa grabandose en vivo. Si sales o refrescas se interrumpira la sesion.';
+        return e.returnValue;
+      }
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [isRecording]);
+
   useEffect(() => {
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
       if (liveAnalysisTimerRef.current) clearInterval(liveAnalysisTimerRef.current);
+      if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
+      if (audioContextRef.current) {
+        try { audioContextRef.current.close(); } catch (_) {}
+      }
       if (recognitionRef.current) {
         try { recognitionRef.current.stop(); } catch (_) {}
       }
     };
   }, []);
 
-  // Iniciar reconocimiento de voz nativo continuo en el navegador
+  // Configuracion del analizador de volumen de voz en tiempo real
+  const setupAudioAnalyzer = (stream) => {
+    try {
+      const AudioCtx = window.AudioContext || window.webkitAudioContext;
+      if (!AudioCtx) return;
+
+      const audioCtx = new AudioCtx();
+      audioContextRef.current = audioCtx;
+
+      const analyser = audioCtx.createAnalyser();
+      analyser.fftSize = 64;
+      analyserRef.current = analyser;
+
+      const source = audioCtx.createMediaStreamSource(stream);
+      source.connect(analyser);
+
+      const dataArray = new Uint8Array(analyser.frequencyBinCount);
+
+      const updateLevel = () => {
+        if (!stateRef.current.isRecording) return;
+        analyser.getByteFrequencyData(dataArray);
+        let sum = 0;
+        for (let i = 0; i < dataArray.length; i++) {
+          sum += dataArray[i];
+        }
+        const avg = sum / dataArray.length;
+        const normalized = Math.min(100, Math.round((avg / 128) * 100));
+        setAudioLevel(normalized);
+        animFrameRef.current = requestAnimationFrame(updateLevel);
+      };
+
+      updateLevel();
+    } catch (err) {
+      console.warn('[AudioContext] No disponible:', err);
+    }
+  };
+
+  // Reconocimiento de voz continuo en segundo plano
   const initSpeechRecognition = () => {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (!SpeechRecognition) {
-      console.warn('[SpeechRecognition] No soportado en este navegador');
-      return null;
-    }
+    if (!SpeechRecognition) return null;
 
     try {
       const recognition = new SpeechRecognition();
@@ -96,23 +176,18 @@ export default function AudioRecorder({ onMeetingProcessed }) {
         }
 
         if (finalChunk.trim()) {
-          setLiveTranscript(prev => {
-            const updated = (prev + ' ' + finalChunk.trim()).trim();
-            return updated;
-          });
+          setLiveTranscript(prev => (prev + ' ' + finalChunk.trim()).trim());
         }
         setLiveInterim(interim.trim());
       };
 
       recognition.onerror = (e) => {
-        console.warn('[SpeechRecognition Error]', e.error);
-        // Si se interrumpe por silencio, volver a escuchar si sigue grabando
         if (stateRef.current.isRecording && e.error !== 'not-allowed') {
           setTimeout(() => {
             if (stateRef.current.isRecording) {
               try { recognition.start(); } catch (_) {}
             }
-          }, 300);
+          }, 400);
         }
       };
 
@@ -125,12 +200,11 @@ export default function AudioRecorder({ onMeetingProcessed }) {
       recognition.start();
       return recognition;
     } catch (err) {
-      console.warn('[SpeechRecognition Start Error]', err);
       return null;
     }
   };
 
-  // Analisis incremental en vivo con Gemini usando audio nativo y/o texto
+  // Analisis incremental continuo con Gemini enviando audio nativo
   const triggerLiveAnalysis = async () => {
     const current = stateRef.current;
     if (!current.isRecording || current.isAnalyzing) return;
@@ -138,7 +212,6 @@ export default function AudioRecorder({ onMeetingProcessed }) {
     const hasAudio = audioChunksRef.current && audioChunksRef.current.length > 0;
     const textToAnalyze = current.transcript.trim();
 
-    // Necesitamos al menos chunks de audio o algo de texto
     if (!hasAudio && textToAnalyze.length < 10) return;
 
     setIsAnalyzingLive(true);
@@ -197,9 +270,15 @@ export default function AudioRecorder({ onMeetingProcessed }) {
       setLiveActionItems([]);
       setLiveAdvice([]);
       setLiveSummary('');
-      setLastAnalyzedLength(0);
+
+      // Inicializar la caja negra en IndexedDB
+      await initEmergencyRecording(meetingTitle);
 
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+
+      // Configurar medidor de voz
+      setupAudioAnalyzer(stream);
+
       const mediaRecorder = new MediaRecorder(stream);
       mediaRecorderRef.current = mediaRecorder;
       audioChunksRef.current = [];
@@ -207,6 +286,8 @@ export default function AudioRecorder({ onMeetingProcessed }) {
       mediaRecorder.ondataavailable = (e) => {
         if (e.data.size > 0) {
           audioChunksRef.current.push(e.data);
+          // Escribir inmediatamente a disco local en IndexedDB cada segundo
+          appendAudioChunk(e.data);
         }
       };
 
@@ -216,19 +297,19 @@ export default function AudioRecorder({ onMeetingProcessed }) {
         stream.getTracks().forEach(track => track.stop());
       };
 
+      // Captura chunks cada 1 segundo (1000ms) para resiliencia total
       mediaRecorder.start(1000);
       setIsRecording(true);
       setRecordingTime(0);
 
-      // Iniciar temporizador de duracion
       timerRef.current = setInterval(() => {
         setRecordingTime(prev => prev + 1);
       }, 1000);
 
-      // Iniciar reconocimiento de voz en vivo
+      // Reconocimiento de voz nativo en paralelo
       recognitionRef.current = initSpeechRecognition();
 
-      // Disparar analisis de copiloto en tiempo real cada 18 segundos
+      // Analisis periodico en vivo cada 12 segundos
       liveAnalysisTimerRef.current = setInterval(() => {
         triggerLiveAnalysis();
       }, 12000);
@@ -244,6 +325,10 @@ export default function AudioRecorder({ onMeetingProcessed }) {
       setIsRecording(false);
       if (timerRef.current) clearInterval(timerRef.current);
       if (liveAnalysisTimerRef.current) clearInterval(liveAnalysisTimerRef.current);
+      if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
+      if (audioContextRef.current) {
+        try { audioContextRef.current.close(); } catch (_) {}
+      }
       if (recognitionRef.current) {
         try { recognitionRef.current.stop(); } catch (_) {}
       }
@@ -257,14 +342,14 @@ export default function AudioRecorder({ onMeetingProcessed }) {
     const fullTranscript = (current.transcript + ' ' + liveInterim).trim();
 
     try {
-      // Si ya recolectamos analisis o transcripcion en vivo, finalizamos directamente
-      if (fullTranscript.length > 20 || current.actionItems.length > 0) {
+      // 1. Si ya se habia estructurado la minuta en vivo, finalizamos directamente
+      if (current.actionItems.length > 0 || current.decisions.length > 0) {
         const res = await fetch(`${API}/api/meetings/live-finalize`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             title: current.title.trim() || `Reunion en Vivo ${new Date().toLocaleDateString('es-ES')}`,
-            summary: current.summary || (fullTranscript.substring(0, 180) + '...'),
+            summary: current.summary || 'Resumen de reunion en vivo',
             keyDecisions: current.decisions,
             actionItems: current.actionItems,
             proactiveAdvice: current.advice,
@@ -274,16 +359,20 @@ export default function AudioRecorder({ onMeetingProcessed }) {
 
         if (res.ok) {
           const savedMeeting = await res.json();
+          await clearEmergencyRecording();
+          setHasRecoverableAudio(false);
           onMeetingProcessed(savedMeeting);
           return;
         }
       }
 
-      // Fallback: procesar audio completo con Gemini si no hubo streaming previo
+      // 2. Procesar audio acumulado completo con Gemini
       setTimeout(async () => {
         if (audioChunksRef.current.length > 0) {
           const blob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
           await processAudioMeeting(blob);
+          await clearEmergencyRecording();
+          setHasRecoverableAudio(false);
         } else {
           setLoading(false);
         }
@@ -294,6 +383,32 @@ export default function AudioRecorder({ onMeetingProcessed }) {
       setError('Error guardando la reunion: ' + err.message);
       setLoading(false);
     }
+  };
+
+  // Recuperar grabacion no finalizada tras refresco o apagado
+  const handleRecoverUnfinalized = async () => {
+    setRecovering(true);
+    setError(null);
+    try {
+      const recovered = await recoverUnfinalizedAudio();
+      if (recovered && recovered.blob) {
+        await processAudioMeeting(recovered.blob, 'reunion_recuperada.webm');
+        await clearEmergencyRecording();
+        setHasRecoverableAudio(false);
+      } else {
+        setError('No se encontro audio util en la caja negra.');
+        setHasRecoverableAudio(false);
+      }
+    } catch (err) {
+      setError('Fallo al recuperar la grabacion: ' + err.message);
+    } finally {
+      setRecovering(false);
+    }
+  };
+
+  const handleDiscardUnfinalized = async () => {
+    await clearEmergencyRecording();
+    setHasRecoverableAudio(false);
   };
 
   const formatTime = (seconds) => {
@@ -366,6 +481,44 @@ export default function AudioRecorder({ onMeetingProcessed }) {
     <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 sm:p-6 shadow-xl relative overflow-hidden transition-all">
       {/* Background glow */}
       <div className="absolute -top-24 -right-24 w-48 h-48 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none" />
+
+      {/* =================================================================== */}
+      {/* BANNER DE RECUPERACION DE EMERGENCIA (CAJA NEGRA)                   */}
+      {/* =================================================================== */}
+      {hasRecoverableAudio && !isRecording && (
+        <div className="mb-5 p-4 rounded-xl bg-amber-950/30 border border-amber-500/40 shadow-lg animate-fade-in flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <div className="p-2 rounded-lg bg-amber-500/20 text-amber-400 shrink-0">
+              <RotateCcw className="w-5 h-5 animate-spin-slow" />
+            </div>
+            <div>
+              <h5 className="text-xs sm:text-sm font-bold text-amber-200">
+                Sesion Previa Recuperada en Disco Local
+              </h5>
+              <p className="text-[11px] text-slate-300">
+                Se detectaron {recoverableSeconds} segundos de audio guardados en la caja negra antes del refresco o cierre.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
+            <button
+              onClick={handleDiscardUnfinalized}
+              className="px-3 py-1.5 rounded-lg text-xs text-slate-400 hover:text-slate-200 hover:bg-slate-800 transition-colors"
+            >
+              Descartar
+            </button>
+            <button
+              onClick={handleRecoverUnfinalized}
+              disabled={recovering}
+              className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-bold bg-amber-500 hover:bg-amber-400 text-slate-950 shadow transition-all"
+            >
+              {recovering ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
+              Recuperar y Procesar Ahora
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Tabs superiores */}
       {!isRecording && (
@@ -440,6 +593,10 @@ export default function AudioRecorder({ onMeetingProcessed }) {
               <p className="text-xs text-slate-400 mt-1 max-w-sm text-center">
                 Proactor AI escuchara en tiempo real, extrayendo tareas, decisiones y consejos proactivos mientras conversas.
               </p>
+              <div className="flex items-center gap-1.5 mt-3 text-[10px] text-emerald-400/80 bg-emerald-500/10 px-2.5 py-1 rounded-full border border-emerald-500/20">
+                <ShieldCheck className="w-3 h-3" />
+                <span>Caja Negra Activa: Respaldo continuo en disco contra desconexiones o refrescos</span>
+              </div>
             </div>
           ) : (
             /* COPILOTO EN TIEMPO REAL ACTIVO */
@@ -469,6 +626,26 @@ export default function AudioRecorder({ onMeetingProcessed }) {
                       {meetingTitle || 'Reunion en vivo'} &bull; Escuchando y detectando en tiempo real
                     </p>
                   </div>
+                </div>
+
+                {/* Ecualizador de Voz Visual en Vivo */}
+                <div className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-900 rounded-xl border border-slate-800" title="Actividad de microfono en tiempo real">
+                  <Volume2 className="w-3.5 h-3.5 text-indigo-400" />
+                  <div className="flex items-end gap-0.5 h-4 w-12">
+                    {[15, 35, 60, 85, 50, 25].map((threshold, idx) => {
+                      const isActive = audioLevel >= threshold;
+                      return (
+                        <span
+                          key={idx}
+                          className={`flex-1 rounded-full transition-all duration-75 ${
+                            isActive ? 'bg-indigo-400' : 'bg-slate-700'
+                          }`}
+                          style={{ height: isActive ? `${Math.max(25, (audioLevel / 100) * 100)}%` : '20%' }}
+                        />
+                      );
+                    })}
+                  </div>
+                  <span className="text-[9px] font-mono text-slate-400 ml-1">{audioLevel}%</span>
                 </div>
 
                 <div className="flex items-center gap-2">
@@ -502,7 +679,7 @@ export default function AudioRecorder({ onMeetingProcessed }) {
                         Resumen Ejecutivo en Vivo
                       </h5>
                       <span className="text-[10px] font-semibold text-indigo-400 bg-indigo-500/10 px-2 py-0.5 rounded-full border border-indigo-500/20">
-                        Síntesis en Tiempo Real
+                        Sintesis en Tiempo Real
                       </span>
                     </div>
 
@@ -535,7 +712,7 @@ export default function AudioRecorder({ onMeetingProcessed }) {
                     {liveDecisions.length === 0 ? (
                       <div className="text-center py-6 text-slate-500 text-xs italic">
                         <CheckCircle2 className="w-5 h-5 text-emerald-500/40 mx-auto mb-1 animate-pulse" />
-                        Esperando acuerdos y decisiones en la sesión...
+                        Esperando acuerdos y decisiones en la sesion...
                       </div>
                     ) : (
                       <div className="space-y-1.5 max-h-[140px] overflow-y-auto pr-1">
@@ -576,8 +753,8 @@ export default function AudioRecorder({ onMeetingProcessed }) {
                             <div className="min-w-0 flex-1">
                               <p className="text-slate-200 font-semibold leading-snug">{item.task}</p>
                               <div className="flex items-center flex-wrap gap-2 mt-1 text-[10px] text-slate-400">
-                                <span className="bg-slate-800 px-1.5 py-0.5 rounded text-indigo-300 font-medium">👤 {item.assignee || 'Por asignar'}</span>
-                                {item.deadline && <span className="bg-slate-800 px-1.5 py-0.5 rounded text-amber-300 font-medium">📅 {item.deadline}</span>}
+                                <span className="bg-slate-800 px-1.5 py-0.5 rounded text-indigo-300 font-medium">?? {item.assignee || 'Por asignar'}</span>
+                                {item.deadline && <span className="bg-slate-800 px-1.5 py-0.5 rounded text-amber-300 font-medium">?? {item.deadline}</span>}
                                 {item.priority && (
                                   <span className="px-1.5 py-0.5 rounded font-bold bg-slate-800 text-indigo-300">
                                     {item.priority}
@@ -601,14 +778,14 @@ export default function AudioRecorder({ onMeetingProcessed }) {
                         Consejos Proactivos &amp; Alertas
                       </h5>
                       <span className="text-[10px] font-semibold text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded-full border border-amber-500/20">
-                        Estratégico
+                        Estrategico
                       </span>
                     </div>
 
                     {liveAdvice.length === 0 ? (
                       <div className="text-center py-6 text-slate-500 text-xs italic">
                         <ShieldAlert className="w-5 h-5 text-amber-500/40 mx-auto mb-1 animate-pulse" />
-                        Proactor evalúa riesgos y recomendaciones estratégicas durante la charla...
+                        Proactor evalua riesgos y recomendaciones estrategicas durante la charla...
                       </div>
                     ) : (
                       <div className="space-y-1.5 max-h-[140px] overflow-y-auto pr-1">
