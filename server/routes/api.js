@@ -122,6 +122,61 @@ router.delete('/meetings/:id', async (req, res) => {
 });
 
 // Procesar reunión desde Audio (Micrófono o Archivo)
+
+// Analizar fragmento de reunion en tiempo real (Live Meeting AI Copilot)
+router.post('/meetings/live-analyze', upload.single('audio'), async (req, res) => {
+  try {
+    const { title, transcript, previousContext } = req.body;
+    let prev = null;
+    if (previousContext) {
+      try { prev = typeof previousContext === 'string' ? JSON.parse(previousContext) : previousContext; } catch (_) {}
+    }
+
+    const audioBuffer = req.file ? req.file.buffer : null;
+    const mimeType = req.file ? req.file.mimetype : null;
+
+    if (!transcript && !audioBuffer) {
+      return res.status(400).json({ error: 'Se requiere transcripcion o fragmento de audio.' });
+    }
+
+    const liveAnalysis = await aiService.analyzeLiveMeeting({
+      meetingTitle: title,
+      transcript: transcript || '',
+      audioBuffer,
+      mimeType,
+      previousContext: prev
+    });
+
+    res.json(liveAnalysis);
+  } catch (err) {
+    console.error('[Live Meeting AI] Error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Finalizar y guardar reunion analizada en vivo
+router.post('/meetings/live-finalize', async (req, res) => {
+  try {
+    const meetingData = req.body;
+    const saved = await storageService.saveMeeting({
+      title: meetingData.title || ('Reunion ' + new Date().toLocaleDateString('es-ES')),
+      summary: meetingData.summary || 'Resumen de reunion analizada en vivo por Proactor AI',
+      keyTopics: meetingData.keyTopics || [],
+      keyDecisions: meetingData.keyDecisions || [],
+      actionItems: meetingData.actionItems || [],
+      proactiveAdvice: meetingData.proactiveAdvice || [],
+      transcript: meetingData.transcript || '',
+      source: 'live-meeting',
+      createdAt: new Date().toISOString()
+    });
+
+    res.json(saved);
+  } catch (err) {
+    console.error('[Live Meeting Finalize] Error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 router.post('/meetings/process-audio', upload.single('audio'), async (req, res) => {
   try {
     if (!req.file) {

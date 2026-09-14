@@ -83,6 +83,100 @@ Debes responder ÚNICAMENTE con un objeto JSON válido (sin markdown, sin bloque
     return parsed;
   }
 
+
+  buildLivePrompt(meetingTitle, currentTranscript, previousContext) {
+    return `
+Eres Proactor AI trabajando EN TIEMPO REAL durante una reunión en vivo.
+Tu trabajo es escuchar activamente la conversación y extraer al instante:
+1. Resumen de lo que se lleva tratado.
+2. Decisiones clave tomadas en este momento.
+3. Compromisos y tareas (Action Items) asignados a personas con prioridad y plazos.
+4. Consejos proactivos y alertas de riesgo en vivo para los participantes.
+
+Título de la reunión: ${meetingTitle || 'Reunión en vivo'}
+Contexto acumulado previo:
+- Tareas ya identificadas: ${JSON.stringify(previousContext?.actionItems || [])}
+- Decisiones previas: ${JSON.stringify(previousContext?.keyDecisions || [])}
+
+Transcripción o fragmento hablado hasta ahora:
+"""
+${currentTranscript}
+"""
+
+Devuelve ÚNICAMENTE un JSON puro (sin bloques markdown) con este formato exacto:
+{
+  "summary": "Resumen ejecutivo actualizado de lo conversado hasta ahora",
+  "keyTopics": ["Tema 1", "Tema 2"],
+  "keyDecisions": ["Decisión tomada 1", "Decisión tomada 2"],
+  "actionItems": [
+    {
+      "task": "Descripción de la tarea acordada",
+      "assignee": "Responsable o 'Por asignar'",
+      "priority": "Alta | Media | Baja",
+      "deadline": "Fecha límite o 'Pendiente'",
+      "completed": false
+    }
+  ],
+  "proactiveAdvice": [
+    "Alerta proactiva o recomendación estratégica para el equipo en tiempo real"
+  ]
+}
+`;
+  }
+
+  async analyzeLiveMeeting({ meetingTitle, transcript, audioBuffer, mimeType, previousContext }) {
+    const key = config.GEMINI_API_KEY;
+    if (!key) throw new Error('GEMINI_API_KEY no configurada');
+
+    const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${this.geminiModel}:generateContent`;
+    const prompt = this.buildLivePrompt(meetingTitle, transcript, previousContext);
+    const parts = [];
+
+    if (audioBuffer) {
+      parts.push({
+        inlineData: {
+          mimeType: mimeType || 'audio/webm',
+          data: audioBuffer.toString('base64')
+        }
+      });
+    }
+    parts.push({ text: prompt });
+
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 45000);
+
+    try {
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-goog-api-key': key
+        },
+        body: JSON.stringify({
+          contents: [{ parts }],
+          generationConfig: {
+            temperature: 0.2,
+            responseMimeType: 'application/json'
+          }
+        }),
+        signal: controller.signal
+      });
+
+      clearTimeout(timer);
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Gemini Live Error (${response.status}): ${errorText}`);
+      }
+
+      const data = await response.json();
+      const contentText = data.candidates?.[0]?.content?.parts?.[0]?.text;
+      return this.cleanJsonResponse(contentText);
+    } catch (err) {
+      clearTimeout(timer);
+      throw err;
+    }
+  }
+
   // --- 1. LLAMADA CON GEMINI (Multimodal Audio & Texto) ---
   async processWithGemini({ audioBuffer, mimeType, rawText, meetingTitle }) {
     const key = config.GEMINI_API_KEY;
