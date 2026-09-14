@@ -1,4 +1,4 @@
-﻿@import "tailwindcss";
+@import "tailwindcss";
 
 @layer base {
   :root {
@@ -6,42 +6,162 @@
     --sab: env(safe-area-inset-bottom, 0px);
     --sal: env(safe-area-inset-left, 0px);
     --sar: env(safe-area-inset-right, 0px);
+    --font-primary: 'Plus Jakarta Sans', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   }
 
   body {
-    @apply bg-slate-950 text-slate-100 font-sans antialiased min-h-screen selection:bg-indigo-500 selection:text-white;
+    font-family: var(--font-primary);
+    @apply bg-slate-950 text-slate-100 antialiased min-h-screen selection:bg-indigo-500 selection:text-white;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     -webkit-tap-highlight-color: transparent;
   }
+
+  /* Modificadores de tamaño de texto para baja visión */
+  html[data-font-size="large"] {
+    font-size: 115%;
+  }
+  html[data-font-size="xlarge"] {
+    font-size: 130%;
+  }
+
+  /* ------------------------------------------------------------- */
+  /* TEMAS ACCESIBLES Y ADAPTADOS A DALTONISMO                     */
+  /* ------------------------------------------------------------- */
+
+  /* 1. Tema Protanopía / Deuteranopía (Rojo-Verde Seguro - WCAG AAA) */
+  html[data-theme="colorblind-safe"] body {
+    background-color: #070d18;
+    color: #f1f5f9;
+  }
+  html[data-theme="colorblind-safe"] .bg-slate-950 {
+    background-color: #070d18 !important;
+  }
+  html[data-theme="colorblind-safe"] .bg-slate-900 {
+    background-color: #0f1c30 !important;
+    border-color: #2563eb40 !important;
+  }
+  html[data-theme="colorblind-safe"] .bg-indigo-600 {
+    background-color: #2563eb !important; /* Azul cobalto de alto contraste */
+  }
+  html[data-theme="colorblind-safe"] .text-indigo-400 {
+    color: #60a5fa !important;
+  }
+  html[data-theme="colorblind-safe"] .text-emerald-400 {
+    color: #38bdf8 !important; /* Cian en lugar de verde ambiguo */
+  }
+  html[data-theme="colorblind-safe"] .text-amber-400 {
+    color: #f59e0b !important; /* Ámbar oro */
+  }
+  html[data-theme="colorblind-safe"] .text-red-400 {
+    color: #fb923c !important; /* Naranja en lugar de rojo confuso */
+  }
+
+  /* 2. Tema Tritanopía (Azul-Amarillo Seguro) */
+  html[data-theme="tritanopia"] body {
+    background-color: #0d0a14;
+    color: #faf5ff;
+  }
+  html[data-theme="tritanopia"] .bg-slate-950 {
+    background-color: #0d0a14 !important;
+  }
+  html[data-theme="tritanopia"] .bg-slate-900 {
+    background-color: #1a1528 !important;
+    border-color: #d946ef30 !important;
+  }
+  html[data-theme="tritanopia"] .bg-indigo-600 {
+    background-color: #d946ef !important; /* Magenta puro */
+  }
+  html[data-theme="tritanopia"] .text-indigo-400 {
+    color: #f472b6 !important;
+  }
+  html[data-theme="tritanopia"] .text-emerald-400 {
+    color: #2dd4bf !important; /* Verde azulado */
+  }
+
+  /* 3. Tema Alto Contraste Extremo (Baja Visión OLED) */
+  html[data-theme="high-contrast"] body {
+    background-color: #000000 !important;
+    color: #ffffff !important;
+  }
+  html[data-theme="high-contrast"] .bg-slate-950,
+  html[data-theme="high-contrast"] .bg-slate-900,
+  html[data-theme="high-contrast"] .bg-slate-800 {
+    background-color: #000000 !important;
+    border-color: #facc15 !important; /* Borde amarillo brillante 100% visible */
+    border-width: 2px !important;
+  }
+  html[data-theme="high-contrast"] button {
+    border-width: 2px !important;
+    font-weight: 700 !important;
+  }
+  html[data-theme="high-contrast"] .text-slate-400,
+  html[data-theme="high-contrast"] .text-slate-500 {
+    color: #e2e8f0 !important;
+  }
+  html[data-theme="high-contrast"] .bg-indigo-600 {
+    background-color: #facc15 !important;
+    color: #000000 !important;
+  }
+
+  /* 4. Tema Luz Suave Diurna (Sin luz azul estridente) */
+  html[data-theme="soft-light"] body {
+    background-color: #f8fafc !important;
+    color: #0f172a !important;
+  }
+  html[data-theme="soft-light"] .bg-slate-950 {
+    background-color: #ffffff !important;
+    border-color: #e2e8f0 !important;
+  }
+  html[data-theme="soft-light"] .bg-slate-900 {
+    background-color: #f1f5f9 !important;
+    border-color: #cbd5e1 !important;
+    color: #0f172a !important;
+  }
+  html[data-theme="soft-light"] .bg-slate-800 {
+    background-color: #e2e8f0 !important;
+    border-color: #cbd5e1 !important;
+    color: #0f172a !important;
+  }
+  html[data-theme="soft-light"] .text-white,
+  html[data-theme="soft-light"] .text-slate-100,
+  html[data-theme="soft-light"] .text-slate-200 {
+    color: #0f172a !important;
+  }
+  html[data-theme="soft-light"] .text-slate-300,
+  html[data-theme="soft-light"] .text-slate-400 {
+    color: #334155 !important;
+  }
+  html[data-theme="soft-light"] .bg-indigo-600 {
+    background-color: #4f46e5 !important;
+    color: #ffffff !important;
+  }
 }
 
-/* Safe areas para moviles con notch o navegacion por gestos (iPhone, Android) */
+/* Safe areas para moviles */
 .safe-bottom {
   padding-bottom: max(0.75rem, env(safe-area-inset-bottom));
 }
-
 .safe-top {
   padding-top: max(0.75rem, env(safe-area-inset-top));
 }
 
-/* Custom scrollbar estilizado para desktop y tactil */
+/* Custom scrollbar */
 ::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  width: 7px;
+  height: 7px;
 }
 ::-webkit-scrollbar-track {
   background: rgba(15, 23, 42, 0.4);
 }
 ::-webkit-scrollbar-thumb {
-  background: rgba(71, 85, 105, 0.5);
+  background: rgba(71, 85, 105, 0.6);
   border-radius: 9999px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(99, 102, 241, 0.7);
+  background: rgba(99, 102, 241, 0.8);
 }
 
-/* Animaciones suaves */
 @keyframes fadeIn {
   from { opacity: 0; transform: translateY(4px); }
   to { opacity: 1; transform: translateY(0); }

@@ -1,6 +1,6 @@
 ﻿import React, { useState, useEffect, useCallback } from 'react';
 import {
-  Sparkles, Brain, Settings, Plus, Search, Calendar, Share2, CheckCircle2,
+  Sparkles, Brain, Settings, Palette, Plus, Search, Calendar, Share2, CheckCircle2,
   Clock, CheckSquare, ChevronRight, Radio, FileText, BookOpen, PenTool,
   ArrowLeft, Activity, ShieldCheck
 } from 'lucide-react';
@@ -9,6 +9,7 @@ import AudioRecorder from './components/AudioRecorder';
 import MeetingDetails from './components/MeetingDetails';
 import SecondBrainModal from './components/SecondBrainModal';
 import SettingsModal from './components/SettingsModal';
+import ThemeSelectorModal from './components/ThemeSelectorModal';
 import CalendarView from './components/CalendarView';
 import EventModal from './components/EventModal';
 import NotebookList from './components/NotebookList';
@@ -24,6 +25,7 @@ export default function App() {
   const [keepAliveData, setKeepAliveData] = useState(null);
   const [isSecondBrainOpen, setIsSecondBrainOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isThemeOpen, setIsThemeOpen] = useState(false);
 
   // Tabs: 'meetings' | 'calendar' | 'notebook'
   const [activeTab, setActiveTab] = useState('meetings');
@@ -276,6 +278,17 @@ export default function App() {
               </span>
             </button>
 
+            {/* Temas y Accesibilidad Visual */}
+            <button
+              onClick={() => setIsThemeOpen(true)}
+              className="p-1.5 sm:p-2 rounded-xl text-amber-400/90 hover:text-amber-300 hover:bg-amber-500/10 transition-colors border border-amber-500/20 flex items-center gap-1.5"
+              title="Temas y Accesibilidad Visual (Daltónicos / Alto Contraste / Tamaño de letra)"
+              aria-label="Configuración de Accesibilidad y Temas"
+            >
+              <Palette className="w-4 h-4 sm:w-5 sm:h-5" />
+              <span className="hidden lg:inline text-xs font-medium text-amber-300">Accesibilidad</span>
+            </button>
+
             {/* Ajustes */}
             <button
               onClick={() => setIsSettingsOpen(true)}
@@ -520,6 +533,11 @@ export default function App() {
         isOpen={isSecondBrainOpen}
         onClose={() => setIsSecondBrainOpen(false)}
         totalMeetings={meetings.length}
+      />
+
+      <ThemeSelectorModal
+        isOpen={isThemeOpen}
+        onClose={() => setIsThemeOpen(false)}
       />
 
       <SettingsModal

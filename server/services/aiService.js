@@ -96,7 +96,7 @@ Contexto previo acumulado:
 
 ${currentTranscript ? `Texto preliminar hablado:\n${currentTranscript}\n` : 'Analiza el audio provisto de la sesion.'}
 
-Devuelve UNICAMENTE un JSON valido (sin bloques markdown ```json) con este formato exacto:
+Devuelve UNICAMENTE un JSON valido (sin bloques markdown de codigo json) con este formato exacto:
 {
   "summary": "Sintesis ejecutiva clara y directa de lo tratado",
   "keyTopics": ["Tema 1", "Tema 2"],
