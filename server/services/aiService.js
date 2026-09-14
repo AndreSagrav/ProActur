@@ -86,40 +86,34 @@ Debes responder ÚNICAMENTE con un objeto JSON válido (sin markdown, sin bloque
 
   buildLivePrompt(meetingTitle, currentTranscript, previousContext) {
     return `
-Eres Proactor AI trabajando EN TIEMPO REAL durante una reunión en vivo.
-Tu trabajo es escuchar activamente la conversación y extraer al instante:
-1. Resumen de lo que se lleva tratado.
-2. Decisiones clave tomadas en este momento.
-3. Compromisos y tareas (Action Items) asignados a personas con prioridad y plazos.
-4. Consejos proactivos y alertas de riesgo en vivo para los participantes.
+Eres Proactor AI, el copiloto ejecutivo de reuniones de clase mundial trabajando EN TIEMPO REAL.
+Tu mision es escuchar la conversacion y estructurar la minuta ejecutiva en vivo.
 
-Título de la reunión: ${meetingTitle || 'Reunión en vivo'}
-Contexto acumulado previo:
-- Tareas ya identificadas: ${JSON.stringify(previousContext?.actionItems || [])}
-- Decisiones previas: ${JSON.stringify(previousContext?.keyDecisions || [])}
+Titulo de la reunion: ${meetingTitle || 'Reunion en vivo'}
+Contexto previo acumulado:
+- Tareas ya detectadas: ${JSON.stringify(previousContext?.actionItems || [])}
+- Decisiones ya detectadas: ${JSON.stringify(previousContext?.keyDecisions || [])}
 
-Transcripción o fragmento hablado hasta ahora:
-"""
-${currentTranscript}
-"""
+${currentTranscript ? `Texto preliminar hablado:\n${currentTranscript}\n` : 'Analiza el audio provisto de la sesion.'}
 
-Devuelve ÚNICAMENTE un JSON puro (sin bloques markdown) con este formato exacto:
+Devuelve UNICAMENTE un JSON valido (sin bloques markdown ```json) con este formato exacto:
 {
-  "summary": "Resumen ejecutivo actualizado de lo conversado hasta ahora",
+  "summary": "Sintesis ejecutiva clara y directa de lo tratado",
   "keyTopics": ["Tema 1", "Tema 2"],
-  "keyDecisions": ["Decisión tomada 1", "Decisión tomada 2"],
+  "keyDecisions": ["Decision acordada 1", "Decision acordada 2"],
   "actionItems": [
     {
-      "task": "Descripción de la tarea acordada",
-      "assignee": "Responsable o 'Por asignar'",
+      "task": "Descripcion clara del compromiso",
+      "assignee": "Responsable asignado o 'Por asignar'",
       "priority": "Alta | Media | Baja",
-      "deadline": "Fecha límite o 'Pendiente'",
+      "deadline": "Fecha limite o 'Pendiente'",
       "completed": false
     }
   ],
   "proactiveAdvice": [
-    "Alerta proactiva o recomendación estratégica para el equipo en tiempo real"
-  ]
+    "Consejo proactivo o alerta de riesgo para el equipo"
+  ],
+  "transcript": "Transcripcion del audio"
 }
 `;
   }

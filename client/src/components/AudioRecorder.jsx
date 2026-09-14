@@ -130,33 +130,39 @@ export default function AudioRecorder({ onMeetingProcessed }) {
     }
   };
 
-  // Analisis incremental en vivo con Gemini
+  // Analisis incremental en vivo con Gemini usando audio nativo y/o texto
   const triggerLiveAnalysis = async () => {
     const current = stateRef.current;
     if (!current.isRecording || current.isAnalyzing) return;
 
+    const hasAudio = audioChunksRef.current && audioChunksRef.current.length > 0;
     const textToAnalyze = current.transcript.trim();
-    // Requerir al menos 15 palabras para no saturar con analisis vacios
-    if (textToAnalyze.split(/\s+/).length < 10) return;
 
-    // Solo analizar si hubo texto nuevo relevante
-    if (textToAnalyze.length <= lastAnalyzedLength + 30 && current.decisions.length > 0) return;
+    // Necesitamos al menos chunks de audio o algo de texto
+    if (!hasAudio && textToAnalyze.length < 10) return;
 
     setIsAnalyzingLive(true);
-    setLastAnalyzedLength(textToAnalyze.length);
 
     try {
+      const formData = new FormData();
+      formData.append('title', current.title || 'Reunion en Vivo');
+      if (textToAnalyze) formData.append('transcript', textToAnalyze);
+
+      if (hasAudio) {
+        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+        formData.append('audio', audioBlob, 'live_chunk.webm');
+      }
+
+      if (current.actionItems.length > 0 || current.decisions.length > 0) {
+        formData.append('previousContext', JSON.stringify({
+          actionItems: current.actionItems,
+          keyDecisions: current.decisions
+        }));
+      }
+
       const res = await fetch(`${API}/api/meetings/live-analyze`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          title: current.title || 'Reunion en Vivo',
-          transcript: textToAnalyze,
-          previousContext: {
-            actionItems: current.actionItems,
-            keyDecisions: current.decisions
-          }
-        })
+        body: formData
       });
 
       if (res.ok) {
@@ -170,6 +176,9 @@ export default function AudioRecorder({ onMeetingProcessed }) {
         }
         if (Array.isArray(data.proactiveAdvice) && data.proactiveAdvice.length > 0) {
           setLiveAdvice(data.proactiveAdvice);
+        }
+        if (data.transcript && !current.transcript) {
+          setLiveTranscript(data.transcript);
         }
       }
     } catch (err) {
