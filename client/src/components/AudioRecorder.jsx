@@ -34,11 +34,12 @@ export default function AudioRecorder({ onMeetingProcessed }) {
 
   // Medidor de voz en vivo (Audio Activity Analyzer)
   const [audioLevel, setAudioLevel] = useState(0);
+  const isRecordingRef = useRef(false);
   const audioContextRef = useRef(null);
   const analyserRef = useRef(null);
   const animFrameRef = useRef(null);
 
-  // Estados del copiloto en tiempo real (Live Proactor AI)
+  // Estados del copiloto en tiempo real (Live ProActur AI)
   const [liveTranscript, setLiveTranscript] = useState('');
   const [liveInterim, setLiveInterim] = useState('');
   const [liveDecisions, setLiveDecisions] = useState([]);
@@ -112,6 +113,37 @@ export default function AudioRecorder({ onMeetingProcessed }) {
     return () => window.removeEventListener('beforeunload', handleBeforeUnload);
   }, [isRecording]);
 
+  // 3. Resiliencia de red: auto-pausa y auto-reanudación de análisis ante cortes de internet
+  useEffect(() => {
+    const handleOnline = () => {
+      console.log('[ProActur Network] Conexión restablecida.');
+      if (isRecordingRef.current) {
+        setLiveStatusMessage('⚡ Internet restablecido. Reanudando análisis en vivo con la IA...');
+        setTimeout(() => {
+          if (isRecordingRef.current) {
+            triggerLiveAnalysis();
+          }
+        }, 1500);
+      }
+    };
+
+    const handleOffline = () => {
+      console.warn('[ProActur Network] Pérdida de conexión a internet.');
+      if (isRecordingRef.current) {
+        setLiveStatusMessage('📡 Sin internet: Grabación segura en disco (Caja Negra). Se sincronizará al reconectar.');
+      }
+    };
+
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
+
+
   useEffect(() => {
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
@@ -148,7 +180,7 @@ export default function AudioRecorder({ onMeetingProcessed }) {
       const dataArray = new Uint8Array(analyser.frequencyBinCount);
 
       const updateLevel = () => {
-        if (!stateRef.current.isRecording) return;
+        if (!isRecordingRef.current) return;
         analyser.getByteFrequencyData(dataArray);
         let sum = 0;
         for (let i = 0; i < dataArray.length; i++) {
@@ -220,33 +252,45 @@ export default function AudioRecorder({ onMeetingProcessed }) {
   };
 
   // Analisis incremental continuo con Gemini enviando audio y notas en vivo
-  const triggerLiveAnalysis = async () => {
+  const triggerLiveAnalysis = async (explicitNotes = null) => {
     const current = stateRef.current;
-    if (!current.isRecording || current.isAnalyzing) return;
+    if (!isRecordingRef.current || current.isAnalyzing) return;
 
-    const hasAudio = audioChunksRef.current && audioChunksRef.current.length > 0;
+    // Si no hay internet, no intentamos llamar a la nube: el micrófono sigue grabando en disco local
+    if (!navigator.onLine) {
+      setLiveStatusMessage('📡 Sin conexión: Audio seguro en disco (Caja Negra). Esperando internet...');
+      return;
+    }
+
+    const notesToUse = typeof explicitNotes === 'string' ? explicitNotes : (current.userNotes || '');
+    const userNotesText = notesToUse.trim();
     const textToAnalyze = (current.transcript || '').trim();
-    const userNotesText = (current.userNotes || '').trim();
+    const hasAudio = audioChunksRef.current && audioChunksRef.current.length > 0;
 
-    // Si no hay audio, ni transcripcion, ni notas del usuario, no analizamos
-    if (!hasAudio && textToAnalyze.length < 5 && userNotesText.length < 5) return;
+    if (!hasAudio && textToAnalyze.length < 3 && userNotesText.length < 3) {
+      setLiveStatusMessage('ℹ️ Habla al micrófono o escribe notas para que la IA extraiga acuerdos.');
+      return;
+    }
 
     setIsAnalyzingLive(true);
-    setLiveStatusMessage('Procesando audio y notas en tiempo real con Gemini...');
+    setLiveStatusMessage('⚡ Analizando con IA...');
+
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 7500); // Max 7.5s - NUNCA SE QUEDA PEGADO
 
     try {
       const formData = new FormData();
-      formData.append('title', current.title || 'Reunion en Vivo');
+      formData.append('title', current.title || 'Reunión en Vivo');
       if (textToAnalyze) formData.append('transcript', textToAnalyze);
       if (userNotesText) formData.append('userNotes', userNotesText);
 
-      // Enviamos el fragmento de audio (si supera 2MB, enviamos los ultimos 15 segundos para no desbordar Vercel)
+      // Enviamos cabecera WebM (chunk 0) + últimos 15 segundos (máx ~180KB, upload instantáneo)
       if (hasAudio) {
-        const recentChunks = audioChunksRef.current.length > 20
-          ? audioChunksRef.current.slice(-15)
-          : audioChunksRef.current;
-        const audioBlob = new Blob(recentChunks, { type: 'audio/webm' });
-        if (audioBlob.size < 2.5 * 1024 * 1024) {
+        const chunks = audioChunksRef.current.length <= 15
+          ? audioChunksRef.current
+          : [audioChunksRef.current[0], ...audioChunksRef.current.slice(-15)];
+        const audioBlob = new Blob(chunks, { type: 'audio/webm' });
+        if (audioBlob.size > 0) {
           formData.append('audio', audioBlob, 'live_chunk.webm');
         }
       }
@@ -260,29 +304,42 @@ export default function AudioRecorder({ onMeetingProcessed }) {
 
       const res = await fetch(`${API}/api/meetings/live-analyze`, {
         method: 'POST',
-        body: formData
+        body: formData,
+        signal: controller.signal
       });
 
-      if (res.ok) {
-        const data = await res.json();
-        if (data.summary) setLiveSummary(data.summary);
-        if (Array.isArray(data.keyDecisions) && data.keyDecisions.length > 0) {
-          setLiveDecisions(data.keyDecisions);
-        }
-        if (Array.isArray(data.actionItems) && data.actionItems.length > 0) {
-          setLiveActionItems(data.actionItems);
-        }
-        if (Array.isArray(data.proactiveAdvice) && data.proactiveAdvice.length > 0) {
-          setLiveAdvice(data.proactiveAdvice);
-        }
-        if (data.transcript && !current.transcript) {
-          setLiveTranscript(data.transcript);
-        }
+      if (!res.ok) {
+        const errJson = await res.json().catch(() => ({}));
+        throw new Error(errJson.error || `HTTP ${res.status}`);
       }
+
+      const data = await res.json();
+      if (data.summary) setLiveSummary(data.summary);
+      if (Array.isArray(data.keyDecisions) && data.keyDecisions.length > 0) {
+        setLiveDecisions(data.keyDecisions);
+      }
+      if (Array.isArray(data.actionItems) && data.actionItems.length > 0) {
+        setLiveActionItems(data.actionItems);
+      }
+      if (Array.isArray(data.proactiveAdvice) && data.proactiveAdvice.length > 0) {
+        setLiveAdvice(data.proactiveAdvice);
+      }
+      if (data.transcript) {
+        setLiveTranscript(data.transcript);
+      }
+      const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+      setLiveStatusMessage(`✓ Actualizado (${timeStr})`);
     } catch (err) {
-      console.warn('[Live Analysis Warn]', err.message);
+      if (err.name === 'AbortError') {
+        console.warn('[Live Analysis] Request timeout, reanudando...');
+        setLiveStatusMessage('⚡ Reanudando escucha...');
+      } else {
+        console.warn('[Live Analysis Warn]', err.message);
+        setLiveStatusMessage(`Aviso: ${err.message}`);
+      }
     } finally {
-      setIsAnalyzingLive(false);
+      clearTimeout(timeoutId);
+      setIsAnalyzingLive(false); // Siempre se libera inmediatamente
     }
   };
 
@@ -300,6 +357,8 @@ export default function AudioRecorder({ onMeetingProcessed }) {
       await initEmergencyRecording(meetingTitle);
 
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      isRecordingRef.current = true;
+      setIsRecording(true);
 
       // Configurar medidor de voz
       setupAudioAnalyzer(stream);
@@ -337,7 +396,7 @@ export default function AudioRecorder({ onMeetingProcessed }) {
       // Analisis periodico en vivo cada 12 segundos
       liveAnalysisTimerRef.current = setInterval(() => {
         triggerLiveAnalysis();
-      }, 12000);
+      }, 10000);
 
     } catch (err) {
       console.error('Error accediendo al microfono:', err);
@@ -371,6 +430,8 @@ export default function AudioRecorder({ onMeetingProcessed }) {
   };
 
   const stopAndFinalizeRecording = async () => {
+    isRecordingRef.current = false;
+    setAudioLevel(0);
     if (mediaRecorderRef.current && isRecording) {
       setIsRecording(false);
       if (timerRef.current) clearInterval(timerRef.current);
@@ -641,7 +702,7 @@ export default function AudioRecorder({ onMeetingProcessed }) {
               </button>
               <h4 className="mt-4 text-sm font-semibold text-slate-200">Iniciar Reunion en Vivo</h4>
               <p className="text-xs text-slate-400 mt-1 max-w-sm text-center">
-                Proactor AI escuchara en tiempo real, extrayendo tareas, decisiones y consejos proactivos mientras conversas.
+                ProActur AI escuchara en tiempo real, extrayendo tareas, decisiones y consejos proactivos mientras conversas.
               </p>
               <div className="flex items-center gap-1.5 mt-3 text-[10px] text-emerald-400/80 bg-emerald-500/10 px-2.5 py-1 rounded-full border border-emerald-500/20">
                 <ShieldCheck className="w-3 h-3" />
@@ -734,12 +795,12 @@ export default function AudioRecorder({ onMeetingProcessed }) {
                 <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-end gap-3 pt-1">
                   <button
                     type="button"
-                    onClick={triggerLiveAnalysis}
+                    onClick={() => triggerLiveAnalysis(userLiveNotes)}
                     disabled={isAnalyzingLive}
                     className="flex-1 sm:flex-initial flex items-center justify-center gap-2 px-5 py-3 rounded-2xl text-xs sm:text-sm font-bold bg-slate-800 hover:bg-slate-700 text-indigo-300 border border-slate-700 hover:border-indigo-500/50 transition-all shadow-md disabled:opacity-50"
                   >
-                    <Zap className="w-4 h-4 text-amber-400" />
-                    <span>{isAnalyzingLive ? 'Analizando con IA...' : '⚡ Forzar Análisis de la IA Ahora'}</span>
+                    {isAnalyzingLive ? <Loader2 className="w-4 h-4 animate-spin text-amber-400" /> : <Zap className="w-4 h-4 text-amber-400" />}
+                    <span>{isAnalyzingLive ? 'Analizando con Gemini...' : '⚡ Analizar Ahora'}</span>
                   </button>
 
                   <button
@@ -861,7 +922,7 @@ export default function AudioRecorder({ onMeetingProcessed }) {
                         <textarea
                           value={userLiveNotes}
                           onChange={(e) => setUserLiveNotes(e.target.value)}
-                          placeholder="Escribe aquí tus notas, acuerdos hablados, compromisos o nombres en vivo... Ejemplo: 'Acordamos que Carlos entrega el presupuesto el viernes'."
+                          placeholder="Escribe aquí notas, compromisos o acuerdos hablados... (Se analizan con IA automáticamente o presiona Ctrl+Enter / botón amarillo)"
                           className="w-full bg-slate-950/80 border border-slate-800 rounded-xl p-3 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 h-24 transition-all resize-none leading-relaxed font-sans"
                         />
                         <div className="flex items-center justify-between text-[11px] text-slate-400">
@@ -890,7 +951,7 @@ export default function AudioRecorder({ onMeetingProcessed }) {
                 )}
               </div>
 
-              {/* MINUTA EJECUTIVA ESTRUCTURADA EN TIEMPO REAL (LOS 4 PILARES DE PROACTOR) */}
+              {/* MINUTA EJECUTIVA ESTRUCTURADA EN TIEMPO REAL (LOS 4 PILARES DE PROACTUR) */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-5 pt-2">
                 {/* Pilar 1: Resumen Ejecutivo en Vivo */}
                 <div className="bg-slate-950/85 border border-indigo-500/25 rounded-3xl p-5 sm:p-6 shadow-xl flex flex-col justify-between min-h-[220px]">
@@ -1013,7 +1074,7 @@ export default function AudioRecorder({ onMeetingProcessed }) {
                     {liveAdvice.length === 0 ? (
                       <div className="text-center py-8 text-slate-400 text-xs italic space-y-2">
                         <ShieldAlert className="w-6 h-6 text-amber-400/50 mx-auto animate-pulse" />
-                        <p>Proactor evalúa riesgos y recomendaciones durante la charla...</p>
+                        <p>ProActur evalúa riesgos y recomendaciones durante la charla...</p>
                       </div>
                     ) : (
                       <div className="space-y-2 max-h-[160px] overflow-y-auto pr-1">

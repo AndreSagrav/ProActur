@@ -1,7 +1,7 @@
 {
-  "name": "proactor",
+  "name": "proactur",
   "version": "1.0.0",
-  "description": "Proactor AI - Asistente inteligente de reuniones, transcripción automática, extracción de tareas y sincronización con Notion",
+  "description": "ProActur AI - Asistente inteligente de reuniones, transcripción automática, extracción de tareas y sincronización con Notion",
   "author": "AndreSagrav",
   "license": "MIT",
   "main": "server/index.js",

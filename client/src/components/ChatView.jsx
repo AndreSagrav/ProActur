@@ -15,7 +15,7 @@ export default function ChatView({ totalMeetings = 0 }) {
   const [messages, setMessages] = useState([
     {
       role: 'assistant',
-      text: '¡Hola! Soy tu Asistente IA de Proactor. Tengo acceso a todas tus reuniones grabadas y a tus libretas de notas. Puedes hacerme cualquier pregunta sobre compromisos, acuerdos, fechas o temas discutidos.'
+      text: '¡Hola! Soy tu Asistente IA de ProActur. Tengo acceso a todas tus reuniones grabadas y a tus libretas de notas. Puedes hacerme cualquier pregunta sobre compromisos, acuerdos, fechas o temas discutidos.'
     }
   ]);
   const [loading, setLoading] = useState(false);
@@ -80,7 +80,7 @@ export default function ChatView({ totalMeetings = 0 }) {
           </div>
           <div>
             <h2 className="text-base font-bold text-slate-100 flex items-center gap-2">
-              Chat con la IA (Segundo Cerebro Proactor)
+              Chat con la IA (Segundo Cerebro ProActur)
               <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 font-bold flex items-center gap-1">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
                 IA Activa

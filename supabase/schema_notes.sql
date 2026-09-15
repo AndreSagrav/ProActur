@@ -1,5 +1,5 @@
 ﻿-- ================================================================
--- Proactor AI - Tabla de Notas / Libreta
+-- ProActur AI - Tabla de Notas / Libreta
 -- Ejecuta en: https://supabase.com/dashboard/project/ssbulukhivrmynwqwtxo/sql
 -- ================================================================
 

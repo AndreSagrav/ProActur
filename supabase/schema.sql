@@ -1,5 +1,5 @@
 ﻿-- ================================================================
--- Proactor AI - Esquema de Base de Datos para Supabase
+-- ProActur AI - Esquema de Base de Datos para Supabase
 -- Ejecuta este script en el SQL Editor de tu panel de Supabase:
 -- https://supabase.com/dashboard/project/ssbulukhivrmynwqwtxo/sql
 -- ================================================================

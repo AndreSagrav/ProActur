@@ -1,8 +1,8 @@
-# Proactor AI 🎙️⚡
+# ProActur AI 🎙️⚡
 
 > **Tu asistente proactivo de reuniones, transcriptor inteligente y segundo cerebro conectado directamente con Notion.**
 
-Proactor AI es una plataforma diseñada para automatizar la captura, síntesis y seguimiento de reuniones ejecutivas, llamadas y clases. Escucha el audio, extrae minutas estructuradas, identifica acuerdos clave, genera listas de tareas asignadas con responsables y fechas límite, y sincroniza todo con un clic en tu espacio de trabajo de **Notion**.
+ProActur AI es una plataforma diseñada para automatizar la captura, síntesis y seguimiento de reuniones ejecutivas, llamadas y clases. Escucha el audio, extrae minutas estructuradas, identifica acuerdos clave, genera listas de tareas asignadas con responsables y fechas límite, y sincroniza todo con un clic en tu espacio de trabajo de **Notion**.
 
 ---
 
@@ -24,7 +24,7 @@ Proactor AI es una plataforma diseñada para automatizar la captura, síntesis y
 
 ### 1. Clonar o acceder al proyecto
 ```bash
-cd "c:\Users\Taller SK\Documents\PROYECTOS\proactor"
+cd "c:\Users\Taller SK\Documents\PROYECTOS\proactur"
 ```
 
 ### 2. Configurar Variables de Entorno
@@ -63,7 +63,7 @@ npm run dev
 ## 📂 Estructura del Proyecto
 
 ```
-proactor/
+proactur/
 ├── client/                     # Frontend moderno con React, Vite y Tailwind CSS
 │   ├── src/
 │   │   ├── components/
@@ -95,12 +95,12 @@ proactor/
 ## 🔗 Repositorio en GitHub
 
 * **Organización / Usuario:** [AndreSagrav](https://github.com/AndreSagrav)
-* **Repositorio:** [https://github.com/AndreSagrav/proactor](https://github.com/AndreSagrav/proactor)
+* **Repositorio:** [https://github.com/AndreSagrav/proactur](https://github.com/AndreSagrav/proactur)
 
 Para enviar tus cambios a GitHub:
 ```bash
 git add .
-git commit -m "feat: Proactor AI inicial con integración a Notion y Gemini"
+git commit -m "feat: ProActur AI inicial con integración a Notion y Gemini"
 git push -u origin main
 ```
 

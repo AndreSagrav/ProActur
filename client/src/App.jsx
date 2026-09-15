@@ -221,7 +221,7 @@ export default function App() {
               <div>
                 <div className="flex items-center gap-2">
                   <h1 className="text-base sm:text-lg font-extrabold tracking-tight text-slate-100 leading-none">
-                    Proactor
+                    ProActur
                   </h1>
                   <span className="text-[10px] px-2 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 font-bold border border-indigo-500/30">
                     AI Proactivo
@@ -442,8 +442,8 @@ export default function App() {
                 <AudioRecorder onMeetingProcessed={handleMeetingProcessed} />
               </div>
 
-              {/* Detalle o Placeholder */}
-              {selectedMeeting ? (
+              {/* Detalle de reunión seleccionada */}
+              {selectedMeeting && (
                 <MeetingDetails
                   meeting={selectedMeeting}
                   onUpdateMeeting={handleUpdateMeeting}
@@ -451,16 +451,6 @@ export default function App() {
                   onScheduleFollowUp={handleScheduleFollowUp}
                   onCreateNote={handleCreateNoteFromMeeting}
                 />
-              ) : (
-                <div className="bg-slate-900/40 border border-dashed border-slate-800 rounded-2xl p-8 sm:p-12 text-center">
-                  <div className="w-12 h-12 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-400 mx-auto mb-3">
-                    <Sparkles className="w-6 h-6" />
-                  </div>
-                  <h3 className="text-base font-bold text-slate-200">Selecciona una reunion o graba una nueva</h3>
-                  <p className="text-xs text-slate-400 max-w-sm mx-auto mt-1">
-                    Proactor AI analiza tus conversaciones, extrae acuerdos, crea tareas automáticas y las sincroniza en tu libreta inteligente y segundo cerebro.
-                  </p>
-                </div>
               )}
             </section>
           </div>

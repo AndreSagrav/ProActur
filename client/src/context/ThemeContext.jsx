@@ -48,7 +48,7 @@ const ThemeContext = createContext();
 export function ThemeProvider({ children }) {
   const [theme, setTheme] = useState(() => {
     try {
-      return localStorage.getItem('proactor_theme') || 'obsidian';
+      return localStorage.getItem('proactur_theme') || 'obsidian';
     } catch (_) {
       return 'obsidian';
     }
@@ -56,7 +56,7 @@ export function ThemeProvider({ children }) {
 
   const [fontSize, setFontSize] = useState(() => {
     try {
-      return localStorage.getItem('proactor_font_size') || 'normal'; // 'normal' | 'large' | 'xlarge'
+      return localStorage.getItem('proactur_font_size') || 'normal'; // 'normal' | 'large' | 'xlarge'
     } catch (_) {
       return 'normal';
     }
@@ -66,8 +66,8 @@ export function ThemeProvider({ children }) {
     document.documentElement.setAttribute('data-theme', theme);
     document.documentElement.setAttribute('data-font-size', fontSize);
     try {
-      localStorage.setItem('proactor_theme', theme);
-      localStorage.setItem('proactor_font_size', fontSize);
+      localStorage.setItem('proactur_theme', theme);
+      localStorage.setItem('proactur_font_size', fontSize);
     } catch (_) {}
   }, [theme, fontSize]);
 

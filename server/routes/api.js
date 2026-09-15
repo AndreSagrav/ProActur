@@ -135,8 +135,8 @@ router.post('/meetings/live-analyze', upload.single('audio'), async (req, res) =
     const audioBuffer = req.file ? req.file.buffer : null;
     const mimeType = req.file ? req.file.mimetype : null;
 
-    if (!transcript && !audioBuffer) {
-      return res.status(400).json({ error: 'Se requiere transcripcion o fragmento de audio.' });
+    if (!transcript && !audioBuffer && (!userNotes || !userNotes.trim())) {
+      return res.status(400).json({ error: 'Se requiere transcripción, fragmento de audio o notas escritas para analizar.' });
     }
 
     const liveAnalysis = await aiService.analyzeLiveMeeting({
@@ -161,7 +161,7 @@ router.post('/meetings/live-finalize', async (req, res) => {
     const meetingData = req.body;
     const saved = await storageService.saveMeeting({
       title: meetingData.title || ('Reunion ' + new Date().toLocaleDateString('es-ES')),
-      summary: meetingData.summary || 'Resumen de reunion analizada en vivo por Proactor AI',
+      summary: meetingData.summary || 'Resumen de reunion analizada en vivo por ProActur AI',
       keyTopics: meetingData.keyTopics || [],
       keyDecisions: meetingData.keyDecisions || [],
       actionItems: meetingData.actionItems || [],
@@ -187,7 +187,7 @@ router.post('/meetings/process-audio', upload.single('audio'), async (req, res) 
     const meetingTitle = req.body.title || 'Reunión Grabada ' + new Date().toLocaleString('es-ES');
     const mimeType = req.file.mimetype || 'audio/webm';
 
-    console.log(`[Proactor AI] Procesando audio de reunión: ${req.file.size} bytes (${mimeType})`);
+    console.log(`[ProActur AI] Procesando audio de reunión: ${req.file.size} bytes (${mimeType})`);
 
     const result = await aiService.processMeeting({
       audioBuffer: req.file.buffer,
@@ -204,7 +204,7 @@ router.post('/meetings/process-audio', upload.single('audio'), async (req, res) 
 
     res.json(saved);
   } catch (err) {
-    console.error('[Proactor AI] Error procesando audio:', err);
+    console.error('[ProActur AI] Error procesando audio:', err);
     res.status(500).json({ error: err.message });
   }
 });
@@ -217,7 +217,7 @@ router.post('/meetings/process-text', async (req, res) => {
       return res.status(400).json({ error: 'El texto o notas de la reunión están vacíos.' });
     }
 
-    console.log(`[Proactor AI] Analizando notas de reunión con IA...`);
+    console.log(`[ProActur AI] Analizando notas de reunión con IA...`);
 
     const result = await aiService.processMeeting({
       rawText,
@@ -231,7 +231,7 @@ router.post('/meetings/process-text', async (req, res) => {
 
     res.json(saved);
   } catch (err) {
-    console.error('[Proactor AI] Error procesando texto:', err);
+    console.error('[ProActur AI] Error procesando texto:', err);
     res.status(500).json({ error: err.message });
   }
 });
@@ -265,7 +265,7 @@ router.post('/meetings/:id/sync-notion', async (req, res) => {
       meeting: updated
     });
   } catch (err) {
-    console.error('[Proactor AI] Error sincronizando con Notion:', err);
+    console.error('[ProActur AI] Error sincronizando con Notion:', err);
     res.status(500).json({ error: err.message });
   }
 });
@@ -306,7 +306,7 @@ router.post('/second-brain/ask', async (req, res) => {
       totalNotesAnalyzed: allNotes.length
     });
   } catch (err) {
-    console.error('[Proactor AI] Error en Second Brain:', err);
+    console.error('[ProActur AI] Error en Second Brain:', err);
     res.status(500).json({ error: err.message });
   }
 });

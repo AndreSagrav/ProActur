@@ -1,0 +1,14 @@
+{
+  "appId": "com.proactur.app",
+  "appName": "ProActur",
+  "webDir": "dist",
+  "server": {
+    "url": "https://pro-actur.vercel.app",
+    "cleartext": true,
+    "androidScheme": "https"
+  },
+  "android": {
+    "allowMixedContent": true,
+    "captureInput": true
+  }
+}

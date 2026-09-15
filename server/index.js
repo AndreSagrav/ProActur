@@ -36,7 +36,7 @@ app.get('*', (req, res, next) => {
   res.sendFile(indexPath, (err) => {
     if (err) {
       res.json({
-        name: 'Proactor AI Server',
+        name: 'ProActur AI Server',
         status: 'running',
         apiDocs: '/api/health'
       });
@@ -47,7 +47,7 @@ app.get('*', (req, res, next) => {
 if (require.main === module) {
   app.listen(PORT, () => {
     console.log('=========================================');
-    console.log('🚀 Proactor AI Server ejecutándose en:');
+    console.log('🚀 ProActur AI Server ejecutándose en:');
     console.log(`📡 http://localhost:${PORT}`);
     console.log('🧠 Modelo IA activo:', config.GEMINI_MODEL || 'gemini-3.6-flash');
     console.log('⚡ Persistencia:', config.SUPABASE_URL ? 'Supabase + Local Cache' : 'Local (meetings.json)');

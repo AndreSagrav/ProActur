@@ -1,5 +1,5 @@
 ﻿-- ================================================================
--- Proactor AI - Tabla de Eventos / Agenda
+-- ProActur AI - Tabla de Eventos / Agenda
 -- Ejecuta en: https://supabase.com/dashboard/project/ssbulukhivrmynwqwtxo/sql
 -- ================================================================
 

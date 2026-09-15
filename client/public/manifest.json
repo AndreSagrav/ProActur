@@ -1,0 +1,48 @@
+{
+  "name": "ProActur AI - Copiloto Ejecutivo",
+  "short_name": "ProActur",
+  "description": "Copiloto proactivo de reuniones, libretas canvas y segundo cerebro",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#020617",
+  "theme_color": "#0f172a",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "192x192 512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": [
+    "business",
+    "productivity"
+  ],
+  "shortcuts": [
+    {
+      "name": "Grabar Reunión",
+      "short_name": "Grabar",
+      "description": "Iniciar grabación de reunión en vivo",
+      "url": "/?action=record",
+      "icons": [
+        {
+          "src": "/favicon.svg",
+          "sizes": "192x192"
+        }
+      ]
+    },
+    {
+      "name": "Chat con IA",
+      "short_name": "Chat IA",
+      "description": "Consultar al Segundo Cerebro",
+      "url": "/?tab=chat",
+      "icons": [
+        {
+          "src": "/favicon.svg",
+          "sizes": "192x192"
+        }
+      ]
+    }
+  ]
+}
