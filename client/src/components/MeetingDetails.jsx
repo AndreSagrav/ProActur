@@ -1,8 +1,9 @@
-﻿import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   CheckSquare, Square, ExternalLink, Share2, CheckCircle2,
   AlertTriangle, ChevronDown, ChevronUp, Calendar, User, Clock,
-  Lightbulb, Target, FileText, Loader2, Trash2, BookOpen, CalendarPlus, Copy, Check, Volume2
+  Lightbulb, Target, FileText, Loader2, Trash2, BookOpen, CalendarPlus,
+  Copy, Check, Volume2, Brain, Send, Sparkles, MessageSquare, CornerDownLeft
 } from 'lucide-react';
 
 const API = import.meta.env.VITE_API_URL || '';
@@ -12,7 +13,67 @@ export default function MeetingDetails({ meeting, onUpdateMeeting, onDeleteMeeti
   const [syncStatus, setSyncStatus] = useState(null);
   const [showTranscript, setShowTranscript] = useState(false);
   const [copied, setCopied] = useState(false);
-  const [actionItems, setActionItems] = useState(meeting.actionItems || []);
+    const [actionItems, setActionItems] = useState(meeting.actionItems || []);
+
+  // Estados del Chat con IA enfocado exclusivamente en esta reunión
+  const [meetingChatMessages, setMeetingChatMessages] = useState([
+    {
+      role: 'assistant',
+      text: `¡Hola! He analizado el registro completo de "${meeting.title || 'esta reunión'}". Puedes hacerme cualquier pregunta específica sobre lo que se discutió, acuerdos vinculantes, fechas o pedirme que redacte un correo de seguimiento.`
+    }
+  ]);
+  const [meetingChatInput, setMeetingChatInput] = useState('');
+  const [meetingChatLoading, setMeetingChatLoading] = useState(false);
+  const chatEndRef = useRef(null);
+
+  useEffect(() => {
+    // Reset chat when meeting changes
+    setMeetingChatMessages([
+      {
+        role: 'assistant',
+        text: `¡Hola! He analizado el registro completo de "${meeting.title || 'esta reunión'}". Puedes hacerme cualquier pregunta específica sobre lo que se discutió, acuerdos vinculantes, fechas o pedirme que redacte un correo de seguimiento.`
+      }
+    ]);
+  }, [meeting.id]);
+
+  useEffect(() => {
+    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [meetingChatMessages, meetingChatLoading]);
+
+  const askMeetingAi = async (textToAsk) => {
+    const q = (textToAsk || meetingChatInput).trim();
+    if (!q || meetingChatLoading) return;
+
+    setMeetingChatInput('');
+    setMeetingChatMessages(prev => [...prev, { role: 'user', text: q }]);
+    setMeetingChatLoading(true);
+
+    try {
+      const res = await fetch(`${API}/api/meetings/${meeting.id}/ask`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          question: q,
+          meetingData: meeting
+        })
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Error consultando a la IA');
+
+      setMeetingChatMessages(prev => [
+        ...prev,
+        { role: 'assistant', text: data.answer || 'No obtuve respuesta sobre ese punto en esta sesión.' }
+      ]);
+    } catch (err) {
+      setMeetingChatMessages(prev => [
+        ...prev,
+        { role: 'assistant', text: `Error consultando a la IA: ${err.message}` }
+      ]);
+    } finally {
+      setMeetingChatLoading(false);
+    }
+  };
 
   useEffect(() => {
     setActionItems(meeting.actionItems || []);
@@ -69,24 +130,36 @@ export default function MeetingDetails({ meeting, onUpdateMeeting, onDeleteMeeti
 
   return (
     <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-md space-y-4">
-      {/* Header */}
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <h2 className="text-lg font-bold text-slate-100">{meeting.title || 'Reunion sin titulo'}</h2>
-          <div className="flex items-center gap-3 mt-1 text-[11px] text-slate-400">
-            <span className="flex items-center gap-1">
-              <Calendar className="w-3 h-3" />
-              {new Date(meeting.createdAt || Date.now()).toLocaleDateString('es-ES', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+            {/* Cabecera Ejecutiva: Ancho Completo sin Compresión ni Solapamiento */}
+      <div className="border-b border-slate-800/80 pb-4 space-y-3">
+        {/* Título Principal */}
+        <h2 className="text-xl sm:text-2xl font-black text-slate-100 tracking-tight leading-snug">
+          {meeting.title || 'Reunión sin título'}
+        </h2>
+
+        {/* Metadatos en Badges Elegantes */}
+        <div className="flex flex-wrap items-center gap-2 text-xs text-slate-400">
+          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-slate-800/90 border border-slate-700/60 text-slate-300 font-medium">
+            <Calendar className="w-3.5 h-3.5 text-indigo-400" />
+            {new Date(meeting.createdAt || Date.now()).toLocaleDateString('es-ES', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+          </span>
+
+          {meeting.source && (
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-300 font-semibold text-[11px]">
+              {meeting.source === 'audio' ? <Volume2 className="w-3 h-3 text-indigo-400" /> : <FileText className="w-3 h-3 text-indigo-400" />}
+              {meeting.source === 'audio' ? 'Grabación de Audio' : 'Nota / Minuta'}
             </span>
-            {meeting.source && (
-              <span className="px-2 py-0.5 rounded-full bg-slate-800 border border-slate-700 text-slate-400 text-[10px] font-semibold">
-                {meeting.source === 'audio' ? 'Audio' : 'Texto'}
-              </span>
-            )}
-          </div>
+          )}
+
+          {meeting.transcript && (
+            <span className="px-2.5 py-1 rounded-xl bg-slate-800/60 border border-slate-700/40 text-slate-400 text-[11px] font-mono">
+              {meeting.transcript.split(/\s+/).filter(Boolean).length} palabras
+            </span>
+          )}
         </div>
 
-        <div className="flex items-center gap-2 shrink-0">
+        {/* Barra de Acciones Ejecutivas con Espacio Holgado y Cero Desborde */}
+        <div className="flex flex-wrap items-center gap-2 pt-1">
           {/* Copiar Resumen y Acuerdos */}
           <button
             onClick={() => {
@@ -94,7 +167,7 @@ export default function MeetingDetails({ meeting, onUpdateMeeting, onDeleteMeeti
               navigator.clipboard.writeText(text);
               alert('¡Resumen, acuerdos y tareas copiados al portapapeles!');
             }}
-            className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-300 border border-indigo-500/30 transition-all"
+            className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-300 border border-indigo-500/30 transition-all shadow-sm active:scale-95"
             title="Copiar resumen y acuerdos al portapapeles"
           >
             <Share2 className="w-3.5 h-3.5 text-indigo-400" />
@@ -105,11 +178,11 @@ export default function MeetingDetails({ meeting, onUpdateMeeting, onDeleteMeeti
           {onScheduleFollowUp && (
             <button
               onClick={() => onScheduleFollowUp(meeting)}
-              className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold bg-emerald-600/15 hover:bg-emerald-600/25 text-emerald-300 border border-emerald-500/25 transition-all"
+              className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold bg-emerald-600/15 hover:bg-emerald-600/25 text-emerald-300 border border-emerald-500/25 transition-all shadow-sm active:scale-95"
               title="Agendar seguimiento"
             >
-              <CalendarPlus className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">Agendar</span>
+              <CalendarPlus className="w-3.5 h-3.5 text-emerald-400" />
+              <span>Agendar</span>
             </button>
           )}
 
@@ -117,11 +190,11 @@ export default function MeetingDetails({ meeting, onUpdateMeeting, onDeleteMeeti
           {onCreateNote && (
             <button
               onClick={() => onCreateNote(meeting)}
-              className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold bg-violet-600/15 hover:bg-violet-600/25 text-violet-300 border border-violet-500/25 transition-all"
+              className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold bg-violet-600/15 hover:bg-violet-600/25 text-violet-300 border border-violet-500/25 transition-all shadow-sm active:scale-95"
               title="Crear nota vinculada"
             >
-              <BookOpen className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">Nota</span>
+              <BookOpen className="w-3.5 h-3.5 text-violet-400" />
+              <span>Crear Nota</span>
             </button>
           )}
 
@@ -129,8 +202,8 @@ export default function MeetingDetails({ meeting, onUpdateMeeting, onDeleteMeeti
           {onDeleteMeeting && (
             <button
               onClick={() => onDeleteMeeting(meeting.id)}
-              className="p-2 rounded-xl text-slate-400 hover:text-red-400 hover:bg-slate-800/80 transition-colors"
-              title="Eliminar reunion"
+              className="p-2 rounded-xl text-slate-400 hover:text-red-400 hover:bg-red-500/10 border border-slate-800 hover:border-red-500/30 transition-all ml-auto"
+              title="Eliminar reunión"
             >
               <Trash2 className="w-4 h-4" />
             </button>
@@ -289,6 +362,115 @@ export default function MeetingDetails({ meeting, onUpdateMeeting, onDeleteMeeti
           )}
         </div>
       )}
+    
+      {/* =================================================================== */}
+      {/* SECCIÓN INTERACTIVA: CHAT CON LA IA SOBRE ESTA REUNIÓN ESPECÍFICA  */}
+      {/* =================================================================== */}
+      <div className="bg-slate-950/90 border border-indigo-500/30 rounded-3xl p-5 sm:p-6 shadow-2xl space-y-4">
+        {/* Cabecera del Chat */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800/80 pb-3">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-2xl bg-gradient-to-tr from-indigo-600 via-purple-600 to-pink-600 flex items-center justify-center text-white shadow-lg shadow-indigo-500/25 shrink-0">
+              <Brain className="w-5 h-5" />
+            </div>
+            <div>
+              <h3 className="text-sm sm:text-base font-bold text-slate-100 flex items-center gap-2">
+                Consultar con la IA sobre esta Reunión
+                <span className="text-[10px] px-2 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 font-bold">
+                  Enfocado al 100%
+                </span>
+              </h3>
+              <p className="text-[11px] text-slate-400">
+                Pregunta cualquier detalle basado en la transcripción, acuerdos y audio de este registro
+              </p>
+            </div>
+          </div>
+
+          <span className="text-[11px] text-slate-400 font-mono hidden sm:inline">
+            Registro #{meeting.id ? String(meeting.id).substring(0, 8) : ''}
+          </span>
+        </div>
+
+        {/* Chips de Preguntas Rápidas */}
+        <div className="space-y-1.5">
+          <span className="text-[11px] font-semibold text-slate-400">Consultas rápidas sugeridas:</span>
+          <div className="flex flex-wrap gap-2">
+            {[
+              '¿Cuáles fueron los compromisos y plazos clave?',
+              'Redacta un correo ejecutivo de seguimiento',
+              '¿Se mencionaron costos, presupuestos o fechas?',
+              'Sintetiza la postura y opiniones de los participantes'
+            ].map((chip, idx) => (
+              <button
+                key={idx}
+                type="button"
+                onClick={() => askMeetingAi(chip)}
+                disabled={meetingChatLoading}
+                className="text-[11px] px-3 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-indigo-300 border border-indigo-500/20 hover:border-indigo-500/40 transition-all font-medium active:scale-95 disabled:opacity-40 text-left"
+              >
+                ⚡ {chip}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Ventana de Mensajes */}
+        <div className="bg-slate-900/80 border border-slate-800/90 rounded-2xl p-4 h-64 overflow-y-auto space-y-3.5 shadow-inner">
+          {meetingChatMessages.map((msg, idx) => (
+            <div key={idx} className={`flex gap-2.5 ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+              {msg.role === 'assistant' && (
+                <div className="w-7 h-7 rounded-xl bg-indigo-600/25 text-indigo-400 flex items-center justify-center text-xs font-bold shrink-0 border border-indigo-500/30">
+                  <Brain className="w-3.5 h-3.5" />
+                </div>
+              )}
+              <div
+                className={`max-w-[85%] sm:max-w-[75%] rounded-2xl px-4 py-3 text-xs sm:text-sm leading-relaxed whitespace-pre-wrap ${
+                  msg.role === 'user'
+                    ? 'bg-gradient-to-r from-indigo-600 to-blue-600 text-white shadow-md shadow-indigo-600/20 font-medium'
+                    : 'bg-slate-950/90 border border-slate-800/90 text-slate-200 font-sans shadow-sm'
+                }`}
+              >
+                {msg.text}
+              </div>
+            </div>
+          ))}
+
+          {meetingChatLoading && (
+            <div className="flex items-center gap-2 text-xs text-indigo-300 pl-2">
+              <Loader2 className="w-4 h-4 animate-spin text-indigo-400" />
+              <span>La IA está consultando la transcripción de esta reunión...</span>
+            </div>
+          )}
+
+          <div ref={chatEndRef} />
+        </div>
+
+        {/* Formulario de Entrada */}
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            askMeetingAi();
+          }}
+          className="flex items-center gap-2 pt-1"
+        >
+          <input
+            type="text"
+            value={meetingChatInput}
+            onChange={(e) => setMeetingChatInput(e.target.value)}
+            placeholder="Pregúntale a la IA sobre esta reunión: '¿Qué dijo Carlos?', '¿Cuál es el siguiente paso?'..."
+            className="flex-1 bg-slate-900/90 border border-slate-700/80 rounded-2xl px-4 py-3 text-xs sm:text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all shadow-inner"
+          />
+          <button
+            type="submit"
+            disabled={meetingChatLoading || !meetingChatInput.trim()}
+            className="flex items-center justify-center gap-1.5 px-5 py-3 rounded-2xl text-xs sm:text-sm font-bold bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white shadow-lg shadow-indigo-500/25 transition-all disabled:opacity-40 active:scale-95 shrink-0"
+          >
+            <Send className="w-4 h-4" />
+            <span className="hidden sm:inline">Preguntar</span>
+          </button>
+        </form>
+      </div>
+
     </div>
   );
 }

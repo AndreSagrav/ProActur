@@ -464,5 +464,36 @@ router.patch('/notes/:id/favorite', async (req, res) => {
   }
 });
 
+
+// Preguntar a la IA sobre una reunión específica
+router.post('/meetings/:id/ask', async (req, res) => {
+  try {
+    const { question, meetingData } = req.body;
+    if (!question || !question.trim()) {
+      return res.status(400).json({ error: 'Pregunta requerida' });
+    }
+
+    let meeting = meetingData;
+    if (!meeting || !meeting.title) {
+      meeting = await storageService.getMeetingById(req.params.id);
+    }
+
+    if (!meeting) {
+      return res.status(404).json({ error: 'Reunión no encontrada' });
+    }
+
+    const answer = await aiService.askMeeting(question, meeting);
+    res.json({
+      question,
+      answer,
+      meetingId: req.params.id,
+      meetingTitle: meeting.title
+    });
+  } catch (err) {
+    console.error('[Meeting Ask Error]:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 module.exports = router;
 

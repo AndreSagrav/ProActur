@@ -873,6 +873,151 @@ Instrucciones:
 
     throw lastError || new Error('No se pudo obtener respuesta del Segundo Cerebro.');
   }
-}
 
-module.exports = new AIService();
+  async askMeeting(question, meeting) {
+    if (!meeting) throw new Error('Se requiere información de la reunión');
+
+    const title = meeting.title || 'Reunión sin título';
+    const date = meeting.createdAt || meeting.date || 'Fecha no registrada';
+    const summary = meeting.summary || 'Sin resumen registrado';
+    const decisions = (meeting.keyDecisions || []).join('\n- ');
+    const tasks = (meeting.actionItems || []).map(a => `- ${a.task} (Responsable: ${a.assignee || 'No asignado'}, Plazo: ${a.deadline || 'Sin plazo'})`).join('\n');
+    const advice = (meeting.proactiveAdvice || []).join('\n- ');
+    const transcript = meeting.transcript || 'Transcripción no disponible';
+
+    const prompt = `
+Eres el Copiloto Ejecutivo de ProActur.
+El usuario está revisando el registro histórico de una reunión específica y te hace una consulta directa sobre ella.
+
+INFORMACIÓN EXCLUSIVA DE ESTA REUNIÓN:
+- TÍTULO: ${title}
+- FECHA: ${date}
+- RESUMEN EJECUTIVO:
+${summary}
+
+- ACUERDOS Y DECISIONES CLAVE:
+${decisions ? '- ' + decisions : 'No se registraron decisiones formales.'}
+
+- COMPROMISOS Y TAREAS ASIGNADAS:
+${tasks || 'No se registraron tareas pendientes.'}
+
+- CONSEJOS PROACTIVOS Y ALERTAS:
+${advice ? '- ' + advice : 'No hay consejos adicionales.'}
+
+- TRANSCRIPCIÓN TEXTUAL COMPLETA:
+"""
+${transcript.substring(0, 20000)}
+"""
+
+PREGUNTA DEL USUARIO:
+"${question}"
+
+INSTRUCCIONES CLAVE:
+1. Responde de forma concisa, profesional, ejecutiva y certera basada ÚNICAMENTE en la información de esta reunión.
+2. Si te piden redactar un correo, una lista de pendientes o clarificar posturas de participantes, usa formato Markdown limpio.
+3. Si el dato solicitado no aparece en la reunión, indícalo claramente con honestidad sin inventar información.
+`;
+
+    const executiveModels = [
+      { provider: 'groq', model: config.GROQ_CHAT_MODEL || 'openai/gpt-oss-120b', name: 'Groq GPT-OSS 120B' },
+      { provider: 'openrouter', model: 'deepseek/deepseek-chat', name: 'DeepSeek V3' },
+      { provider: 'gemini', model: this.geminiModel, name: 'Gemini Flash' }
+    ];
+
+    for (const item of executiveModels) {
+      const { provider, model, name } = item;
+
+      if (provider === 'groq' && config.GROQ_API_KEY) {
+        try {
+          const controller = new AbortController();
+          const timer = setTimeout(() => controller.abort(), 9000);
+          const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${config.GROQ_API_KEY}`
+            },
+            body: JSON.stringify({
+              model,
+              messages: [{ role: 'user', content: prompt }],
+              temperature: 0.2
+            }),
+            signal: controller.signal
+          });
+          clearTimeout(timer);
+
+          if (res.ok) {
+            const data = await res.json();
+            const ans = data.choices?.[0]?.message?.content;
+            if (ans && ans.trim()) return ans.trim();
+          }
+        } catch (err) {
+          console.warn(`[Meeting AI] Error con ${name}:`, err.message);
+        }
+      }
+
+      if (provider === 'openrouter' && config.OPENROUTER_API_KEY) {
+        try {
+          const controller = new AbortController();
+          const timer = setTimeout(() => controller.abort(), 9000);
+          const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${config.OPENROUTER_API_KEY}`,
+              'HTTP-Referer': 'https://pro-actur.vercel.app',
+              'X-Title': 'ProActur AI'
+            },
+            body: JSON.stringify({
+              model,
+              messages: [{ role: 'user', content: prompt }],
+              temperature: 0.2
+            }),
+            signal: controller.signal
+          });
+          clearTimeout(timer);
+
+          if (res.ok) {
+            const data = await res.json();
+            const ans = data.choices?.[0]?.message?.content;
+            if (ans && ans.trim()) return ans.trim();
+          }
+        } catch (err) {
+          console.warn(`[Meeting AI] Error con ${name}:`, err.message);
+        }
+      }
+
+      if (provider === 'gemini' && config.GEMINI_API_KEY) {
+        try {
+          const controller = new AbortController();
+          const timer = setTimeout(() => controller.abort(), 9000);
+          const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${this.geminiModel}:generateContent`;
+          const res = await fetch(endpoint, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'x-goog-api-key': config.GEMINI_API_KEY
+            },
+            body: JSON.stringify({
+              contents: [{ parts: [{ text: prompt }] }],
+              generationConfig: { temperature: 0.2 }
+            }),
+            signal: controller.signal
+          });
+          clearTimeout(timer);
+
+          if (res.ok) {
+            const data = await res.json();
+            const ans = data.candidates?.[0]?.content?.parts?.[0]?.text;
+            if (ans && ans.trim()) return ans.trim();
+          }
+        } catch (err) {
+          console.warn(`[Meeting AI] Error con Gemini:`, err.message);
+        }
+      }
+    }
+
+    return `He revisado el registro de "${title}". Sobre tu consulta: ${summary}`;
+  }
+
+}
