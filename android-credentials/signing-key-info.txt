@@ -1,0 +1,10 @@
+Keep this file and signing.keystore in a safe place. You'll need these files if you want to upload future versions of your PWA to the Google Play Store.
+
+Key store file: signing.keystore
+Key store password: JDHXoL8YUquN
+Key alias: proactur
+Key password: JDHXoL8YUquN
+Signer's full name: Cesar Andres
+Signer's organization: ProActur
+Signer's organizational unit: Engineering
+Signer's country code: CR

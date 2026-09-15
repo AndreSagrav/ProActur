@@ -1,0 +1,8 @@
+[{
+      "relation": ["delegate_permission/common.handle_all_urls"],
+      "target": {
+        "namespace": "android_app",
+        "package_name": "com.proactur.app",
+        "sha256_cert_fingerprints": ["0A:FF:53:25:A2:EB:86:54:A9:C7:2B:F4:95:9C:BD:07:52:AB:F0:7B:39:52:EC:B9:39:7E:3C:A3:B7:D3:8F:77"]
+      }
+    }]
