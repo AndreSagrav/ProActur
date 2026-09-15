@@ -16,6 +16,13 @@ import {
 
 const API = import.meta.env.VITE_API_URL || '';
 
+// Detección de dispositivo móvil para optimizaciones de audio
+const isMobileDevice = () => {
+  if (typeof navigator === 'undefined') return false;
+  return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)
+    || (window.innerWidth <= 768);
+};
+
 export default function AudioRecorder({ onMeetingProcessed }) {
   const [activeTab, setActiveTab] = useState('record'); // 'record' | 'upload' | 'text'
   const [isRecording, setIsRecording] = useState(false);
@@ -159,6 +166,7 @@ export default function AudioRecorder({ onMeetingProcessed }) {
   }, []);
 
   // Configuracion del analizador de volumen de voz en tiempo real
+  // MOBILE FIX: fftSize aumentado + fallback TimeDomain + boost de sensibilidad
   const setupAudioAnalyzer = async (stream) => {
     try {
       const AudioCtx = window.AudioContext || window.webkitAudioContext;
@@ -171,24 +179,57 @@ export default function AudioRecorder({ onMeetingProcessed }) {
       }
 
       const analyser = audioCtx.createAnalyser();
-      analyser.fftSize = 64;
+      analyser.fftSize = 256; // 128 bins — mucho mejor resolución para voz en móvil
+      analyser.smoothingTimeConstant = 0.3; // Reacción más rápida
       analyserRef.current = analyser;
 
       const source = audioCtx.createMediaStreamSource(stream);
       source.connect(analyser);
 
-      const dataArray = new Uint8Array(analyser.frequencyBinCount);
+      const mobile = isMobileDevice();
+      const freqData = new Uint8Array(analyser.frequencyBinCount);
+      const timeData = new Uint8Array(analyser.fftSize);
+      let useTimeDomain = false; // Fallback si frequencyData siempre es 0
 
       const updateLevel = () => {
         if (!isRecordingRef.current) return;
-        analyser.getByteFrequencyData(dataArray);
-        let sum = 0;
-        for (let i = 0; i < dataArray.length; i++) {
-          sum += dataArray[i];
+
+        let level = 0;
+
+        if (!useTimeDomain) {
+          // Método principal: análisis de frecuencia
+          analyser.getByteFrequencyData(freqData);
+          let sum = 0;
+          let nonZero = 0;
+          for (let i = 0; i < freqData.length; i++) {
+            sum += freqData[i];
+            if (freqData[i] > 0) nonZero++;
+          }
+          // Si después de varios frames todo es 0, cambiar a TimeDomain (WebView bug)
+          if (nonZero === 0) {
+            useTimeDomain = true;
+          } else {
+            const avg = sum / freqData.length;
+            level = Math.min(100, Math.round((avg / 128) * 100));
+            // Boost para móvil: los mics de teléfono reportan menos energía
+            if (mobile) level = Math.min(100, Math.round(level * 2.5));
+          }
         }
-        const avg = sum / dataArray.length;
-        const normalized = Math.min(100, Math.round((avg / 128) * 100));
-        setAudioLevel(normalized);
+
+        if (useTimeDomain) {
+          // Fallback: medir amplitud RMS de la onda temporal
+          analyser.getByteTimeDomainData(timeData);
+          let sumSq = 0;
+          for (let i = 0; i < timeData.length; i++) {
+            const val = (timeData[i] - 128) / 128; // normalizar a [-1, 1]
+            sumSq += val * val;
+          }
+          const rms = Math.sqrt(sumSq / timeData.length);
+          level = Math.min(100, Math.round(rms * 300)); // escala perceptual
+          if (mobile) level = Math.min(100, Math.round(level * 2.0));
+        }
+
+        setAudioLevel(level);
         animFrameRef.current = requestAnimationFrame(updateLevel);
       };
 
@@ -279,7 +320,9 @@ export default function AudioRecorder({ onMeetingProcessed }) {
     setLiveStatusMessage('⚡ Analizando con IA...');
 
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 7500); // Max 7.5s - NUNCA SE QUEDA PEGADO
+    // MOBILE FIX: 20s en móvil (red lenta + Whisper + Gemini), 8s en desktop
+    const timeoutMs = isMobileDevice() ? 20000 : 8000;
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
     try {
       // Payload JSON (compatible con Vercel Serverless — no usa multipart/FormData)
@@ -369,17 +412,25 @@ export default function AudioRecorder({ onMeetingProcessed }) {
       // Inicializar la caja negra en IndexedDB
       await initEmergencyRecording(meetingTitle);
 
-      // Solicitar micrófono con constraints compatibles con móviles y WebView
+      // Solicitar micrófono con constraints optimizadas para móvil
+      const mobile = isMobileDevice();
       let stream;
       try {
-        stream = await navigator.mediaDevices.getUserMedia({
-          audio: {
-            echoCancellation: true,
-            noiseSuppression: true,
-            autoGainControl: true,
-            sampleRate: 44100
-          }
-        });
+        const audioConstraints = mobile
+          ? {
+              // MOBILE: NO pedir sampleRate fijo (muchos Android no soportan 44100)
+              // NO activar noiseSuppression (Android la aplica muy agresivamente, aplana la señal)
+              echoCancellation: true,
+              noiseSuppression: false,
+              autoGainControl: true
+            }
+          : {
+              echoCancellation: true,
+              noiseSuppression: true,
+              autoGainControl: true,
+              sampleRate: 44100
+            };
+        stream = await navigator.mediaDevices.getUserMedia({ audio: audioConstraints });
       } catch (micErr) {
         // Reintentar con constraint mínima si la primera falla
         console.warn('[ProActur Mic] Reintentando con constraint básica:', micErr.message);
@@ -421,10 +472,22 @@ export default function AudioRecorder({ onMeetingProcessed }) {
       // Reconocimiento de voz nativo en paralelo
       recognitionRef.current = initSpeechRecognition();
 
-      // Analisis periodico en vivo cada 12 segundos
+      // MOBILE FIX: Si SpeechRecognition no está disponible (WebView),
+      // forzar análisis temprano para que Whisper transcriba el audio del servidor
+      if (!recognitionRef.current) {
+        console.log('[ProActur Mobile] SpeechRecognition no disponible, activando Whisper remoto');
+        setLiveStatusMessage('🎙️ Modo WebView: Transcripción vía servidor activada');
+        // Primer análisis después de 5 segundos para acumular audio suficiente
+        setTimeout(() => {
+          if (isRecordingRef.current) triggerLiveAnalysis();
+        }, 5000);
+      }
+
+      // Análisis periódico: 15s en móvil (más tiempo para red + Whisper), 10s en desktop
+      const analysisInterval = isMobileDevice() ? 15000 : 10000;
       liveAnalysisTimerRef.current = setInterval(() => {
         triggerLiveAnalysis();
-      }, 10000);
+      }, analysisInterval);
 
     } catch (err) {
       console.error('Error accediendo al microfono:', err);
