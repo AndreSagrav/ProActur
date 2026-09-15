@@ -273,7 +273,7 @@ export default function App() {
           </div>
 
           {/* Fila Inferior: Navegacion Principal Holgada + Selector de Temas Visible */}
-          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 pt-2 border-t border-slate-800/80">
+          <div className="hidden md:flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 pt-2 border-t border-slate-800/80">
             {/* Pestañas de Navegacion con Espacio Vertical y Sin Compresion */}
             <div className="flex items-center bg-slate-900 border border-slate-800 rounded-2xl p-1.5 shadow-inner gap-1 overflow-x-auto">
               {TABS.map(tab => {
@@ -518,44 +518,80 @@ export default function App() {
       {/* =================================================================== */}
       {/* BARRA DE NAVEGACION INFERIOR PARA MOVILES Y TABLETS (< md)          */}
       {/* =================================================================== */}
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-slate-950/95 backdrop-blur-2xl border-t border-slate-800/80 px-2 py-1.5 safe-bottom shadow-2xl">
-        <div className="flex items-center justify-around">
-          {TABS.map(tab => {
-            const Icon = tab.icon;
-            const isActive = activeTab === tab.key;
-            return (
-              <button
-                key={tab.key}
-                onClick={() => {
-                  setActiveTab(tab.key);
-                  if (tab.key === 'meetings') setShowMobileDetail(false);
-                }}
-                className={`flex flex-col items-center justify-center py-1 px-3 rounded-xl transition-all ${
-                  isActive
-                    ? 'text-indigo-400 font-semibold'
-                    : 'text-slate-400 hover:text-slate-200'
-                }`}
-              >
-                <div className={`p-1 rounded-lg ${isActive ? 'bg-indigo-600/20' : ''}`}>
-                  <Icon className="w-5 h-5" />
-                </div>
-                <span className="text-[10px] mt-0.5">{tab.label}</span>
-              </button>
-            );
-          })}
-
-          {/* Boton Segundo Cerebro en Barra Movil */}
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-slate-950/95 backdrop-blur-2xl border-t border-slate-800/80 px-2 py-1 safe-bottom shadow-2xl">
+        <div className="grid grid-cols-4 items-center">
+          {/* 1. Reuniones */}
           <button
-            onClick={() => setIsSecondBrainOpen(true)}
-            className="flex flex-col items-center justify-center py-1 px-3 rounded-xl text-slate-400 hover:text-indigo-300 transition-all"
+            onClick={() => {
+              setActiveTab('meetings');
+              setShowMobileDetail(false);
+            }}
+            className={`flex flex-col items-center justify-center py-1.5 px-2 rounded-xl transition-all ${
+              activeTab === 'meetings'
+                ? 'text-indigo-400 font-semibold'
+                : 'text-slate-400 hover:text-slate-200'
+            }`}
           >
-            <div className="p-1 rounded-lg relative">
-              <Brain className="w-5 h-5 text-indigo-400" />
-              <span className="absolute -top-0.5 -right-0.5 w-3.5 h-3.5 bg-indigo-600 text-[9px] text-white rounded-full flex items-center justify-center font-bold">
-                {meetings.length}
-              </span>
+            <div className={`p-1.5 rounded-xl transition-all ${activeTab === 'meetings' ? 'bg-indigo-600/20 text-indigo-400 shadow-sm' : ''}`}>
+              <FileText className="w-5 h-5" />
             </div>
-            <span className="text-[10px] mt-0.5 font-bold">Chat IA</span>
+            <span className="text-[10px] mt-0.5 font-medium">Reuniones</span>
+          </button>
+
+          {/* 2. Libreta Canvas */}
+          <button
+            onClick={() => {
+              setActiveTab('notebook');
+            }}
+            className={`flex flex-col items-center justify-center py-1.5 px-2 rounded-xl transition-all ${
+              activeTab === 'notebook'
+                ? 'text-indigo-400 font-semibold'
+                : 'text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            <div className={`p-1.5 rounded-xl transition-all ${activeTab === 'notebook' ? 'bg-indigo-600/20 text-indigo-400 shadow-sm' : ''}`}>
+              <BookOpen className="w-5 h-5" />
+            </div>
+            <span className="text-[10px] mt-0.5 font-medium">Libreta</span>
+          </button>
+
+          {/* 3. Agenda */}
+          <button
+            onClick={() => {
+              setActiveTab('calendar');
+            }}
+            className={`flex flex-col items-center justify-center py-1.5 px-2 rounded-xl transition-all ${
+              activeTab === 'calendar'
+                ? 'text-indigo-400 font-semibold'
+                : 'text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            <div className={`p-1.5 rounded-xl transition-all ${activeTab === 'calendar' ? 'bg-indigo-600/20 text-indigo-400 shadow-sm' : ''}`}>
+              <Calendar className="w-5 h-5" />
+            </div>
+            <span className="text-[10px] mt-0.5 font-medium">Agenda</span>
+          </button>
+
+          {/* 4. Chat con IA (Único, con badge reactivo) */}
+          <button
+            onClick={() => {
+              setActiveTab('chat');
+            }}
+            className={`flex flex-col items-center justify-center py-1.5 px-2 rounded-xl transition-all ${
+              activeTab === 'chat'
+                ? 'text-indigo-400 font-semibold'
+                : 'text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            <div className={`p-1.5 rounded-xl relative transition-all ${activeTab === 'chat' ? 'bg-indigo-600/20 text-indigo-400 shadow-sm' : ''}`}>
+              <Brain className="w-5 h-5" />
+              {meetings.length > 0 && (
+                <span className="absolute -top-0.5 -right-0.5 w-4 h-4 bg-indigo-600 text-[9px] text-white rounded-full flex items-center justify-center font-bold border border-slate-950 shadow-sm">
+                  {meetings.length}
+                </span>
+              )}
+            </div>
+            <span className="text-[10px] mt-0.5 font-medium">Chat IA</span>
           </button>
         </div>
       </nav>
