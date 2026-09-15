@@ -253,7 +253,7 @@ Devuelve UNICAMENTE un JSON valido (sin bloques markdown de codigo json) con est
 `;
   }
 
-    async transcribeWithGroq(audioBuffer, mimeType = 'audio/webm') {
+  async transcribeWithGroq(audioBuffer, mimeType = 'audio/webm') {
     if (!config.GROQ_API_KEY || !audioBuffer || audioBuffer.length < 400) {
       return '';
     }
@@ -261,29 +261,49 @@ Devuelve UNICAMENTE un JSON valido (sin bloques markdown de codigo json) con est
     try {
       const FormData = require('form-data');
       const form = new FormData();
+
+      let ext = 'webm';
+      let type = mimeType || 'audio/webm';
+      if (type.includes('mp4') || type.includes('m4a')) {
+        ext = 'm4a';
+      } else if (type.includes('wav')) {
+        ext = 'wav';
+      } else if (type.includes('ogg')) {
+        ext = 'ogg';
+      }
+
       form.append('file', audioBuffer, {
-        filename: 'audio.webm',
-        contentType: mimeType || 'audio/webm'
+        filename: `audio.${ext}`,
+        contentType: type
       });
       form.append('model', config.GROQ_WHISPER_MODEL || 'whisper-large-v3-turbo');
       form.append('language', 'es');
       form.append('response_format', 'json');
 
+      const headers = {
+        'Authorization': `Bearer ${config.GROQ_API_KEY}`,
+        ...form.getHeaders()
+      };
+
+      const buffer = form.getBuffer();
+      headers['Content-Length'] = buffer.length;
+
       const response = await fetch('https://api.groq.com/openai/v1/audio/transcriptions', {
         method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${config.GROQ_API_KEY}`,
-          ...form.getHeaders()
-        },
-        body: form
+        headers: headers,
+        body: buffer
       });
 
       if (!response.ok) {
+        const errText = await response.text();
+        console.warn(`[Groq Whisper Error ${response.status}]:`, errText);
         return '';
       }
 
       const data = await response.json();
-      return (data.text || '').trim();
+      const text = (data.text || '').trim();
+      console.log(`[Groq Whisper OK]: Transcritos ${text.length} caracteres`);
+      return text;
     } catch (err) {
       console.warn('[Groq Whisper Warn]:', err.message);
       return '';
@@ -465,7 +485,14 @@ async analyzeLiveWithGroq(prompt, specificModel = null) {
     const prompt = this.buildLivePrompt(meetingTitle, activeTranscript, previousContext, userNotes);
 
     // 3. Fallback en cascada sobre modelos inteligentes de élite
-    const executiveModels = this.getExecutiveModels();
+    let executiveModels = this.getExecutiveModels();
+    // Si no hay transcripción de texto previa pero sí audio, priorizar Gemini multimodal (oye el audio directamente)
+    if (!activeTranscript && audioBuffer && config.GEMINI_API_KEY) {
+      executiveModels = [
+        { provider: 'gemini', model: 'gemini-3.6-flash', name: 'Gemini Multimodal' },
+        ...executiveModels.filter(m => m.provider !== 'gemini')
+      ];
+    }
     let lastError = null;
 
     for (const item of executiveModels) {

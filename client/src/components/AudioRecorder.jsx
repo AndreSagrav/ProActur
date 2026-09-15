@@ -165,77 +165,76 @@ export default function AudioRecorder({ onMeetingProcessed }) {
     };
   }, []);
 
-  // Configuracion del analizador de volumen de voz en tiempo real
-  // MOBILE FIX: fftSize aumentado + fallback TimeDomain + boost de sensibilidad
+  // Medidor de voz en vivo de alta precisión (Peak + RMS TimeDomain)
   const setupAudioAnalyzer = async (stream) => {
     try {
-      const AudioCtx = window.AudioContext || window.webkitAudioContext;
-      if (!AudioCtx) return;
+      let audioCtx = audioContextRef.current;
+      if (!audioCtx || audioCtx.state === 'closed') {
+        const AudioCtx = window.AudioContext || window.webkitAudioContext;
+        if (!AudioCtx) return;
+        audioCtx = new AudioCtx();
+        audioContextRef.current = audioCtx;
+      }
 
-      const audioCtx = new AudioCtx();
-      audioContextRef.current = audioCtx;
       if (audioCtx.state === 'suspended') {
         try { await audioCtx.resume(); } catch (_) {}
       }
 
       const analyser = audioCtx.createAnalyser();
-      analyser.fftSize = 256; // 128 bins — mucho mejor resolución para voz en móvil
-      analyser.smoothingTimeConstant = 0.3; // Reacción más rápida
+      analyser.fftSize = 512;
+      analyser.smoothingTimeConstant = 0.2; // Respuesta dinámica inmediata
       analyserRef.current = analyser;
 
       const source = audioCtx.createMediaStreamSource(stream);
       source.connect(analyser);
 
-      const mobile = isMobileDevice();
-      const freqData = new Uint8Array(analyser.frequencyBinCount);
       const timeData = new Uint8Array(analyser.fftSize);
-      let useTimeDomain = false; // Fallback si frequencyData siempre es 0
+      const freqData = new Uint8Array(analyser.frequencyBinCount);
 
       const updateLevel = () => {
         if (!isRecordingRef.current) return;
 
-        let level = 0;
+        // 1. Amplitud pico y RMS directa de la onda (inmune a artefactos de frecuencia)
+        analyser.getByteTimeDomainData(timeData);
+        let maxPeak = 0;
+        let sumSq = 0;
+        for (let i = 0; i < timeData.length; i++) {
+          const val = Math.abs(timeData[i] - 128); // 0 a 128
+          if (val > maxPeak) maxPeak = val;
+          sumSq += val * val;
+        }
+        const rms = Math.sqrt(sumSq / timeData.length); // 0 a 128
 
-        if (!useTimeDomain) {
-          // Método principal: análisis de frecuencia
-          analyser.getByteFrequencyData(freqData);
-          let sum = 0;
-          let nonZero = 0;
-          for (let i = 0; i < freqData.length; i++) {
-            sum += freqData[i];
-            if (freqData[i] > 0) nonZero++;
-          }
-          // Si después de varios frames todo es 0, cambiar a TimeDomain (WebView bug)
-          if (nonZero === 0) {
-            useTimeDomain = true;
-          } else {
-            const avg = sum / freqData.length;
-            level = Math.min(100, Math.round((avg / 128) * 100));
-            // Boost para móvil: los mics de teléfono reportan menos energía
-            if (mobile) level = Math.min(100, Math.round(level * 2.5));
-          }
+        // 2. Energía vocal (primeras bandas 0-3500 Hz)
+        analyser.getByteFrequencyData(freqData);
+        let vocalSum = 0;
+        const vocalBins = Math.min(30, freqData.length);
+        for (let i = 0; i < vocalBins; i++) {
+          vocalSum += freqData[i];
+        }
+        const vocalAvg = vocalSum / vocalBins; // 0 a 255
+
+        // Ponderación: Amplitud de pico (70%) + RMS (30%)
+        const peakLevel = (maxPeak / 128) * 100;
+        const rmsLevel = (rms / 64) * 100;
+        const freqLevel = (vocalAvg / 180) * 100;
+
+        let calculated = Math.max(peakLevel * 1.6, rmsLevel * 1.4, freqLevel * 1.2);
+
+        // Umbral de compuerta de ruido
+        if (calculated < 4) {
+          calculated = 0;
         }
 
-        if (useTimeDomain) {
-          // Fallback: medir amplitud RMS de la onda temporal
-          analyser.getByteTimeDomainData(timeData);
-          let sumSq = 0;
-          for (let i = 0; i < timeData.length; i++) {
-            const val = (timeData[i] - 128) / 128; // normalizar a [-1, 1]
-            sumSq += val * val;
-          }
-          const rms = Math.sqrt(sumSq / timeData.length);
-          level = Math.min(100, Math.round(rms * 300)); // escala perceptual
-          if (mobile) level = Math.min(100, Math.round(level * 2.0));
-        }
+        const normalized = Math.min(100, Math.round(calculated));
+        setAudioLevel(normalized);
 
-        setAudioLevel(level);
         animFrameRef.current = requestAnimationFrame(updateLevel);
       };
 
       updateLevel();
     } catch (err) {
-      console.warn('[AudioContext] No disponible:', err);
+      console.warn('[AudioContext] Error en setupAudioAnalyzer:', err);
     }
   };
 
@@ -332,22 +331,32 @@ export default function AudioRecorder({ onMeetingProcessed }) {
         userNotes: userNotesText || ''
       };
 
-      // Convertir audio a base64 para envío JSON (últimos 15 seg, ~180KB)
+      // Empaquetar audio reciente para envío al servidor (Whisper / Gemini multimodal)
       if (hasAudio) {
         try {
-          const chunks = audioChunksRef.current.length <= 15
+          const recordedMime = mediaRecorderRef.current?.mimeType || 'audio/webm';
+          // Tomar los últimos chunks disponibles manteniendo encabezados válidos
+          const totalChunks = audioChunksRef.current.length;
+          const chunksToSend = totalChunks <= 25
             ? audioChunksRef.current
-            : [audioChunksRef.current[0], ...audioChunksRef.current.slice(-15)];
-          const audioBlob = new Blob(chunks, { type: 'audio/webm' });
-          if (audioBlob.size > 0) {
+            : [audioChunksRef.current[0], ...audioChunksRef.current.slice(-20)];
+          
+          const audioBlob = new Blob(chunksToSend, { type: recordedMime });
+          if (audioBlob.size > 500) {
             const arrayBuf = await audioBlob.arrayBuffer();
             const bytes = new Uint8Array(arrayBuf);
             let binary = '';
-            for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
+            const chunkSize = 8192;
+            for (let i = 0; i < bytes.length; i += chunkSize) {
+              const sub = bytes.subarray(i, i + chunkSize);
+              binary += String.fromCharCode.apply(null, sub);
+            }
             payload.audioBase64 = btoa(binary);
-            payload.audioMimeType = 'audio/webm';
+            payload.audioMimeType = recordedMime;
           }
-        } catch (_) {}
+        } catch (packErr) {
+          console.warn('[Audio Packing Warn]:', packErr.message);
+        }
       }
 
       if (current.actionItems.length > 0 || current.decisions.length > 0) {
@@ -400,6 +409,21 @@ export default function AudioRecorder({ onMeetingProcessed }) {
   };
 
   const startRecording = async () => {
+    // ACTIVACIÓN SÍNCRONA DE AUDIO EN EL GESTO DEL USUARIO (Crítico para Android / WebView)
+    try {
+      const AudioCtx = window.AudioContext || window.webkitAudioContext;
+      if (AudioCtx) {
+        if (!audioContextRef.current || audioContextRef.current.state === 'closed') {
+          audioContextRef.current = new AudioCtx();
+        }
+        if (audioContextRef.current.state === 'suspended') {
+          audioContextRef.current.resume();
+        }
+      }
+    } catch (e) {
+      console.warn('[AudioContext Sync Init]', e);
+    }
+
     try {
       setError(null);
       setLiveTranscript('');
