@@ -280,7 +280,7 @@ router.post('/notion/test', async (req, res) => {
   }
 });
 
-// Consulta al Segundo Cerebro (Cross-meeting Chat)
+// Consulta al Segundo Cerebro (Cross-meeting & Notebook Chat)
 router.post('/second-brain/ask', async (req, res) => {
   try {
     const { question } = req.body;
@@ -289,12 +289,20 @@ router.post('/second-brain/ask', async (req, res) => {
     }
 
     const allMeetings = await storageService.getAllMeetings();
-    const answer = await aiService.askSecondBrain(question, allMeetings);
+    let allNotes = [];
+    try {
+      allNotes = await noteService.getAllNotes();
+    } catch (e) {
+      console.warn('[SecondBrain] Error cargando notas para contexto:', e.message);
+    }
+
+    const answer = await aiService.askSecondBrain(question, allMeetings, allNotes);
 
     res.json({
       question,
       answer,
-      totalMeetingsAnalyzed: allMeetings.length
+      totalMeetingsAnalyzed: allMeetings.length,
+      totalNotesAnalyzed: allNotes.length
     });
   } catch (err) {
     console.error('[Proactor AI] Error en Second Brain:', err);

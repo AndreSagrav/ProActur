@@ -349,9 +349,11 @@ Devuelve UNICAMENTE un JSON valido (sin bloques markdown de codigo json) con est
   /**
    * Segundo Cerebro: Chat cruzado inteligente
    */
-  async askSecondBrain(question, meetingsList) {
+  async askSecondBrain(question, meetingsList, notesList = []) {
     const recentMeetings = (meetingsList || []).slice(0, 20);
-    const context = recentMeetings.map((m, idx) => `
+    const recentNotes = (notesList || []).slice(0, 20);
+
+    const meetingsContext = recentMeetings.map((m, idx) => `
 Reunión #${idx + 1}:
 Título: ${m.title}
 Fecha: ${m.createdAt || m.date}
@@ -362,19 +364,31 @@ Consejos: ${(m.proactiveAdvice || []).join('; ')}
 ---
 `).join('\n');
 
+    const notesContext = recentNotes.map((n, idx) => `
+Libreta/Nota #${idx + 1}:
+Título: ${n.title}
+Fecha: ${n.updatedAt || n.createdAt}
+Contenido: ${n.contentText ? n.contentText.replace(/<[^>]+>/g, '').substring(0, 300) : 'Dibujo o nota manuscrita'}
+Etiquetas: ${(n.tags || []).join(', ')}
+---
+`).join('\n');
+
     const prompt = `
-Eres el "Segundo Cerebro" (Second Brain) de Proactor AI.
-Tienes acceso al historial de reuniones del usuario.
+Eres el "Segundo Cerebro" (Second Brain) y Asistente IA interactivo de Proactor.
+Tienes acceso al historial completo de reuniones y a las libretas canvas del usuario.
 
 Historial de Reuniones:
-${context || 'No hay reuniones previas registradas aún.'}
+${meetingsContext || 'No hay reuniones previas registradas aún.'}
+
+Libretas de Notas Canvas:
+${notesContext || 'No hay libretas previas registradas aún.'}
 
 Pregunta del usuario:
 "${question}"
 
 Instrucciones:
-1. Responde de forma concisa, ejecutiva, profesional y citando específicamente qué reunión, fecha o responsable está relacionado.
-2. Si la información no aparece en las reuniones registradas, indícalo cortésmente y sugiere qué buscar o registrar.
+1. Responde de forma concisa, ejecutiva, profesional y citando específicamente qué reunión, libreta, fecha o responsable está relacionado.
+2. Si la información no aparece en las reuniones o libretas registradas, indícalo cortésmente y sugiere qué buscar o registrar.
 `;
 
     // Intentar con OpenRouter (DeepSeek) primero si está disponible

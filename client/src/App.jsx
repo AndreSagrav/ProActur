@@ -307,7 +307,7 @@ export default function App() {
               title="Consultar Segundo Cerebro"
             >
               <Brain className="w-4 h-4 text-indigo-400 shrink-0" />
-              <span className="hidden sm:inline">Segundo Cerebro</span>
+              <span className="hidden sm:inline font-bold">Chat IA</span>
               <span className="w-4 h-4 sm:w-5 sm:h-5 rounded-full bg-indigo-500/30 text-indigo-300 text-[10px] flex items-center justify-center font-bold">
                 {meetings.length}
               </span>
@@ -554,7 +554,7 @@ export default function App() {
                 {meetings.length}
               </span>
             </div>
-            <span className="text-[10px] mt-0.5">Cerebro</span>
+            <span className="text-[10px] mt-0.5 font-bold">Chat IA</span>
           </button>
         </div>
       </nav>
