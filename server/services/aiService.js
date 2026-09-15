@@ -84,7 +84,7 @@ Debes responder ÚNICAMENTE con un objeto JSON válido (sin markdown, sin bloque
   }
 
 
-  buildLivePrompt(meetingTitle, currentTranscript, previousContext) {
+  buildLivePrompt(meetingTitle, currentTranscript, previousContext, userNotes = '') {
     return `
 Eres Proactor AI, el copiloto ejecutivo de reuniones de clase mundial trabajando EN TIEMPO REAL.
 Tu mision es escuchar la conversacion y estructurar la minuta ejecutiva en vivo.
@@ -94,7 +94,8 @@ Contexto previo acumulado:
 - Tareas ya detectadas: ${JSON.stringify(previousContext?.actionItems || [])}
 - Decisiones ya detectadas: ${JSON.stringify(previousContext?.keyDecisions || [])}
 
-${currentTranscript ? `Texto preliminar hablado:\n${currentTranscript}\n` : 'Analiza el audio provisto de la sesion.'}
+${userNotes ? `Notas manuales tomadas por el usuario durante la sesion:\n${userNotes}\n` : ''}
+${currentTranscript ? `Texto preliminar hablado:\n${currentTranscript}\n` : 'Analiza el audio y notas provistas de la sesion.'}
 
 Devuelve UNICAMENTE un JSON valido (sin bloques markdown de codigo json) con este formato exacto:
 {
@@ -118,12 +119,12 @@ Devuelve UNICAMENTE un JSON valido (sin bloques markdown de codigo json) con est
 `;
   }
 
-  async analyzeLiveMeeting({ meetingTitle, transcript, audioBuffer, mimeType, previousContext }) {
+  async analyzeLiveMeeting({ meetingTitle, transcript, userNotes, audioBuffer, mimeType, previousContext }) {
     const key = config.GEMINI_API_KEY;
     if (!key) throw new Error('GEMINI_API_KEY no configurada');
 
     const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${this.geminiModel}:generateContent`;
-    const prompt = this.buildLivePrompt(meetingTitle, transcript, previousContext);
+    const prompt = this.buildLivePrompt(meetingTitle, transcript, previousContext, userNotes);
     const parts = [];
 
     if (audioBuffer) {

@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import HandwritingCanvas from './HandwritingCanvas';
 import {
   Mic, Square, Upload, FileText, Loader2, Sparkles, Volume2, AlertCircle,
   CheckCircle2, CheckSquare, Clock, Zap, Brain, ShieldAlert, ArrowRight,
@@ -43,6 +44,10 @@ export default function AudioRecorder({ onMeetingProcessed }) {
   const [liveDecisions, setLiveDecisions] = useState([]);
   const [liveActionItems, setLiveActionItems] = useState([]);
   const [liveAdvice, setLiveAdvice] = useState([]);
+  const [userLiveNotes, setUserLiveNotes] = useState('');
+  const [liveNotesMode, setLiveNotesMode] = useState('keyboard'); // 'keyboard' | 'pencil'
+  const [liveNotesStrokes, setLiveNotesStrokes] = useState([]);
+  const [liveStatusMessage, setLiveStatusMessage] = useState('');
   const [liveSummary, setLiveSummary] = useState('');
   const [isAnalyzingLive, setIsAnalyzingLive] = useState(false);
 
@@ -67,6 +72,7 @@ export default function AudioRecorder({ onMeetingProcessed }) {
   useEffect(() => {
     stateRef.current = {
       transcript: liveTranscript,
+    userNotes: userLiveNotes,
       decisions: liveDecisions,
       actionItems: liveActionItems,
       advice: liveAdvice,
@@ -115,13 +121,16 @@ export default function AudioRecorder({ onMeetingProcessed }) {
   }, []);
 
   // Configuracion del analizador de volumen de voz en tiempo real
-  const setupAudioAnalyzer = (stream) => {
+  const setupAudioAnalyzer = async (stream) => {
     try {
       const AudioCtx = window.AudioContext || window.webkitAudioContext;
       if (!AudioCtx) return;
 
       const audioCtx = new AudioCtx();
       audioContextRef.current = audioCtx;
+      if (audioCtx.state === 'suspended') {
+        try { await audioCtx.resume(); } catch (_) {}
+      }
 
       const analyser = audioCtx.createAnalyser();
       analyser.fftSize = 64;
@@ -204,26 +213,36 @@ export default function AudioRecorder({ onMeetingProcessed }) {
     }
   };
 
-  // Analisis incremental continuo con Gemini enviando audio nativo
+  // Analisis incremental continuo con Gemini enviando audio y notas en vivo
   const triggerLiveAnalysis = async () => {
     const current = stateRef.current;
     if (!current.isRecording || current.isAnalyzing) return;
 
     const hasAudio = audioChunksRef.current && audioChunksRef.current.length > 0;
-    const textToAnalyze = current.transcript.trim();
+    const textToAnalyze = (current.transcript || '').trim();
+    const userNotesText = (current.userNotes || '').trim();
 
-    if (!hasAudio && textToAnalyze.length < 10) return;
+    // Si no hay audio, ni transcripcion, ni notas del usuario, no analizamos
+    if (!hasAudio && textToAnalyze.length < 5 && userNotesText.length < 5) return;
 
     setIsAnalyzingLive(true);
+    setLiveStatusMessage('Procesando audio y notas en tiempo real con Gemini...');
 
     try {
       const formData = new FormData();
       formData.append('title', current.title || 'Reunion en Vivo');
       if (textToAnalyze) formData.append('transcript', textToAnalyze);
+      if (userNotesText) formData.append('userNotes', userNotesText);
 
+      // Enviamos el fragmento de audio (si supera 2MB, enviamos los ultimos 15 segundos para no desbordar Vercel)
       if (hasAudio) {
-        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
-        formData.append('audio', audioBlob, 'live_chunk.webm');
+        const recentChunks = audioChunksRef.current.length > 20
+          ? audioChunksRef.current.slice(-15)
+          : audioChunksRef.current;
+        const audioBlob = new Blob(recentChunks, { type: 'audio/webm' });
+        if (audioBlob.size < 2.5 * 1024 * 1024) {
+          formData.append('audio', audioBlob, 'live_chunk.webm');
+        }
       }
 
       if (current.actionItems.length > 0 || current.decisions.length > 0) {
@@ -666,6 +685,88 @@ export default function AudioRecorder({ onMeetingProcessed }) {
                     Finalizar y Guardar Minuta
                   </button>
                 </div>
+              </div>
+
+              {/* BLOC DE NOTAS EN VIVO (LAPIZ Y TECLADO) CON CONEXION DIRECTA A LA IA */}
+              <div className="bg-slate-900/90 border border-indigo-500/30 rounded-2xl p-4 shadow-xl space-y-3">
+                <div className="flex items-center justify-between gap-2 border-b border-slate-800 pb-2.5">
+                  <div className="flex items-center gap-2">
+                    <div className="w-7 h-7 rounded-lg bg-indigo-600/30 text-indigo-400 flex items-center justify-center border border-indigo-500/30">
+                      <PenTool className="w-3.5 h-3.5" />
+                    </div>
+                    <div>
+                      <h4 className="text-xs font-bold text-slate-100 flex items-center gap-2">
+                        Mis Notas en Vivo de la Reunión
+                        <span className="text-[10px] px-2 py-0.2 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 font-semibold">
+                          Sincronizado con la IA
+                        </span>
+                      </h4>
+                      <p className="text-[11px] text-slate-400">
+                        Escribe con teclado o dibuja con lápiz: la IA lo incorpora en vivo a los acuerdos y tareas
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Selector de Modo: Teclado vs Lapiz */}
+                  <div className="flex items-center bg-slate-950 rounded-xl p-1 border border-slate-800">
+                    <button
+                      type="button"
+                      onClick={() => setLiveNotesMode('keyboard')}
+                      className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold transition-all ${
+                        liveNotesMode === 'keyboard'
+                          ? 'bg-indigo-600 text-white shadow-sm'
+                          : 'text-slate-400 hover:text-slate-200'
+                      }`}
+                    >
+                      <Keyboard className="w-3.5 h-3.5" />
+                      <span>Teclado</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setLiveNotesMode('pencil')}
+                      className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold transition-all ${
+                        liveNotesMode === 'pencil'
+                          ? 'bg-indigo-600 text-white shadow-sm'
+                          : 'text-slate-400 hover:text-slate-200'
+                      }`}
+                    >
+                      <PenTool className="w-3.5 h-3.5" />
+                      <span>Lápiz / Dibujo</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Editor segun el modo */}
+                {liveNotesMode === 'keyboard' ? (
+                  <div className="space-y-2">
+                    <textarea
+                      value={userLiveNotes}
+                      onChange={(e) => setUserLiveNotes(e.target.value)}
+                      placeholder="Escribe aquí tus notas, acuerdos hablados, compromisos o nombres en vivo... Ejemplo: 'Acordamos que Carlos entrega el presupuesto el viernes'."
+                      className="w-full bg-slate-950/80 border border-slate-800 rounded-xl p-3 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 h-24 transition-all resize-none leading-relaxed font-sans"
+                    />
+                    <div className="flex items-center justify-between text-[11px] text-slate-400">
+                      <span>{userLiveNotes.trim().length} caracteres &bull; Se envían automáticamente cada 12s</span>
+                      <button
+                        type="button"
+                        onClick={triggerLiveAnalysis}
+                        disabled={isAnalyzingLive}
+                        className="flex items-center gap-1 px-3 py-1 rounded-lg text-xs font-bold bg-indigo-600 hover:bg-indigo-500 text-white transition-all shadow disabled:opacity-50"
+                      >
+                        <Zap className="w-3.5 h-3.5" />
+                        <span>Analizar Notas Ahora</span>
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="rounded-xl overflow-hidden border border-slate-800 bg-slate-950">
+                    <HandwritingCanvas
+                      strokes={liveNotesStrokes}
+                      onStrokesChange={(strokes) => setLiveNotesStrokes(strokes)}
+                      className="h-44 w-full"
+                    />
+                  </div>
+                )}
               </div>
 
               {/* MINUTA EJECUTIVA ESTRUCTURADA EN TIEMPO REAL (LOS 4 PILARES DE PROACTOR) */}

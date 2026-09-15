@@ -126,7 +126,7 @@ router.delete('/meetings/:id', async (req, res) => {
 // Analizar fragmento de reunion en tiempo real (Live Meeting AI Copilot)
 router.post('/meetings/live-analyze', upload.single('audio'), async (req, res) => {
   try {
-    const { title, transcript, previousContext } = req.body;
+    const { title, transcript, userNotes, previousContext } = req.body;
     let prev = null;
     if (previousContext) {
       try { prev = typeof previousContext === 'string' ? JSON.parse(previousContext) : previousContext; } catch (_) {}
@@ -144,6 +144,7 @@ router.post('/meetings/live-analyze', upload.single('audio'), async (req, res) =
       transcript: transcript || '',
       audioBuffer,
       mimeType,
+      userNotes: userNotes || "",
       previousContext: prev
     });
 
