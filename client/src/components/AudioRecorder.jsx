@@ -3,7 +3,7 @@ import HandwritingCanvas from './HandwritingCanvas';
 import {
   Mic, Square, Upload, FileText, Loader2, Sparkles, Volume2, AlertCircle,
   CheckCircle2, CheckSquare, Clock, Zap, Brain, ShieldAlert, ArrowRight,
-  RotateCcw, ShieldCheck, Trash2
+  RotateCcw, ShieldCheck, Trash2, PenTool, Keyboard
 } from 'lucide-react';
 
 import {
