@@ -8,6 +8,7 @@ import {
 import AudioRecorder from './components/AudioRecorder';
 import MeetingDetails from './components/MeetingDetails';
 import SecondBrainModal from './components/SecondBrainModal';
+import ChatView from './components/ChatView';
 import SettingsModal from './components/SettingsModal';
 import ThemeSelectorModal from './components/ThemeSelectorModal';
 import { useTheme } from './context/ThemeContext.jsx';
@@ -200,8 +201,9 @@ export default function App() {
 
   const TABS = [
     { key: 'meetings', label: 'Reuniones', icon: FileText },
+    { key: 'chat', label: 'Chat con IA', icon: Brain },
+    { key: 'notebook', label: 'Libreta Canvas', icon: BookOpen },
     { key: 'calendar', label: 'Agenda', icon: Calendar },
-    { key: 'notebook', label: 'Libreta', icon: BookOpen },
   ];
 
   return (
@@ -487,6 +489,18 @@ export default function App() {
 
         {/* =================================================================== */}
         {/* PESTAÑA: LIBRETA DE NOTAS                                           */}
+        {/* =================================================================== */}
+        {/* =================================================================== */}
+        {/* PESTAÑA: CHAT CON IA (SEGUNDO CEREBRO A PANTALLA COMPLETA)           */}
+        {/* =================================================================== */}
+        {activeTab === 'chat' && (
+          <div className="w-full">
+            <ChatView totalMeetings={meetings.length} />
+          </div>
+        )}
+
+        {/* =================================================================== */}
+        {/* PESTAÑA: LIBRETA CANVAS                                             */}
         {/* =================================================================== */}
         {activeTab === 'notebook' && (
           <div className="w-full">

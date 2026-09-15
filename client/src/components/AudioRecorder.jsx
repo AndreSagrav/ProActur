@@ -48,6 +48,12 @@ export default function AudioRecorder({ onMeetingProcessed }) {
   const [liveNotesMode, setLiveNotesMode] = useState('keyboard'); // 'keyboard' | 'pencil'
   const [liveNotesStrokes, setLiveNotesStrokes] = useState([]);
   const [liveStatusMessage, setLiveStatusMessage] = useState('');
+  const [activeLiveTab, setActiveLiveTab] = useState('notes'); // 'notes' | 'chat'
+  const [liveChatMessages, setLiveChatMessages] = useState([
+    { role: 'assistant', text: '¡Hola! Estoy escuchando la reunión. Puedes hacerme preguntas en vivo o pedirme que registre acuerdos o tareas puntuales.' }
+  ]);
+  const [liveChatInput, setLiveChatInput] = useState('');
+  const [liveChatLoading, setLiveChatLoading] = useState(false);
   const [liveSummary, setLiveSummary] = useState('');
   const [isAnalyzingLive, setIsAnalyzingLive] = useState(false);
 
@@ -336,6 +342,31 @@ export default function AudioRecorder({ onMeetingProcessed }) {
     } catch (err) {
       console.error('Error accediendo al microfono:', err);
       setError('No se pudo acceder al microfono. Por favor concede permisos en tu navegador.');
+    }
+  };
+
+    const askSessionAi = async (text) => {
+    if (!text.trim() || liveChatLoading) return;
+    const q = text.trim();
+    setLiveChatInput('');
+    setLiveChatMessages(prev => [...prev, { role: 'user', text: q }]);
+    setLiveChatLoading(true);
+
+    try {
+      const current = stateRef.current;
+      const res = await fetch(`${API}/api/second-brain/ask`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          question: `[Reunión en Curso: "${current.title || 'Sesión en vivo'}" | Notas: "${current.userNotes || ''}" | Transcripción: "${current.transcript || ''}"] Pregunta del usuario: ${q}`
+        })
+      });
+      const data = await res.json();
+      setLiveChatMessages(prev => [...prev, { role: 'assistant', text: data.answer || 'No pude procesar la consulta.' }]);
+    } catch (e) {
+      setLiveChatMessages(prev => [...prev, { role: 'assistant', text: 'Error conectando con la IA: ' + e.message }]);
+    } finally {
+      setLiveChatLoading(false);
     }
   };
 
@@ -687,84 +718,139 @@ export default function AudioRecorder({ onMeetingProcessed }) {
                 </div>
               </div>
 
-              {/* BLOC DE NOTAS EN VIVO (LAPIZ Y TECLADO) CON CONEXION DIRECTA A LA IA */}
+              {/* PANEL DUAL: MIS NOTAS EN VIVO & CHAT CON LA IA DE LA SESION */}
               <div className="bg-slate-900/90 border border-indigo-500/30 rounded-2xl p-4 shadow-xl space-y-3">
-                <div className="flex items-center justify-between gap-2 border-b border-slate-800 pb-2.5">
+                {/* Selector de Pestaña: Notas vs Chat IA */}
+                <div className="flex items-center justify-between gap-2 border-b border-slate-800 pb-2">
                   <div className="flex items-center gap-2">
-                    <div className="w-7 h-7 rounded-lg bg-indigo-600/30 text-indigo-400 flex items-center justify-center border border-indigo-500/30">
-                      <PenTool className="w-3.5 h-3.5" />
-                    </div>
-                    <div>
-                      <h4 className="text-xs font-bold text-slate-100 flex items-center gap-2">
-                        Mis Notas en Vivo de la Reunión
-                        <span className="text-[10px] px-2 py-0.2 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 font-semibold">
-                          Sincronizado con la IA
-                        </span>
-                      </h4>
-                      <p className="text-[11px] text-slate-400">
-                        Escribe con teclado o dibuja con lápiz: la IA lo incorpora en vivo a los acuerdos y tareas
-                      </p>
-                    </div>
-                  </div>
-
-                  {/* Selector de Modo: Teclado vs Lapiz */}
-                  <div className="flex items-center bg-slate-950 rounded-xl p-1 border border-slate-800">
                     <button
                       type="button"
-                      onClick={() => setLiveNotesMode('keyboard')}
-                      className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold transition-all ${
-                        liveNotesMode === 'keyboard'
-                          ? 'bg-indigo-600 text-white shadow-sm'
-                          : 'text-slate-400 hover:text-slate-200'
-                      }`}
-                    >
-                      <Keyboard className="w-3.5 h-3.5" />
-                      <span>Teclado</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setLiveNotesMode('pencil')}
-                      className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold transition-all ${
-                        liveNotesMode === 'pencil'
-                          ? 'bg-indigo-600 text-white shadow-sm'
-                          : 'text-slate-400 hover:text-slate-200'
+                      onClick={() => setActiveLiveTab('notes')}
+                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
+                        activeLiveTab === 'notes'
+                          ? 'bg-indigo-600 text-white shadow-md'
+                          : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
                       }`}
                     >
                       <PenTool className="w-3.5 h-3.5" />
-                      <span>Lápiz / Dibujo</span>
+                      <span>Mis Notas en Vivo</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setActiveLiveTab('chat')}
+                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
+                        activeLiveTab === 'chat'
+                          ? 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-md shadow-purple-500/20'
+                          : 'text-purple-400 hover:text-purple-300 hover:bg-purple-950/40 border border-purple-500/20'
+                      }`}
+                    >
+                      <Brain className="w-3.5 h-3.5" />
+                      <span>💬 Chatear con la IA de la Sesión</span>
                     </button>
                   </div>
-                </div>
 
-                {/* Editor segun el modo */}
-                {liveNotesMode === 'keyboard' ? (
-                  <div className="space-y-2">
-                    <textarea
-                      value={userLiveNotes}
-                      onChange={(e) => setUserLiveNotes(e.target.value)}
-                      placeholder="Escribe aquí tus notas, acuerdos hablados, compromisos o nombres en vivo... Ejemplo: 'Acordamos que Carlos entrega el presupuesto el viernes'."
-                      className="w-full bg-slate-950/80 border border-slate-800 rounded-xl p-3 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 h-24 transition-all resize-none leading-relaxed font-sans"
-                    />
-                    <div className="flex items-center justify-between text-[11px] text-slate-400">
-                      <span>{userLiveNotes.trim().length} caracteres &bull; Se envían automáticamente cada 12s</span>
+                  {activeLiveTab === 'notes' && (
+                    <div className="flex items-center bg-slate-950 rounded-xl p-1 border border-slate-800">
                       <button
                         type="button"
-                        onClick={triggerLiveAnalysis}
-                        disabled={isAnalyzingLive}
-                        className="flex items-center gap-1 px-3 py-1 rounded-lg text-xs font-bold bg-indigo-600 hover:bg-indigo-500 text-white transition-all shadow disabled:opacity-50"
+                        onClick={() => setLiveNotesMode('keyboard')}
+                        className={`flex items-center gap-1.5 px-2 py-1 rounded-lg text-[11px] font-semibold transition-all ${
+                          liveNotesMode === 'keyboard' ? 'bg-indigo-600 text-white' : 'text-slate-400 hover:text-slate-200'
+                        }`}
                       >
-                        <Zap className="w-3.5 h-3.5" />
-                        <span>Analizar Notas Ahora</span>
+                        <Keyboard className="w-3 h-3" />
+                        <span>Teclado</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setLiveNotesMode('pencil')}
+                        className={`flex items-center gap-1.5 px-2 py-1 rounded-lg text-[11px] font-semibold transition-all ${
+                          liveNotesMode === 'pencil' ? 'bg-indigo-600 text-white' : 'text-slate-400 hover:text-slate-200'
+                        }`}
+                      >
+                        <PenTool className="w-3 h-3" />
+                        <span>Lápiz</span>
                       </button>
                     </div>
+                  )}
+                </div>
+
+                {/* Contenido segun la pestaña activa */}
+                {activeLiveTab === 'chat' ? (
+                  <div className="space-y-3">
+                    <div className="bg-slate-950/80 border border-slate-800 rounded-xl p-3 h-44 overflow-y-auto space-y-2.5">
+                      {liveChatMessages.map((m, idx) => (
+                        <div key={idx} className={`flex gap-2 ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                          {m.role === 'assistant' && (
+                            <div className="w-6 h-6 rounded-lg bg-indigo-600/30 flex items-center justify-center text-indigo-400 shrink-0 text-xs">
+                              ✨
+                            </div>
+                          )}
+                          <div className={`max-w-[85%] rounded-xl px-3 py-2 text-xs leading-relaxed ${
+                            m.role === 'user' ? 'bg-indigo-600 text-white' : 'bg-slate-900 border border-slate-800 text-slate-200'
+                          }`}>
+                            {m.text}
+                          </div>
+                        </div>
+                      ))}
+                      {liveChatLoading && (
+                        <div className="text-[11px] text-slate-400 flex items-center gap-1.5">
+                          <Loader2 className="w-3 h-3 animate-spin text-indigo-400" />
+                          <span>La IA está consultando la reunión en vivo...</span>
+                        </div>
+                      )}
+                    </div>
+
+                    <form onSubmit={(e) => { e.preventDefault(); askSessionAi(liveChatInput); }} className="flex items-center gap-2">
+                      <input
+                        type="text"
+                        value={liveChatInput}
+                        onChange={(e) => setLiveChatInput(e.target.value)}
+                        placeholder="Pregúntale a la IA en vivo: '¿Qué acuerdos llevamos?', 'Anota que la entrega es el viernes'..."
+                        className="flex-1 bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-indigo-500"
+                      />
+                      <button
+                        type="submit"
+                        disabled={liveChatLoading || !liveChatInput.trim()}
+                        className="px-3.5 py-2 rounded-xl text-xs font-bold bg-indigo-600 hover:bg-indigo-500 text-white disabled:opacity-40 transition-all shadow"
+                      >
+                        Preguntar
+                      </button>
+                    </form>
                   </div>
                 ) : (
-                  <div className="rounded-xl overflow-hidden border border-slate-800 bg-slate-950">
-                    <HandwritingCanvas
-                      strokes={liveNotesStrokes}
-                      onStrokesChange={(strokes) => setLiveNotesStrokes(strokes)}
-                      className="h-44 w-full"
-                    />
+                  <div className="space-y-2">
+                    {liveNotesMode === 'keyboard' ? (
+                      <div className="space-y-2">
+                        <textarea
+                          value={userLiveNotes}
+                          onChange={(e) => setUserLiveNotes(e.target.value)}
+                          placeholder="Escribe aquí tus notas, acuerdos hablados, compromisos o nombres en vivo... Ejemplo: 'Acordamos que Carlos entrega el presupuesto el viernes'."
+                          className="w-full bg-slate-950/80 border border-slate-800 rounded-xl p-3 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 h-24 transition-all resize-none leading-relaxed font-sans"
+                        />
+                        <div className="flex items-center justify-between text-[11px] text-slate-400">
+                          <span>{userLiveNotes.trim().length} caracteres &bull; Se sincroniza automáticamente</span>
+                          <button
+                            type="button"
+                            onClick={triggerLiveAnalysis}
+                            disabled={isAnalyzingLive}
+                            className="flex items-center gap-1 px-3 py-1 rounded-lg text-xs font-bold bg-indigo-600 hover:bg-indigo-500 text-white transition-all shadow disabled:opacity-50"
+                          >
+                            <Zap className="w-3.5 h-3.5" />
+                            <span>Analizar Notas Ahora</span>
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="rounded-xl overflow-hidden border border-slate-800 bg-slate-950">
+                        <HandwritingCanvas
+                          strokes={liveNotesStrokes}
+                          onStrokesChange={(strokes) => setLiveNotesStrokes(strokes)}
+                          className="h-44 w-full"
+                        />
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
