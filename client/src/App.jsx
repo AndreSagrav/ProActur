@@ -209,131 +209,123 @@ export default function App() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 text-white flex flex-col pb-20 lg:pb-6">
       {/* Header Responsivo */}
-      <header className="border-b border-slate-800/70 bg-slate-950/85 backdrop-blur-xl sticky top-0 z-40">
-        <div className="max-w-7xl mx-auto px-3 sm:px-6 py-2.5 sm:py-3 flex items-center justify-between gap-2">
-          {/* Logo y Titulo */}
-          <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
-            <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-gradient-to-br from-indigo-600 to-violet-600 flex items-center justify-center shadow-lg shadow-indigo-500/20 shrink-0">
-              <Radio className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
-            </div>
-            <div className="min-w-0">
-              <div className="flex items-center gap-1.5">
-                <h1 className="text-sm sm:text-base font-bold tracking-tight text-slate-100 truncate leading-tight">
-                  Proactor
-                </h1>
-                <span className="text-[10px] px-1.5 py-0.2 rounded-md bg-indigo-500/20 text-indigo-300 font-semibold border border-indigo-500/30 hidden xs:inline-block">
-                  AI Proactivo
-                </span>
+      <header className="border-b border-slate-800/80 bg-slate-950/95 backdrop-blur-2xl sticky top-0 z-40 shadow-xl">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 space-y-3">
+          {/* Fila Superior: Logo, Titulo, Estado del Sistema y Ajustes */}
+          <div className="flex items-center justify-between gap-4">
+            {/* Logo y Titulo */}
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-indigo-600 via-violet-600 to-purple-600 flex items-center justify-center shadow-lg shadow-indigo-500/25 shrink-0">
+                <Radio className="w-5 h-5 text-white" />
               </div>
-              <p className="text-[11px] text-slate-400 hidden sm:block truncate">
-                Asistente proactivo, agenda y libreta inteligente
-              </p>
-            </div>
-          </div>
-
-          {/* Selector de pestañas para Desktop / Tablet Grande */}
-          <div className="hidden md:flex items-center bg-slate-900/90 border border-slate-800 rounded-xl p-1 shadow-inner">
-            {TABS.map(tab => {
-              const Icon = tab.icon;
-              const isActive = activeTab === tab.key;
-              return (
-                <button
-                  key={tab.key}
-                  onClick={() => {
-                    setActiveTab(tab.key);
-                    if (tab.key === 'meetings') setShowMobileDetail(false);
-                  }}
-                  className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-                    isActive
-                      ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/30'
-                      : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
-                  }`}
-                >
-                  <Icon className="w-3.5 h-3.5" />
-                  <span>{tab.label}</span>
-                </button>
-              );
-            })}
-          </div>
-
-          {/* Selector Rapido de Temas y Accesibilidad Visible en Pantalla */}
-          <div className="flex items-center gap-1.5 bg-slate-900/90 border border-slate-800 rounded-xl px-2 py-1 shadow-inner">
-            <span className="text-[10px] text-slate-400 font-bold hidden xl:inline">Temas:</span>
-            <div className="flex items-center gap-1">
-              {THEMES && Object.values(THEMES).map(t => (
-                <button
-                  key={t.id}
-                  onClick={() => setTheme(t.id)}
-                  className={`w-5 h-5 sm:w-6 sm:h-6 rounded-lg flex items-center justify-center transition-all ${
-                    theme === t.id
-                      ? 'ring-2 ring-white scale-110 shadow-lg'
-                      : 'opacity-70 hover:opacity-100 hover:scale-105'
-                  }`}
-                  style={{ backgroundColor: t.previewColor }}
-                  title={`${t.name}: ${t.description}`}
-                >
-                  {theme === t.id && <span className="w-1.5 h-1.5 rounded-full bg-white shadow" />}
-                </button>
-              ))}
+              <div>
+                <div className="flex items-center gap-2">
+                  <h1 className="text-base sm:text-lg font-extrabold tracking-tight text-slate-100 leading-none">
+                    Proactor
+                  </h1>
+                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 font-bold border border-indigo-500/30">
+                    AI Proactivo
+                  </span>
+                </div>
+                <p className="text-xs text-slate-400 mt-0.5 hidden sm:block">
+                  Asistente proactivo para reuniones, libretas canvas y segundo cerebro
+                </p>
+              </div>
             </div>
 
-            <div className="w-[1px] h-4 bg-slate-700 mx-0.5" />
+            {/* Acciones de Cabecera: Supabase, Temas Modal y Ajustes */}
+            <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+              {/* Indicador Supabase Activo */}
+              {keepAliveData?.success && (
+                <div
+                  className="hidden md:flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/20"
+                  title={`Supabase activo: Latencia ${keepAliveData.latencyMs}ms`}
+                >
+                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                  <span>Base de Datos Activa</span>
+                </div>
+              )}
 
-            {/* Alternador de Tamano de Fuente */}
-            <button
-              onClick={() => setFontSize(fontSize === 'xlarge' ? 'normal' : fontSize === 'large' ? 'xlarge' : 'large')}
-              className="px-1.5 py-0.5 text-[11px] font-extrabold text-amber-300 hover:text-white rounded hover:bg-slate-800 transition-colors"
-              title="Cambiar tamano de letra (Normal / Grande / Extra Grande)"
-            >
-              {fontSize === 'xlarge' ? 'A+++' : fontSize === 'large' ? 'A++' : 'A+'}
-            </button>
-          </div>
-
-          {/* Botones de Accion */}
-          <div className="flex items-center gap-1.5 sm:gap-2.5 shrink-0">
-            {/* Supabase Keep-Alive Indicator */}
-            {keepAliveData?.success && (
-              <div
-                className="hidden xl:flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/20"
-                title={`Keep-Alive activo: Latencia ${keepAliveData.latencyMs}ms. Base de datos protegida de suspension.`}
+              {/* Boton Accesibilidad */}
+              <button
+                onClick={() => setIsThemeOpen(true)}
+                className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold text-amber-300 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 transition-all shadow-sm"
+                title="Configuración de Accesibilidad y Guía de Daltonismo"
               >
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                <span>Supabase Activo</span>
+                <Palette className="w-4 h-4 text-amber-400" />
+                <span className="hidden sm:inline">Accesibilidad</span>
+              </button>
+
+              {/* Ajustes */}
+              <button
+                onClick={() => setIsSettingsOpen(true)}
+                className="p-2 rounded-xl text-slate-400 hover:text-slate-200 hover:bg-slate-800 transition-colors border border-slate-800 hover:border-slate-700"
+                title="Diagnóstico del Sistema"
+              >
+                <Settings className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+
+          {/* Fila Inferior: Navegacion Principal Holgada + Selector de Temas Visible */}
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 pt-2 border-t border-slate-800/80">
+            {/* Pestañas de Navegacion con Espacio Vertical y Sin Compresion */}
+            <div className="flex items-center bg-slate-900 border border-slate-800 rounded-2xl p-1.5 shadow-inner gap-1 overflow-x-auto">
+              {TABS.map(tab => {
+                const Icon = tab.icon;
+                const isActive = activeTab === tab.key;
+                return (
+                  <button
+                    key={tab.key}
+                    onClick={() => {
+                      setActiveTab(tab.key);
+                      if (tab.key === 'meetings') setShowMobileDetail(false);
+                    }}
+                    className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all ${
+                      isActive
+                        ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/30'
+                        : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
+                    }`}
+                  >
+                    <Icon className="w-4 h-4 shrink-0" />
+                    <span>{tab.label}</span>
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Selector de Temas Holgado con Etiquetas de Color y Escalador de Fuente */}
+            <div className="flex items-center justify-between sm:justify-end gap-2 bg-slate-900 border border-slate-800 rounded-2xl px-3 py-1.5 shadow-inner">
+              <span className="text-xs text-slate-400 font-bold whitespace-nowrap">Temas:</span>
+              <div className="flex items-center gap-1.5">
+                {THEMES && Object.values(THEMES).map(t => (
+                  <button
+                    key={t.id}
+                    onClick={() => setTheme(t.id)}
+                    className={`w-6 h-6 rounded-lg flex items-center justify-center transition-all ${
+                      theme === t.id
+                        ? 'ring-2 ring-white scale-110 shadow-lg'
+                        : 'opacity-70 hover:opacity-100 hover:scale-105'
+                    }`}
+                    style={{ backgroundColor: t.previewColor }}
+                    title={`${t.name}: ${t.description}`}
+                  >
+                    {theme === t.id && <span className="w-1.5 h-1.5 rounded-full bg-white shadow" />}
+                  </button>
+                ))}
               </div>
-            )}
 
-            {/* Segundo Cerebro */}
-            <button
-              onClick={() => setIsSecondBrainOpen(true)}
-              className="flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3.5 py-1.5 sm:py-2 rounded-xl text-xs font-semibold bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-300 border border-indigo-500/30 transition-all shadow-sm"
-              title="Consultar Segundo Cerebro"
-            >
-              <Brain className="w-4 h-4 text-indigo-400 shrink-0" />
-              <span className="hidden sm:inline font-bold">Chat IA</span>
-              <span className="w-4 h-4 sm:w-5 sm:h-5 rounded-full bg-indigo-500/30 text-indigo-300 text-[10px] flex items-center justify-center font-bold">
-                {meetings.length}
-              </span>
-            </button>
+              <div className="w-[1px] h-4 bg-slate-700 mx-1" />
 
-            {/* Temas y Accesibilidad Visual */}
-            <button
-              onClick={() => setIsThemeOpen(true)}
-              className="p-1.5 sm:p-2 rounded-xl text-amber-400/90 hover:text-amber-300 hover:bg-amber-500/10 transition-colors border border-amber-500/20 flex items-center gap-1.5"
-              title="Temas y Accesibilidad Visual (Daltónicos / Alto Contraste / Tamaño de letra)"
-              aria-label="Configuración de Accesibilidad y Temas"
-            >
-              <Palette className="w-4 h-4 sm:w-5 sm:h-5" />
-              <span className="hidden lg:inline text-xs font-medium text-amber-300">Accesibilidad</span>
-            </button>
-
-            {/* Ajustes */}
-            <button
-              onClick={() => setIsSettingsOpen(true)}
-              className="p-1.5 sm:p-2 rounded-xl text-slate-400 hover:text-slate-200 hover:bg-slate-800 transition-colors border border-transparent hover:border-slate-700"
-              title="Ajustes y Conexiones"
-            >
-              <Settings className="w-4 h-4 sm:w-5 sm:h-5" />
-            </button>
+              {/* Alternador de Tamano de Fuente */}
+              <button
+                onClick={() => setFontSize(fontSize === 'xlarge' ? 'normal' : fontSize === 'large' ? 'xlarge' : 'large')}
+                className="px-2 py-1 text-xs font-black text-amber-300 hover:text-white bg-slate-800/80 hover:bg-slate-700 rounded-lg transition-colors whitespace-nowrap"
+                title="Cambiar tamaño de letra (Normal / Grande / Extra Grande)"
+              >
+                {fontSize === 'xlarge' ? 'A+++ (+30%)' : fontSize === 'large' ? 'A++ (+15%)' : 'A (Normal)'}
+              </button>
+            </div>
           </div>
         </div>
       </header>
