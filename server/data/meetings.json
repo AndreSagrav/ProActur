@@ -1,1 +1,98 @@
-[]
+[
+  {
+    "title": "Reunion en Vivo 15/9/2026",
+    "summary": "Se revisaron los problemas de corrosión en la base del termostato y la posible sobrecalentamiento de la vara de plástico, confirmando la necesidad de mantener el sistema totalmente sellado y sin ingreso de aire. Se acordó establecer un programa de cambios de refrigerante cada 6 meses, validar la marca y especificaciones del refrigerante compatible con Chevrolet y su compatibilidad con componentes de aluminio, y evitar el uso de refrigerantes de baja calidad. Además, se decidió realizar pruebas de electro‑lisis para detectar corrosión interna y documentar los resultados.",
+    "keyTopics": [],
+    "keyDecisions": [
+      "Mantener el sistema completamente sellado sin ingreso de aire",
+      "Programar cambios de refrigerante cada 6 meses",
+      "Realizar inspección de corrosión en los componentes metálicos y la base del termostato",
+      "Revisar la vara de plástico del termostato para detectar posibles daños por sobrecalentamiento",
+      "Confirmar la marca y especificaciones del refrigerante compatible con los vehículos Chevrolet",
+      "Verificar la compatibilidad del refrigerante con componentes de aluminio",
+      "Evitar el uso de refrigerantes de baja calidad o incompatibles"
+    ],
+    "actionItems": [
+      {
+        "task": "Realizar inspección de corrosión en los componentes metálicos y la base del termostato",
+        "assignee": "Por asignar",
+        "priority": "Alta",
+        "deadline": "Pendiente",
+        "completed": false
+      },
+      {
+        "task": "Verificar y asegurar el sellado completo del sistema del termostato",
+        "assignee": "Por asignar",
+        "priority": "Alta",
+        "deadline": "Pendiente",
+        "completed": false
+      },
+      {
+        "task": "Establecer un programa de cambios de refrigerante cada 6 meses",
+        "assignee": "Por asignar",
+        "priority": "Media",
+        "deadline": "Pendiente",
+        "completed": false
+      },
+      {
+        "task": "Revisar la vara de plástico del termostato para detectar posibles daños por sobrecalentamiento",
+        "assignee": "Por asignar",
+        "priority": "Media",
+        "deadline": "Pendiente",
+        "completed": false
+      },
+      {
+        "task": "Confirmar la marca y especificaciones del refrigerante compatible con los vehículos Chevrolet",
+        "assignee": "Por asignar",
+        "priority": "Media",
+        "deadline": "Pendiente",
+        "completed": false
+      },
+      {
+        "task": "Coordinar con la agencia para obtener información sobre el refrigerante recomendado y sus justificaciones",
+        "assignee": "Por asignar",
+        "priority": "Media",
+        "deadline": "Pendiente",
+        "completed": false
+      },
+      {
+        "task": "Verificar la compatibilidad del refrigerante con componentes de aluminio",
+        "assignee": "Por asignar",
+        "priority": "Media",
+        "deadline": "Pendiente",
+        "completed": false
+      },
+      {
+        "task": "Evaluar la calidad del refrigerante actual y buscar alternativas de alta calidad",
+        "assignee": "Por asignar",
+        "priority": "Media",
+        "deadline": "Pendiente",
+        "completed": false
+      },
+      {
+        "task": "Realizar prueba de electroálisis para detectar posibles corrosiones internas",
+        "assignee": "Por asignar",
+        "priority": "Media",
+        "deadline": "Pendiente",
+        "completed": false
+      },
+      {
+        "task": "Documentar y monitorear resultados de pruebas de electrólisis y corrosión",
+        "assignee": "Por asignar",
+        "priority": "Media",
+        "deadline": "Pendiente",
+        "completed": false
+      }
+    ],
+    "proactiveAdvice": [
+      "Implementar un registro continuo de inspecciones y resultados de pruebas de corrosión para detectar tendencias tempranas",
+      "Capacitar al personal en la correcta manipulación y recarga del refrigerante para evitar contaminaciones",
+      "Establecer alertas de mantenimiento preventivo antes de que se alcance el límite de tiempo del programa de cambios de refrigerante",
+      "Verificar periódicamente la integridad del sellado del termostato mediante pruebas de presión"
+    ],
+    "transcript": "me las haces metálicas Por qué tal vez de corrosión Tal vez si hubiera pasado lo mismo estoy acá conmigo por esa misma corrupción que se comió en la base del termostato entonces la vara es plástico pero el sistema tiene que estar completamente sellado y con el coolan que lleva sin aire ni nada o sea funcionando y haciéndole los cambios ahí tal vez de fluidos cada cierto tiempo para que la barra no se tueste no se sobrecaliente en la sobre el sobrecalentamiento si uno va la agencia porque usted más el cuna para chevrolets a ver qué le dan Qué marca o qué buscar los mismos justificaciones de otra marca dice que Pregúntale a esa vara si es eso de la incompatibilidad con el aluminio que si ese cola no es compatible dice culas de mala calidad o incompatible desde el culo el 50 que usaste era de marca patito no van a echar un poco de agua y el colorante ya Dice que podría hacer una hora por electrólisis que es cuando hay como una tierra una hora así como que esté floja una hora batería y se convierte el coolantero un ácido electrolítico que se come o calcobre aluminio blando en pocos días de semana lo en Guadalupe Mercado que está yendo para",
+    "source": "live-meeting",
+    "createdAt": "2026-09-15T18:01:13.782Z",
+    "id": "meet_1789495273782_h8gwd4"
+  }
+]

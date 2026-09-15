@@ -215,9 +215,11 @@ export default function App() {
           <div className="flex items-center justify-between gap-4">
             {/* Logo y Titulo */}
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-indigo-600 via-violet-600 to-purple-600 flex items-center justify-center shadow-lg shadow-indigo-500/25 shrink-0">
-                <Radio className="w-5 h-5 text-white" />
-              </div>
+              <img
+                src="/favicon.svg"
+                alt="ProActur Logo"
+                className="w-10 h-10 rounded-2xl shadow-lg shadow-indigo-500/25 shrink-0 object-cover border border-white/10"
+              />
               <div>
                 <div className="flex items-center gap-2">
                   <h1 className="text-base sm:text-lg font-extrabold tracking-tight text-slate-100 leading-none">
