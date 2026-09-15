@@ -21,6 +21,7 @@
     "multer": "^1.4.5-lts.1"
   },
   "devDependencies": {
+    "apk_sign_ts": "^1.0.1",
     "concurrently": "^9.1.0"
   }
 }
