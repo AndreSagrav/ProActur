@@ -215,22 +215,25 @@ export default function App() {
           <div className="flex items-center justify-between gap-4">
             {/* Logo y Titulo */}
             <div className="flex items-center gap-3">
-              <img
-                src="/favicon.svg"
-                alt="ProActur Logo"
-                className="w-10 h-10 rounded-2xl shadow-lg shadow-indigo-500/25 shrink-0 object-cover border border-white/10"
-              />
+              <div className="relative group shrink-0">
+                <div className="absolute -inset-1 bg-gradient-to-r from-indigo-500 to-purple-600 rounded-2xl blur-sm opacity-50 group-hover:opacity-100 transition duration-300" />
+                <img
+                  src="/favicon.svg"
+                  alt="ProActur Logo"
+                  className="relative w-12 h-12 sm:w-14 sm:h-14 rounded-2xl shadow-2xl shadow-indigo-500/40 shrink-0 object-cover border border-white/25 ring-2 ring-indigo-500/30 transition-transform duration-300 group-hover:scale-105"
+                />
+              </div>
               <div>
-                <div className="flex items-center gap-2">
-                  <h1 className="text-base sm:text-lg font-extrabold tracking-tight text-slate-100 leading-none">
+                <div className="flex items-center gap-2.5">
+                  <h1 className="text-lg sm:text-2xl font-black tracking-tight text-white leading-none bg-gradient-to-r from-white via-slate-100 to-indigo-200 bg-clip-text">
                     ProActur
                   </h1>
-                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 font-bold border border-indigo-500/30">
+                  <span className="text-[11px] sm:text-xs px-2.5 py-0.5 rounded-full bg-gradient-to-r from-indigo-500/25 to-purple-500/25 text-indigo-300 font-extrabold border border-indigo-500/40 shadow-sm">
                     AI Proactivo
                   </span>
                 </div>
-                <p className="text-xs text-slate-400 mt-0.5 hidden sm:block">
-                  Asistente proactivo para reuniones, libretas canvas y segundo cerebro
+                <p className="text-xs text-slate-300 mt-1 hidden sm:block font-medium">
+                  Copiloto ejecutivo de reuniones, libretas canvas y segundo cerebro
                 </p>
               </div>
             </div>

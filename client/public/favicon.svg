@@ -1,29 +1,29 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" fill="none">
   <defs>
-    <radialGradient id="bgGlow" cx="50%" cy="50%" r="50%">
-      <stop offset="0%" stop-color="#4f46e5" stop-opacity="0.9"/>
-      <stop offset="45%" stop-color="#1e1b4b" stop-opacity="0.8"/>
+    <radialGradient id="bgGlow" cx="50%" cy="50%" r="55%">
+      <stop offset="0%" stop-color="#4f46e5" stop-opacity="0.95"/>
+      <stop offset="40%" stop-color="#1e1b4b" stop-opacity="0.9"/>
       <stop offset="100%" stop-color="#020617" stop-opacity="1"/>
     </radialGradient>
     <linearGradient id="coreGrad" x1="0%" y1="0%" x2="100%" y2="100%">
       <stop offset="0%" stop-color="#ffffff"/>
-      <stop offset="40%" stop-color="#38bdf8"/>
+      <stop offset="35%" stop-color="#38bdf8"/>
       <stop offset="100%" stop-color="#818cf8"/>
     </linearGradient>
     <linearGradient id="titaniumRing" x1="20%" y1="0%" x2="80%" y2="100%">
-      <stop offset="0%" stop-color="#e0e7ff"/>
-      <stop offset="50%" stop-color="#6366f1"/>
+      <stop offset="0%" stop-color="#ffffff"/>
+      <stop offset="50%" stop-color="#818cf8"/>
       <stop offset="100%" stop-color="#1e1b4b"/>
     </linearGradient>
     <filter id="coreGlow" x="-50%" y="-50%" width="200%" height="200%">
-      <feGaussianBlur stdDeviation="12" result="blur"/>
+      <feGaussianBlur stdDeviation="14" result="blur"/>
       <feMerge>
         <feMergeNode in="blur"/>
         <feMergeNode in="SourceGraphic"/>
       </feMerge>
     </filter>
-    <filter id="arcGlow" x="-20%" y="-20%" width="140%" height="140%">
-      <feGaussianBlur stdDeviation="6" result="blur"/>
+    <filter id="arcGlow" x="-25%" y="-25%" width="150%" height="150%">
+      <feGaussianBlur stdDeviation="8" result="blur"/>
       <feMerge>
         <feMergeNode in="blur"/>
         <feMergeNode in="SourceGraphic"/>
@@ -34,23 +34,30 @@
   <!-- Squircle Base with Deep Executive Obsidian & Indigo Gradient -->
   <rect width="512" height="512" rx="128" fill="#020617"/>
   <rect width="512" height="512" rx="128" fill="url(#bgGlow)"/>
-  <rect width="508" height="508" x="2" y="2" rx="126" stroke="rgba(255,255,255,0.15)" stroke-width="2" fill="none"/>
+  <rect width="508" height="508" x="2" y="2" rx="126" stroke="rgba(255,255,255,0.2)" stroke-width="2.5" fill="none"/>
 
-  <!-- Concentric Proactive Acoustic Radar / Beacon Waves -->
-  <circle cx="256" cy="256" r="195" stroke="#4f46e5" stroke-opacity="0.3" stroke-width="3" fill="none"/>
-  <circle cx="256" cy="256" r="160" stroke="#6366f1" stroke-opacity="0.5" stroke-width="4" stroke-dasharray="16 10" fill="none" filter="url(#arcGlow)"/>
-  <circle cx="256" cy="256" r="125" stroke="#818cf8" stroke-width="6" stroke-linecap="round" stroke-dasharray="64 28" fill="none" filter="url(#arcGlow)"/>
-  <circle cx="256" cy="256" r="90" stroke="#38bdf8" stroke-width="7" stroke-linecap="round" stroke-dasharray="48 24" fill="none" filter="url(#arcGlow)"/>
+  <!-- Scaled-Up Prominent Concentric Radar / Beacon Waves -->
+  <!-- Outer Wave Ring 4 -->
+  <circle cx="256" cy="256" r="218" stroke="#4f46e5" stroke-opacity="0.35" stroke-width="4" fill="none"/>
+  
+  <!-- Outer Segmented Ring 3 -->
+  <circle cx="256" cy="256" r="176" stroke="#6366f1" stroke-opacity="0.6" stroke-width="5" stroke-dasharray="18 12" fill="none" filter="url(#arcGlow)"/>
 
-  <!-- Core Radiant Aura -->
-  <circle cx="256" cy="256" r="60" fill="#38bdf8" fill-opacity="0.18" filter="url(#coreGlow)"/>
+  <!-- Mid Segmented Radar Arc -->
+  <circle cx="256" cy="256" r="136" stroke="#818cf8" stroke-width="7" stroke-linecap="round" stroke-dasharray="72 30" fill="none" filter="url(#arcGlow)"/>
+  
+  <!-- Inner Intense Neon Cyan Pulse -->
+  <circle cx="256" cy="256" r="98" stroke="#38bdf8" stroke-width="8.5" stroke-linecap="round" stroke-dasharray="52 24" fill="none" filter="url(#arcGlow)"/>
+
+  <!-- Central Radiant Aura -->
+  <circle cx="256" cy="256" r="70" fill="#38bdf8" fill-opacity="0.22" filter="url(#coreGlow)"/>
 
   <!-- Polished Titanium Bezel Ring -->
-  <circle cx="256" cy="256" r="48" fill="none" stroke="url(#titaniumRing)" stroke-width="8" filter="url(#coreGlow)"/>
+  <circle cx="256" cy="256" r="54" fill="none" stroke="url(#titaniumRing)" stroke-width="9" filter="url(#coreGlow)"/>
 
   <!-- Luminous Central Core Orb -->
-  <circle cx="256" cy="256" r="32" fill="url(#coreGrad)" filter="url(#coreGlow)"/>
+  <circle cx="256" cy="256" r="38" fill="url(#coreGrad)" filter="url(#coreGlow)"/>
   
   <!-- Optical Specular Flare -->
-  <circle cx="246" cy="246" r="10" fill="#ffffff" fill-opacity="0.95"/>
+  <circle cx="244" cy="244" r="12" fill="#ffffff" fill-opacity="0.95"/>
 </svg>
