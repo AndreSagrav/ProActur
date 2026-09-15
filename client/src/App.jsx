@@ -10,6 +10,7 @@ import MeetingDetails from './components/MeetingDetails';
 import SecondBrainModal from './components/SecondBrainModal';
 import SettingsModal from './components/SettingsModal';
 import ThemeSelectorModal from './components/ThemeSelectorModal';
+import { useTheme } from './context/ThemeContext.jsx';
 import CalendarView from './components/CalendarView';
 import EventModal from './components/EventModal';
 import NotebookList from './components/NotebookList';
@@ -18,6 +19,7 @@ import NoteEditor from './components/NoteEditor';
 const API = import.meta.env.VITE_API_URL || '';
 
 export default function App() {
+  const { theme, setTheme, THEMES, fontSize, setFontSize } = useTheme();
   const [meetings, setMeetings] = useState([]);
   const [selectedMeetingId, setSelectedMeetingId] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
@@ -218,7 +220,7 @@ export default function App() {
                   Proactor
                 </h1>
                 <span className="text-[10px] px-1.5 py-0.2 rounded-md bg-indigo-500/20 text-indigo-300 font-semibold border border-indigo-500/30 hidden xs:inline-block">
-                  AI + Notion
+                  AI Proactivo
                 </span>
               </div>
               <p className="text-[11px] text-slate-400 hidden sm:block truncate">
@@ -250,6 +252,39 @@ export default function App() {
                 </button>
               );
             })}
+          </div>
+
+          {/* Selector Rapido de Temas y Accesibilidad Visible en Pantalla */}
+          <div className="flex items-center gap-1.5 bg-slate-900/90 border border-slate-800 rounded-xl px-2 py-1 shadow-inner">
+            <span className="text-[10px] text-slate-400 font-bold hidden xl:inline">Temas:</span>
+            <div className="flex items-center gap-1">
+              {THEMES && Object.values(THEMES).map(t => (
+                <button
+                  key={t.id}
+                  onClick={() => setTheme(t.id)}
+                  className={`w-5 h-5 sm:w-6 sm:h-6 rounded-lg flex items-center justify-center transition-all ${
+                    theme === t.id
+                      ? 'ring-2 ring-white scale-110 shadow-lg'
+                      : 'opacity-70 hover:opacity-100 hover:scale-105'
+                  }`}
+                  style={{ backgroundColor: t.previewColor }}
+                  title={`${t.name}: ${t.description}`}
+                >
+                  {theme === t.id && <span className="w-1.5 h-1.5 rounded-full bg-white shadow" />}
+                </button>
+              ))}
+            </div>
+
+            <div className="w-[1px] h-4 bg-slate-700 mx-0.5" />
+
+            {/* Alternador de Tamano de Fuente */}
+            <button
+              onClick={() => setFontSize(fontSize === 'xlarge' ? 'normal' : fontSize === 'large' ? 'xlarge' : 'large')}
+              className="px-1.5 py-0.5 text-[11px] font-extrabold text-amber-300 hover:text-white rounded hover:bg-slate-800 transition-colors"
+              title="Cambiar tamano de letra (Normal / Grande / Extra Grande)"
+            >
+              {fontSize === 'xlarge' ? 'A+++' : fontSize === 'large' ? 'A++' : 'A+'}
+            </button>
           </div>
 
           {/* Botones de Accion */}
@@ -377,11 +412,7 @@ export default function App() {
                             <Calendar className="w-3 h-3" />
                             {new Date(m.createdAt || Date.now()).toLocaleDateString('es-ES', { month: 'short', day: 'numeric' })}
                           </span>
-                          {isSynced && (
-                            <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-semibold flex items-center gap-1">
-                              <CheckCircle2 className="w-2.5 h-2.5" /> Notion
-                            </span>
-                          )}
+                          
                         </div>
                         <h4 className="text-sm font-semibold text-slate-100 group-hover:text-indigo-300 transition-colors line-clamp-1">
                           {m.title || 'Reunion sin titulo'}
@@ -433,7 +464,7 @@ export default function App() {
                   </div>
                   <h3 className="text-base font-bold text-slate-200">Selecciona una reunion o graba una nueva</h3>
                   <p className="text-xs text-slate-400 max-w-sm mx-auto mt-1">
-                    Proactor AI transcribira el audio, extraera los acuerdos, asignara tareas y te permitira exportarlo directamente a tu Notion.
+                    Proactor AI analiza tus conversaciones, extrae acuerdos, crea tareas automáticas y las sincroniza en tu libreta inteligente y segundo cerebro.
                   </p>
                 </div>
               )}

@@ -5,6 +5,8 @@ import {
   Tag, X, Loader2, Paperclip
 } from 'lucide-react';
 import HandwritingCanvas from './HandwritingCanvas';
+import { CANVAS_STYLES, getCanvasStyle } from '../utils/canvasStyles';
+import { Palette } from 'lucide-react';
 
 const API = import.meta.env.VITE_API_URL || '';
 
@@ -25,6 +27,7 @@ export default function NoteEditor({ note, onSave, onClose, linkedMeeting, meeti
   const [tagInput, setTagInput] = useState('');
   const [showTagInput, setShowTagInput] = useState(false);
   const [showColorPicker, setShowColorPicker] = useState(false);
+  const [showCanvasPicker, setShowCanvasPicker] = useState(false);
   const editorRef = useRef(null);
   const autoSaveTimer = useRef(null);
 
@@ -136,6 +139,67 @@ export default function NoteEditor({ note, onSave, onClose, linkedMeeting, meeti
           </button>
         </div>
       </div>
+
+      {/* Banner de Lienzo Canvas Artístico */}
+      {(() => {
+        const currentCanvas = getCanvasStyle(color);
+        return (
+          <div className={`w-full h-24 bg-gradient-to-r ${currentCanvas.bgGradient} relative px-6 py-3 flex items-end justify-between overflow-hidden shadow-inner`}>
+            {/* Overlay pattern */}
+            <div className="absolute inset-0 opacity-20 pointer-events-none bg-[radial-gradient(#fff_1px,transparent_1px)] [background-size:12px_12px]" />
+            
+            {/* Lomo izquierdo */}
+            <div className={`absolute left-0 top-0 bottom-0 w-3 ${currentCanvas.spineColor}`} />
+            
+            {/* Cinta marcapáginas */}
+            <div className={`absolute right-8 top-0 w-3.5 h-10 rounded-b-sm shadow-lg ${currentCanvas.ribbonColor}`} />
+
+            {/* Selector de Portada Canvas */}
+            <div className="relative z-10 flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setShowCanvasPicker(!showCanvasPicker)}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-black/50 hover:bg-black/70 text-white backdrop-blur-md text-xs font-bold border border-white/20 transition-all shadow-md"
+              >
+                <Palette className="w-3.5 h-3.5 text-amber-300" />
+                <span>Lienzo: {currentCanvas.name}</span>
+              </button>
+
+              {showCanvasPicker && (
+                <div className="absolute top-10 left-0 bg-slate-900/95 backdrop-blur-2xl border border-slate-700/80 rounded-2xl p-3 z-30 shadow-2xl w-80 space-y-2">
+                  <div className="text-[11px] font-bold text-slate-300 uppercase tracking-wider">
+                    Selecciona el Diseño Canvas:
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 max-h-56 overflow-y-auto pr-1">
+                    {CANVAS_STYLES.map(cs => (
+                      <button
+                        key={cs.id}
+                        type="button"
+                        onClick={() => {
+                          setColor(cs.id);
+                          setShowCanvasPicker(false);
+                        }}
+                        className={`flex items-center gap-2 p-2 rounded-xl text-left text-xs font-medium border transition-all ${
+                          color === cs.id
+                            ? 'border-white bg-slate-800 text-white shadow-md'
+                            : 'border-slate-800 bg-slate-950/60 text-slate-300 hover:bg-slate-800/80'
+                        }`}
+                      >
+                        <div className={`w-6 h-6 rounded-lg bg-gradient-to-br ${cs.bgGradient} shrink-0 shadow-sm`} />
+                        <span className="truncate">{cs.name}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <span className="relative z-10 px-2.5 py-1 rounded-md text-[10px] font-extrabold bg-black/40 text-white backdrop-blur uppercase tracking-wider border border-white/20">
+              {currentCanvas.badge}
+            </span>
+          </div>
+        );
+      })()}
 
       {/* Title + Meta */}
       <div className="px-4 pt-4 pb-2 space-y-2">

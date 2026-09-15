@@ -890,7 +890,7 @@ export default function AudioRecorder({ onMeetingProcessed }) {
           </div>
           <h4 className="text-sm font-bold text-slate-100">Proactor AI Generando Minuta</h4>
           <p className="text-xs text-slate-400 max-w-sm mt-1">
-            Sintetizando decisiones clave, asignando responsables a cada tarea y preparando exportacion a Notion...
+            Sintetizando decisiones clave, asignando responsables a cada tarea y preparando tareas y acuerdos para tu libreta...
           </p>
         </div>
       )}

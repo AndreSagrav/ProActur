@@ -87,20 +87,19 @@ export default function MeetingDetails({ meeting, onUpdateMeeting, onDeleteMeeti
         </div>
 
         <div className="flex items-center gap-2 shrink-0">
-          {/* Sync to Notion */}
-          {!meeting.notionSync?.url && (
-            <button
-              onClick={syncToNotion}
-              disabled={syncingNotion}
-              className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition-all disabled:opacity-50"
-            >
-              {syncingNotion ? (
-                <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Sincronizando...</>
-              ) : (
-                <><Share2 className="w-3.5 h-3.5 text-indigo-400" /> Exportar a Notion</>
-              )}
-            </button>
-          )}
+          {/* Copiar Resumen y Acuerdos */}
+          <button
+            onClick={() => {
+              const text = `# ${meeting.title}\n\n## Resumen\n${meeting.summary}\n\n## Acuerdos Clave\n${(meeting.keyDecisions || []).map(d => '- ' + d).join('\n')}\n\n## Tareas\n${(meeting.tasks || []).map(t => '- [ ] ' + t.text + (t.assignee ? ' (@' + t.assignee + ')' : '')).join('\n')}`;
+              navigator.clipboard.writeText(text);
+              alert('¡Resumen, acuerdos y tareas copiados al portapapeles!');
+            }}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-300 border border-indigo-500/30 transition-all"
+            title="Copiar resumen y acuerdos al portapapeles"
+          >
+            <Share2 className="w-3.5 h-3.5 text-indigo-400" />
+            <span>Copiar Acuerdos</span>
+          </button>
 
           {/* Schedule Follow-up */}
           {onScheduleFollowUp && (
@@ -138,33 +137,6 @@ export default function MeetingDetails({ meeting, onUpdateMeeting, onDeleteMeeti
           )}
         </div>
       </div>
-
-      {/* Sync Status */}
-      {syncStatus && (
-        <div className={`p-3 rounded-xl text-xs flex items-center justify-between gap-2 border ${
-          syncStatus.success
-            ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300'
-            : 'bg-red-500/10 border-red-500/30 text-red-400'
-        }`}>
-          <span>{syncStatus.success ? 'Reunion exportada a Notion con exito!' : syncStatus.error}</span>
-          {syncStatus.url && (
-            <a href={syncStatus.url} target="_blank" rel="noopener noreferrer"
-              className="underline flex items-center gap-1 font-semibold">
-              Ver en Notion <ExternalLink className="w-3 h-3" />
-            </a>
-          )}
-        </div>
-      )}
-
-      {/* Notion synced badge */}
-      {meeting.notionSync?.url && (
-        <a href={meeting.notionSync.url} target="_blank" rel="noopener noreferrer"
-          className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-semibold bg-emerald-500/10 text-emerald-300 border border-emerald-500/20 hover:bg-emerald-500/15 transition-colors">
-          <CheckCircle2 className="w-3.5 h-3.5" />
-          Sincronizada con Notion
-          <ExternalLink className="w-3 h-3" />
-        </a>
-      )}
 
       {/* Executive Summary */}
       <div className="bg-indigo-950/20 border border-indigo-500/20 rounded-xl p-4">
