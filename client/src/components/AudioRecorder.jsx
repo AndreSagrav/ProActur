@@ -201,7 +201,10 @@ export default function AudioRecorder({ onMeetingProcessed }) {
   // Reconocimiento de voz continuo en segundo plano
   const initSpeechRecognition = () => {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (!SpeechRecognition) return null;
+    if (!SpeechRecognition) {
+      console.warn('[ProActur] SpeechRecognition no disponible en este navegador/WebView. Se usará Whisper del servidor.');
+      return null;
+    }
 
     try {
       const recognition = new SpeechRecognition();
@@ -279,32 +282,42 @@ export default function AudioRecorder({ onMeetingProcessed }) {
     const timeoutId = setTimeout(() => controller.abort(), 7500); // Max 7.5s - NUNCA SE QUEDA PEGADO
 
     try {
-      const formData = new FormData();
-      formData.append('title', current.title || 'Reunión en Vivo');
-      if (textToAnalyze) formData.append('transcript', textToAnalyze);
-      if (userNotesText) formData.append('userNotes', userNotesText);
+      // Payload JSON (compatible con Vercel Serverless — no usa multipart/FormData)
+      const payload = {
+        title: current.title || 'Reunión en Vivo',
+        transcript: textToAnalyze || '',
+        userNotes: userNotesText || ''
+      };
 
-      // Enviamos cabecera WebM (chunk 0) + últimos 15 segundos (máx ~180KB, upload instantáneo)
+      // Convertir audio a base64 para envío JSON (últimos 15 seg, ~180KB)
       if (hasAudio) {
-        const chunks = audioChunksRef.current.length <= 15
-          ? audioChunksRef.current
-          : [audioChunksRef.current[0], ...audioChunksRef.current.slice(-15)];
-        const audioBlob = new Blob(chunks, { type: 'audio/webm' });
-        if (audioBlob.size > 0) {
-          formData.append('audio', audioBlob, 'live_chunk.webm');
-        }
+        try {
+          const chunks = audioChunksRef.current.length <= 15
+            ? audioChunksRef.current
+            : [audioChunksRef.current[0], ...audioChunksRef.current.slice(-15)];
+          const audioBlob = new Blob(chunks, { type: 'audio/webm' });
+          if (audioBlob.size > 0) {
+            const arrayBuf = await audioBlob.arrayBuffer();
+            const bytes = new Uint8Array(arrayBuf);
+            let binary = '';
+            for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
+            payload.audioBase64 = btoa(binary);
+            payload.audioMimeType = 'audio/webm';
+          }
+        } catch (_) {}
       }
 
       if (current.actionItems.length > 0 || current.decisions.length > 0) {
-        formData.append('previousContext', JSON.stringify({
+        payload.previousContext = {
           actionItems: current.actionItems,
           keyDecisions: current.decisions
-        }));
+        };
       }
 
       const res = await fetch(`${API}/api/meetings/live-analyze`, {
         method: 'POST',
-        body: formData,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
         signal: controller.signal
       });
 
@@ -356,7 +369,22 @@ export default function AudioRecorder({ onMeetingProcessed }) {
       // Inicializar la caja negra en IndexedDB
       await initEmergencyRecording(meetingTitle);
 
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      // Solicitar micrófono con constraints compatibles con móviles y WebView
+      let stream;
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          audio: {
+            echoCancellation: true,
+            noiseSuppression: true,
+            autoGainControl: true,
+            sampleRate: 44100
+          }
+        });
+      } catch (micErr) {
+        // Reintentar con constraint mínima si la primera falla
+        console.warn('[ProActur Mic] Reintentando con constraint básica:', micErr.message);
+        stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      }
       isRecordingRef.current = true;
       setIsRecording(true);
 
@@ -539,10 +567,33 @@ export default function AudioRecorder({ onMeetingProcessed }) {
     }
 
     try {
-      const res = await fetch(`${API}/api/meetings/process-audio`, {
-        method: 'POST',
-        body: formData
-      });
+      let res;
+      try {
+        res = await fetch(`${API}/api/meetings/process-audio`, {
+          method: 'POST',
+          body: formData
+        });
+        // Si Vercel devuelve HTML error (multipart no soportado), usar fallback JSON
+        const contentType = res.headers.get('content-type') || '';
+        if (!res.ok && contentType.includes('text/html')) {
+          throw new Error('Multipart not supported, switching to JSON');
+        }
+      } catch (fetchErr) {
+        // Fallback: enviar como JSON con audio base64
+        const arrayBuf = await fileOrBlob.arrayBuffer();
+        const bytes = new Uint8Array(arrayBuf);
+        let binary = '';
+        for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
+        res = await fetch(`${API}/api/meetings/process-audio`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            audioBase64: btoa(binary),
+            audioMimeType: fileOrBlob.type || 'audio/webm',
+            title: meetingTitle.trim() || undefined
+          })
+        });
+      }
 
       const data = await res.json();
       if (!res.ok) {

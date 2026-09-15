@@ -126,14 +126,22 @@ router.delete('/meetings/:id', async (req, res) => {
 // Analizar fragmento de reunion en tiempo real (Live Meeting AI Copilot)
 router.post('/meetings/live-analyze', upload.single('audio'), async (req, res) => {
   try {
-    const { title, transcript, userNotes, previousContext } = req.body;
+    const { title, transcript, userNotes, previousContext, audioBase64, audioMimeType } = req.body;
     let prev = null;
     if (previousContext) {
       try { prev = typeof previousContext === 'string' ? JSON.parse(previousContext) : previousContext; } catch (_) {}
     }
 
-    const audioBuffer = req.file ? req.file.buffer : null;
-    const mimeType = req.file ? req.file.mimetype : null;
+    // Soportar audio vía multipart (req.file) O vía JSON base64
+    let audioBuffer = req.file ? req.file.buffer : null;
+    let mimeType = req.file ? req.file.mimetype : null;
+
+    if (!audioBuffer && audioBase64) {
+      try {
+        audioBuffer = Buffer.from(audioBase64, 'base64');
+        mimeType = audioMimeType || 'audio/webm';
+      } catch (_) {}
+    }
 
     if (!transcript && !audioBuffer && (!userNotes || !userNotes.trim())) {
       return res.status(400).json({ error: 'Se requiere transcripción, fragmento de audio o notas escritas para analizar.' });
@@ -180,17 +188,29 @@ router.post('/meetings/live-finalize', async (req, res) => {
 
 router.post('/meetings/process-audio', upload.single('audio'), async (req, res) => {
   try {
-    if (!req.file) {
+    const { audioBase64, audioMimeType } = req.body || {};
+
+    // Soportar audio vía multipart (req.file) O vía JSON base64
+    let audioBuffer = req.file ? req.file.buffer : null;
+    let mimeType = req.file ? (req.file.mimetype || 'audio/webm') : null;
+
+    if (!audioBuffer && audioBase64) {
+      try {
+        audioBuffer = Buffer.from(audioBase64, 'base64');
+        mimeType = audioMimeType || 'audio/webm';
+      } catch (_) {}
+    }
+
+    if (!audioBuffer) {
       return res.status(400).json({ error: 'No se envió ningún archivo de audio.' });
     }
 
     const meetingTitle = req.body.title || 'Reunión Grabada ' + new Date().toLocaleString('es-ES');
-    const mimeType = req.file.mimetype || 'audio/webm';
 
-    console.log(`[ProActur AI] Procesando audio de reunión: ${req.file.size} bytes (${mimeType})`);
+    console.log(`[ProActur AI] Procesando audio de reunión: ${audioBuffer.length} bytes (${mimeType})`);
 
     const result = await aiService.processMeeting({
-      audioBuffer: req.file.buffer,
+      audioBuffer,
       mimeType,
       meetingTitle
     });
