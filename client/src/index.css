@@ -407,3 +407,102 @@
 .animate-fade-in {
   animation: fadeIn 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
+
+/* =================================================================== */
+/* EXPERIENCIA ULTRA-REALISTA: CUADERNO EJECUTIVO DE LUJO (SKEUOMORPHIC)*/
+/* Protegido con máxima especificidad contra sobreescrituras de temas  */
+/* =================================================================== */
+
+.luxury-notebook-desk {
+  background: radial-gradient(circle at 50% 30%, #1e1b18 0%, #0d0b09 100%) !important;
+  border: 1px solid #382f28 !important;
+  box-shadow: inset 0 2px 20px rgba(0, 0, 0, 0.8), 0 20px 50px rgba(0, 0, 0, 0.9) !important;
+}
+
+/* La Hoja de Papel Marfil Real */
+.luxury-sheet-ivory {
+  background-color: #fdfbf7 !important;
+  background-image: 
+    linear-gradient(90deg, transparent 58px, rgba(239, 68, 68, 0.3) 59px, rgba(239, 68, 68, 0.3) 60px, transparent 61px),
+    linear-gradient(to bottom, transparent 35px, #c7d8ee 36px) !important;
+  background-size: 100% 100%, 100% 36px !important;
+  color: #0f172a !important;
+  box-shadow: 
+    0 1px 3px rgba(0,0,0,0.1),
+    2px 2px 0 #ede8df,
+    4px 4px 0 #dfd8cb,
+    6px 6px 0 #d1c8b7,
+    8px 12px 30px rgba(0, 0, 0, 0.35) !important;
+}
+
+/* Hoja Cuadrícula */
+.luxury-sheet-grid {
+  background-color: #fdfbf7 !important;
+  background-image: 
+    linear-gradient(to right, rgba(99, 102, 241, 0.12) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(99, 102, 241, 0.12) 1px, transparent 1px) !important;
+  background-size: 24px 24px !important;
+  color: #0f172a !important;
+  box-shadow: 
+    0 1px 3px rgba(0,0,0,0.1),
+    2px 2px 0 #ede8df,
+    4px 4px 0 #dfd8cb,
+    6px 6px 0 #d1c8b7,
+    8px 12px 30px rgba(0, 0, 0, 0.35) !important;
+}
+
+/* Hoja Puntos Bullet */
+.luxury-sheet-dots {
+  background-color: #fdfbf7 !important;
+  background-image: radial-gradient(rgba(71, 85, 105, 0.25) 1.5px, transparent 1.5px) !important;
+  background-size: 24px 24px !important;
+  color: #0f172a !important;
+  box-shadow: 
+    0 1px 3px rgba(0,0,0,0.1),
+    2px 2px 0 #ede8df,
+    4px 4px 0 #dfd8cb,
+    6px 6px 0 #d1c8b7,
+    8px 12px 30px rgba(0, 0, 0, 0.35) !important;
+}
+
+/* Hoja Dark Velvet de Lujo */
+.luxury-sheet-dark {
+  background-color: #0a0e17 !important;
+  background-image: 
+    linear-gradient(90deg, transparent 58px, rgba(244, 63, 94, 0.3) 59px, rgba(244, 63, 94, 0.3) 60px, transparent 61px),
+    linear-gradient(to bottom, transparent 35px, rgba(255, 255, 255, 0.08) 36px) !important;
+  background-size: 100% 100%, 100% 36px !important;
+  color: #f8fafc !important;
+  box-shadow: 
+    0 1px 3px rgba(0,0,0,0.4),
+    2px 2px 0 #070a10,
+    4px 4px 0 #05070c,
+    6px 6px 0 #020406,
+    8px 12px 35px rgba(0, 0, 0, 0.7) !important;
+}
+
+/* Textarea alineado al renglón con tipografía de pluma fuente */
+html[data-theme] textarea.luxury-notebook-textarea {
+  background: transparent !important;
+  border: none !important;
+  outline: none !important;
+  box-shadow: none !important;
+  line-height: 36px !important;
+  font-size: 19px !important;
+  font-family: 'Playfair Display', Georgia, 'Times New Roman', serif !important;
+  padding-top: 2px !important;
+  padding-left: 0px !important;
+  margin: 0 !important;
+  resize: none !important;
+}
+
+html[data-theme] textarea.luxury-notebook-textarea::placeholder {
+  color: rgba(100, 116, 139, 0.6) !important;
+  font-style: italic !important;
+}
+
+/* Anillos de espiral metálico dorado */
+.spiral-ring {
+  background: linear-gradient(135deg, #d4af37 0%, #fff2a8 50%, #997a15 100%);
+  box-shadow: inset 0 1px 2px rgba(255,255,255,0.6), 2px 3px 6px rgba(0,0,0,0.5);
+}
