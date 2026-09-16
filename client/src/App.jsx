@@ -53,6 +53,7 @@ export default function App() {
     title: ''
   });
   const [executiveNotebookText, setExecutiveNotebookText] = useState('');
+  const [showNotebookOverlay, setShowNotebookOverlay] = useState(false);
   const [notebookViewMode, setNotebookViewMode] = useState('executive'); // 'executive' | 'list'
 
   // Notebook state
@@ -420,7 +421,7 @@ const handleNewNote = (linkedMeeting = null) => {
                   onRecordingStatusChange={(st) => setRecordingState(st)}
                   externalNotebookNotes={executiveNotebookText}
                   recorderRef={recorderRef}
-                  onOpenNotebook={() => setActiveTab('notebook')}
+                  onOpenNotebook={() => setShowNotebookOverlay(true)}
                 />
               </div>
 
@@ -524,7 +525,7 @@ const handleNewNote = (linkedMeeting = null) => {
                   onRecordingStatusChange={(st) => setRecordingState(st)}
                   externalNotebookNotes={executiveNotebookText}
                   recorderRef={recorderRef}
-                  onOpenNotebook={() => setActiveTab('notebook')}
+                  onOpenNotebook={() => setShowNotebookOverlay(true)}
                 />
               </div>
 
@@ -574,82 +575,43 @@ const handleNewNote = (linkedMeeting = null) => {
         {/* =================================================================== */}
         {activeTab === 'notebook' && (
           <div className="w-full space-y-4">
-            {/* Selector de Vista: Cuaderno Fino vs Archivo de Notas */}
-            <div className="flex items-center justify-between bg-slate-900/80 border border-slate-800/80 rounded-2xl p-2 px-3 backdrop-blur-md">
-              <div className="flex items-center gap-1 sm:gap-2">
-                <button
-                  type="button"
-                  onClick={() => setNotebookViewMode('executive')}
-                  className={`flex items-center gap-1.5 px-3 sm:px-4 py-1.5 sm:py-2 rounded-xl text-xs sm:text-sm font-bold transition-all ${
-                    notebookViewMode === 'executive'
-                      ? 'bg-gradient-to-r from-amber-500 to-indigo-600 text-white shadow-md shadow-indigo-500/20'
-                      : 'text-slate-400 hover:text-slate-200'
-                  }`}
-                >
-                  <BookOpen className="w-4 h-4" />
-                  <span>Cuaderno Ejecutivo</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setNotebookViewMode('list')}
-                  className={`flex items-center gap-1.5 px-3 sm:px-4 py-1.5 sm:py-2 rounded-xl text-xs sm:text-sm font-bold transition-all ${
-                    notebookViewMode === 'list'
-                      ? 'bg-slate-800 text-indigo-300 shadow-md'
-                      : 'text-slate-400 hover:text-slate-200'
-                  }`}
-                >
-                  <FileText className="w-4 h-4" />
-                  <span>Archivo de Notas</span>
-                </button>
+            {/* Header con botón para abrir el cuaderno */}
+            <div className="flex items-center justify-between bg-slate-900/80 border border-slate-800/80 rounded-2xl p-3 px-4 backdrop-blur-md">
+              <div className="flex items-center gap-2">
+                <h3 className="text-sm font-bold text-slate-200">Archivo de Notas</h3>
               </div>
-
-              {recordingState.isRecording && (
-                <div className="flex items-center gap-2">
-                  <span className="relative flex h-2.5 w-2.5">
-                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
-                    <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-red-500"></span>
-                  </span>
-                  <span className="text-xs text-red-400 font-bold hidden sm:inline">
-                    Reunión en vivo activa
-                  </span>
-                </div>
-              )}
+              <button
+                type="button"
+                onClick={() => setShowNotebookOverlay(true)}
+                className="flex items-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-r from-amber-500 to-indigo-600 text-white text-xs font-bold shadow-md hover:shadow-lg transition-all active:scale-95"
+              >
+                <BookOpen className="w-4 h-4" />
+                <span>Abrir Cuaderno</span>
+              </button>
             </div>
 
-            {notebookViewMode === 'executive' ? (
-              <ExecutiveNotebook
-                initialContent={executiveNotebookText}
-                onContentChange={(val) => setExecutiveNotebookText(val)}
-                activeMeeting={selectedMeeting || (recordingState.isRecording ? { title: recordingState.title } : null)}
-                isRecordingActive={recordingState.isRecording}
-                recordingTime={recordingState.recordingTime}
-                onSaveToNotes={handleSaveExecutiveNote}
-              />
-            ) : (
-              <div className="w-full">
-                {isEditingNote ? (
-                  <div className="bg-slate-900/90 border border-slate-800 rounded-2xl shadow-xl overflow-hidden min-h-[75vh]">
-                    <NoteEditor
-                      note={selectedNote}
-                      linkedMeeting={linkedMeetingForNote}
-                      meetings={meetings}
-                      onSave={handleNoteSaved}
-                      onClose={() => {
-                        setIsEditingNote(false);
-                        setSelectedNote(null);
-                        setLinkedMeetingForNote(null);
-                      }}
-                    />
-                  </div>
-                ) : (
-                  <NotebookList
-                    onSelectNote={handleSelectNote}
-                    onNewNote={() => handleNewNote()}
+            <div className="w-full">
+              {isEditingNote ? (
+                <div className="bg-slate-900/90 border border-slate-800 rounded-2xl shadow-xl overflow-hidden min-h-[75vh]">
+                  <NoteEditor
+                    note={selectedNote}
+                    linkedMeeting={linkedMeetingForNote}
+                    meetings={meetings}
+                    onSave={handleNoteSaved}
+                    onClose={() => {
+                      setIsEditingNote(false);
+                      setSelectedNote(null);
+                      setLinkedMeetingForNote(null);
+                    }}
                   />
-                )}
-              </div>
-            )}
+                </div>
+              ) : (
+                <NotebookList
+                  onSelectNote={handleSelectNote}
+                  onNewNote={() => handleNewNote()}
+                />
+              )}
+            </div>
           </div>
         )}
       </main>
@@ -746,6 +708,19 @@ const handleNewNote = (linkedMeeting = null) => {
         isOpen={isThemeOpen}
         onClose={() => setIsThemeOpen(false)}
       />
+
+      {/* Fullscreen Notebook Overlay */}
+      {showNotebookOverlay && (
+        <ExecutiveNotebook
+          initialContent={executiveNotebookText}
+          onContentChange={(val) => setExecutiveNotebookText(val)}
+          activeMeeting={selectedMeeting || (recordingState.isRecording ? { title: recordingState.title } : null)}
+          isRecordingActive={recordingState.isRecording}
+          recordingTime={recordingState.recordingTime}
+          onSaveToNotes={handleSaveExecutiveNote}
+          onClose={() => setShowNotebookOverlay(false)}
+        />
+      )}
 
       <SettingsModal
         isOpen={isSettingsOpen}

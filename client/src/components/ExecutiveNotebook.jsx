@@ -1,24 +1,29 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import {
   PenTool, Keyboard, Sparkles, CheckCircle2, Table, GitBranch,
-  Save, RotateCcw, ZoomIn, ZoomOut, FileText, Download,
-  Trash2, Plus, ArrowRight, CornerDownRight, Check, Brain,
-  ChevronDown, Layout, ShieldCheck, AlertCircle, RefreshCw, BookOpen, X,
-  Bookmark, Eraser, Undo, Calendar, Hash, Type
+  Save, Trash2, X, Undo, Redo, ChevronDown, BookOpen,
+  CornerDownRight, Eraser, Highlighter, Edit3, Type
 } from 'lucide-react';
 
 const PAPER_STYLES = [
-  { id: 'lined', name: 'Renglones Oxford Marfil', desc: 'Papel crema con líneas finas y margen rojo clásico' },
-  { id: 'grid', name: 'Cuadrícula Técnica 5mm', desc: 'Malla milimétrica ideal para tablas y presupuestos' },
-  { id: 'dots', name: 'Puntos Bullet Journal', desc: 'Puntos sutiles para libertad creativa y mapas mentales' },
-  { id: 'dark-velvet', name: 'Black Obsidian Velvet', desc: 'Papel negro de lujo con renglones de plata' }
+  { id: 'lined',       label: 'Oxford Marfil (Renglones)',  icon: '✍️' },
+  { id: 'grid',        label: 'Cuadrícula 5mm (Técnico)',    icon: '⊞' },
+  { id: 'dots',        label: 'Bullet Journal (Puntos)',    icon: '⁖' },
+  { id: 'dark-velvet', label: 'Black Obsidian (Nocturno)',   icon: '✦' },
 ];
 
 const INK_COLORS = [
-  { id: 'black', name: 'Negro Estilográfica', color: '#0f172a', class: 'bg-slate-900' },
-  { id: 'blue', name: 'Azul Montblanc', color: '#1e3a8a', class: 'bg-blue-900' },
-  { id: 'emerald', name: 'Verde Esmeralda', color: '#064e3b', class: 'bg-emerald-900' },
-  { id: 'burgundy', name: 'Burdeos Ejecutivo', color: '#831843', class: 'bg-rose-950' }
+  { id: 'black',    label: 'Negro Azabache', hex: '#111827' },
+  { id: 'blue',     label: 'Azul Real',      hex: '#1e3a8a' },
+  { id: 'emerald',  label: 'Verde Esmeralda',hex: '#065f46' },
+  { id: 'burgundy', label: 'Burdeos',        hex: '#831843' },
+  { id: 'amber',    label: 'Sepia Dorado',   hex: '#b45309' },
+];
+
+const PEN_WIDTHS = [
+  { id: 'fine',   label: 'Fino',   val: 1.5 },
+  { id: 'medium', label: 'Medio',  val: 2.5 },
+  { id: 'broad',  label: 'Grueso', val: 4.2 },
 ];
 
 export default function ExecutiveNotebook({
@@ -27,616 +32,778 @@ export default function ExecutiveNotebook({
   activeMeeting = null,
   isRecordingActive = false,
   recordingTime = 0,
-  onSyncWithMeeting,
-  onSaveToNotes
+  onSaveToNotes,
+  onClose,
 }) {
+  // Document state
   const [paperStyle, setPaperStyle] = useState('lined');
-  const [inputMode, setInputMode] = useState('keyboard'); // 'keyboard' | 'stylus'
-  const [notebookText, setNotebookText] = useState(initialContent);
-  const [selectedInk, setSelectedInk] = useState(INK_COLORS[0]);
-  const [penWidth, setPenWidth] = useState(2.5);
-  const [inkSmoothing, setInkSmoothing] = useState(true);
-  
-  // Elementos enriquecidos impresos sobre la hoja
-  const [insertedTables, setInsertedTables] = useState([]);
-  const [mindmapNodes, setMindmapNodes] = useState([]);
-  const [isAiStructuring, setIsAiStructuring] = useState(false);
-  const [saveSuccessMessage, setSaveSuccessMessage] = useState('');
-  const [subjectTitle, setSubjectTitle] = useState(activeMeeting?.title || 'Estrategia y Acuerdos Ejecutivos');
+  const [toolMode, setToolMode]     = useState('fountain'); // 'fountain' | 'ballpoint' | 'highlighter' | 'eraser' | 'text'
+  const [text, setText]             = useState(initialContent);
+  const [ink, setInk]               = useState(INK_COLORS[0]);
+  const [penWidth, setPenWidth]     = useState(2.5);
+  const [showPaperMenu, setShowPaperMenu] = useState(false);
+  const [saveMsg, setSaveMsg]       = useState('');
+  const [isStructuring, setIsStructuring] = useState(false);
+  const [subjectTitle, setSubjectTitle] = useState(activeMeeting?.title || '');
 
-  // Canvas para trazos manuscritos con stylus
-  const canvasRef = useRef(null);
-  const isDrawingRef = useRef(false);
-  const currentStrokeRef = useRef([]);
+  // Rich objects
+  const [tables, setTables]   = useState([]);
+  const [mindmaps, setMindmaps] = useState([]);
+
+  // Drawing state
+  const canvasRef   = useRef(null);
+  const isDrawing   = useRef(false);
+  const curStroke   = useRef([]);
   const [strokes, setStrokes] = useState([]);
+  const [undoStack, setUndoStack] = useState([]);
 
+  const containerRef = useRef(null);
+  const textareaRef  = useRef(null);
+
+  // Synchronize text changes
   useEffect(() => {
-    if (onContentChange) {
-      onContentChange(notebookText);
+    if (onContentChange) onContentChange(text);
+  }, [text, onContentChange]);
+
+  // Lock body scroll while open
+  useEffect(() => {
+    document.body.style.overflow = 'hidden';
+    return () => { document.body.style.overflow = ''; };
+  }, []);
+
+  // Helper to convert hex to rgba
+  const hexToRgba = (hex, alpha) => {
+    const r = parseInt(hex.slice(1, 3), 16);
+    const g = parseInt(hex.slice(3, 5), 16);
+    const b = parseInt(hex.slice(5, 7), 16);
+    return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+  };
+
+  // ── Render a single stroke ─────────────────────────────────────────
+  const drawSingleStroke = useCallback((ctx, stroke) => {
+    if (!stroke || !stroke.points || stroke.points.length === 0) return;
+
+    ctx.save();
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+
+    if (stroke.tool === 'eraser') {
+      ctx.globalCompositeOperation = 'destination-out';
+      ctx.strokeStyle = 'rgba(0,0,0,1)';
+      ctx.lineWidth = stroke.width || 22;
+    } else if (stroke.tool === 'highlighter') {
+      ctx.globalCompositeOperation = 'multiply';
+      ctx.strokeStyle = stroke.color.startsWith('#')
+        ? hexToRgba(stroke.color, 0.35)
+        : stroke.color;
+      ctx.lineWidth = 15;
+    } else {
+      ctx.globalCompositeOperation = 'source-over';
+      ctx.strokeStyle = stroke.color;
     }
-  }, [notebookText, onContentChange]);
 
-  // Suavizado vectorial de curvas Bézier para caligrafía de lujo
-  useEffect(() => {
+    if (stroke.points.length === 1) {
+      // Single tap / dot
+      const p = stroke.points[0];
+      ctx.beginPath();
+      if (stroke.tool === 'eraser') {
+        ctx.arc(p.x, p.y, (stroke.width || 22) / 2, 0, Math.PI * 2);
+        ctx.fill();
+      } else if (stroke.tool === 'highlighter') {
+        ctx.arc(p.x, p.y, 7.5, 0, Math.PI * 2);
+        ctx.fillStyle = ctx.strokeStyle;
+        ctx.fill();
+      } else {
+        ctx.arc(p.x, p.y, (p.dynamicWidth || stroke.width) / 2, 0, Math.PI * 2);
+        ctx.fillStyle = stroke.color;
+        ctx.fill();
+      }
+      ctx.restore();
+      return;
+    }
+
+    // Smooth curve interpolation through midpoints
+    ctx.beginPath();
+    ctx.moveTo(stroke.points[0].x, stroke.points[0].y);
+
+    for (let i = 1; i < stroke.points.length - 1; i++) {
+      const p1 = stroke.points[i];
+      const p2 = stroke.points[i + 1];
+      const midX = (p1.x + p2.x) / 2;
+      const midY = (p1.y + p2.y) / 2;
+      ctx.lineWidth = p1.dynamicWidth || stroke.width;
+      ctx.quadraticCurveTo(p1.x, p1.y, midX, midY);
+    }
+
+    const last = stroke.points[stroke.points.length - 1];
+    ctx.lineWidth = last.dynamicWidth || stroke.width;
+    ctx.lineTo(last.x, last.y);
+    ctx.stroke();
+    ctx.restore();
+  }, []);
+
+  // ── Redraw entire canvas buffer ────────────────────────────────────
+  const redrawCanvas = useCallback(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
-    ctx.lineCap = 'round';
-    ctx.lineJoin = 'round';
+    const dpr = window.devicePixelRatio || 1;
 
-    const render = () => {
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.save();
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.scale(dpr, dpr);
 
-      strokes.forEach(stroke => {
-        if (stroke.points.length < 2) return;
-        ctx.beginPath();
-        ctx.strokeStyle = stroke.color;
-        ctx.lineWidth = stroke.width;
+    strokes.forEach(s => drawSingleStroke(ctx, s));
+    ctx.restore();
+  }, [strokes, drawSingleStroke]);
 
-        if (inkSmoothing && stroke.points.length > 2) {
-          ctx.moveTo(stroke.points[0].x, stroke.points[0].y);
-          for (let i = 1; i < stroke.points.length - 1; i++) {
-            const xc = (stroke.points[i].x + stroke.points[i + 1].x) / 2;
-            const yc = (stroke.points[i].y + stroke.points[i + 1].y) / 2;
-            ctx.quadraticCurveTo(stroke.points[i].x, stroke.points[i].y, xc, yc);
-          }
-          const last = stroke.points[stroke.points.length - 1];
-          ctx.lineTo(last.x, last.y);
-        } else {
-          ctx.moveTo(stroke.points[0].x, stroke.points[0].y);
-          for (let i = 1; i < stroke.points.length; i++) {
-            ctx.lineTo(stroke.points[i].x, stroke.points[i].y);
-          }
-        }
-        ctx.stroke();
-      });
-    };
+  // ── Canvas Sizing with Retina Resolution ───────────────────────────
+  const initCanvasResolution = useCallback(() => {
+    const canvas = canvasRef.current;
+    const paper = containerRef.current;
+    if (!canvas || !paper) return;
 
-    render();
-  }, [strokes, inkSmoothing]);
+    const rect = paper.getBoundingClientRect();
+    const dpr = window.devicePixelRatio || 1;
+    const w = Math.floor(rect.width);
+    const h = Math.max(Math.floor(rect.height), 1200);
 
-  // Manejadores del lienzo
-  const startDrawing = (e) => {
-    if (inputMode !== 'stylus') return;
-    isDrawingRef.current = true;
-    const rect = canvasRef.current.getBoundingClientRect();
-    const clientX = e.clientX || (e.touches && e.touches[0].clientX);
-    const clientY = e.clientY || (e.touches && e.touches[0].clientY);
-    const x = clientX - rect.left;
-    const y = clientY - rect.top;
+    // Only re-dimension if size actually changed to avoid clearing during drawing
+    const neededW = Math.floor(w * dpr);
+    const neededH = Math.floor(h * dpr);
 
-    currentStrokeRef.current = [{ x, y }];
+    if (canvas.width !== neededW || canvas.height !== neededH) {
+      canvas.width = neededW;
+      canvas.height = neededH;
+      canvas.style.width = `${w}px`;
+      canvas.style.height = `${h}px`;
+    }
+
+    redrawCanvas();
+  }, [redrawCanvas]);
+
+  useEffect(() => {
+    initCanvasResolution();
+    window.addEventListener('resize', initCanvasResolution);
+    return () => window.removeEventListener('resize', initCanvasResolution);
+  }, [initCanvasResolution]);
+
+  useEffect(() => {
+    redrawCanvas();
+  }, [strokes, redrawCanvas]);
+
+  // ── Pointer Coordinates (Pixel-perfect 1:1) ────────────────────────
+  const getPointerPoint = (e) => {
+    const canvas = canvasRef.current;
+    if (!canvas) return { x: 0, y: 0, dynamicWidth: penWidth, time: Date.now() };
+
+    const rect = canvas.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    const pressure = (e.pressure && e.pressure > 0) ? e.pressure : 0.5;
+    const now = Date.now();
+
+    let dynamicWidth = penWidth;
+    if (toolMode === 'fountain') {
+      // Dynamic calligraphy ink based on pressure & speed
+      if (curStroke.current.length > 0) {
+        const last = curStroke.current[curStroke.current.length - 1];
+        const dist = Math.hypot(x - last.x, y - last.y);
+        const dt = Math.max(now - last.time, 1);
+        const vel = dist / dt;
+        dynamicWidth = penWidth * (0.65 + pressure * 0.5 - Math.min(vel * 0.04, 0.25));
+      } else {
+        dynamicWidth = penWidth * (0.8 + pressure * 0.4);
+      }
+      dynamicWidth = Math.max(0.8, Math.min(dynamicWidth, penWidth * 1.8));
+    } else if (toolMode === 'ballpoint') {
+      dynamicWidth = penWidth * (0.85 + pressure * 0.3);
+    } else if (toolMode === 'highlighter') {
+      dynamicWidth = 15;
+    } else if (toolMode === 'eraser') {
+      dynamicWidth = 22;
+    }
+
+    return { x, y, dynamicWidth, time: now };
   };
 
-  const draw = (e) => {
-    if (!isDrawingRef.current || inputMode !== 'stylus') return;
-    const rect = canvasRef.current.getBoundingClientRect();
-    const clientX = e.clientX || (e.touches && e.touches[0].clientX);
-    const clientY = e.clientY || (e.touches && e.touches[0].clientY);
-    const x = clientX - rect.left;
-    const y = clientY - rect.top;
-
-    currentStrokeRef.current.push({ x, y });
-
+  // ── Pointer Event Handlers ─────────────────────────────────────────
+  const handlePointerDown = (e) => {
+    if (toolMode === 'text') return;
+    e.preventDefault();
     const canvas = canvasRef.current;
-    const ctx = canvas.getContext('2d');
-    ctx.strokeStyle = selectedInk.color;
-    ctx.lineWidth = penWidth;
-    ctx.lineCap = 'round';
-    ctx.lineJoin = 'round';
+    if (!canvas) return;
 
-    const pts = currentStrokeRef.current;
+    try {
+      canvas.setPointerCapture(e.pointerId);
+    } catch (err) {}
+
+    isDrawing.current = true;
+    const pt = getPointerPoint(e);
+    curStroke.current = [pt];
+
+    // Immediate visual response
+    const ctx = canvas.getContext('2d');
+    const dpr = window.devicePixelRatio || 1;
+    ctx.save();
+    ctx.scale(dpr, dpr);
+    drawSingleStroke(ctx, {
+      tool: toolMode,
+      color: ink.hex,
+      width: penWidth,
+      points: [pt]
+    });
+    ctx.restore();
+  };
+
+  const handlePointerMove = (e) => {
+    if (!isDrawing.current || toolMode === 'text') return;
+    e.preventDefault();
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    const pt = getPointerPoint(e);
+    const pts = curStroke.current;
+    pts.push(pt);
+
+    // Incremental segment drawing
+    const ctx = canvas.getContext('2d');
+    const dpr = window.devicePixelRatio || 1;
+    ctx.save();
+    ctx.scale(dpr, dpr);
+
     if (pts.length >= 2) {
+      const p1 = pts[pts.length - 2];
+      const p2 = pts[pts.length - 1];
+
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+
+      if (toolMode === 'eraser') {
+        ctx.globalCompositeOperation = 'destination-out';
+        ctx.strokeStyle = 'rgba(0,0,0,1)';
+        ctx.lineWidth = 22;
+      } else if (toolMode === 'highlighter') {
+        ctx.globalCompositeOperation = 'multiply';
+        ctx.strokeStyle = hexToRgba(ink.hex, 0.35);
+        ctx.lineWidth = 15;
+      } else {
+        ctx.globalCompositeOperation = 'source-over';
+        ctx.strokeStyle = ink.hex;
+        ctx.lineWidth = p2.dynamicWidth || penWidth;
+      }
+
       ctx.beginPath();
-      ctx.moveTo(pts[pts.length - 2].x, pts[pts.length - 2].y);
-      ctx.lineTo(pts[pts.length - 1].x, pts[pts.length - 1].y);
+      ctx.moveTo(p1.x, p1.y);
+      ctx.lineTo(p2.x, p2.y);
       ctx.stroke();
     }
+    ctx.restore();
   };
 
-  const endDrawing = () => {
-    if (!isDrawingRef.current) return;
-    isDrawingRef.current = false;
-    if (currentStrokeRef.current.length > 0) {
-      setStrokes(prev => [...prev, {
-        color: selectedInk.color,
+  const handlePointerUp = (e) => {
+    if (!isDrawing.current) return;
+    isDrawing.current = false;
+    const canvas = canvasRef.current;
+    if (canvas && e.pointerId) {
+      try { canvas.releasePointerCapture(e.pointerId); } catch (err) {}
+    }
+
+    if (curStroke.current.length > 0) {
+      const finishedStroke = {
+        id: Date.now() + Math.random(),
+        tool: toolMode,
+        color: ink.hex,
         width: penWidth,
-        points: currentStrokeRef.current
-      }]);
-      currentStrokeRef.current = [];
+        points: [...curStroke.current]
+      };
+      setStrokes(prev => [...prev, finishedStroke]);
+      setUndoStack([]); // Clear redo
+      curStroke.current = [];
     }
   };
 
-  const undoLastStroke = () => {
+  const handleUndo = () => {
+    if (strokes.length === 0) return;
+    const last = strokes[strokes.length - 1];
+    setUndoStack(prev => [...prev, last]);
     setStrokes(prev => prev.slice(0, -1));
   };
 
-  const clearCanvas = () => {
-    setStrokes([]);
+  const handleRedo = () => {
+    if (undoStack.length === 0) return;
+    const next = undoStack[undoStack.length - 1];
+    setUndoStack(prev => prev.slice(0, -1));
+    setStrokes(prev => [...prev, next]);
   };
 
-  // Inserción de Tabla Ejecutiva estilo papelería fina
-  const insertExecutiveTable = () => {
-    const newTable = {
+  const handleClearAllStrokes = () => {
+    if (strokes.length === 0) return;
+    if (window.confirm('¿Deseas borrar todos los trazos de tinta manuscrita de esta página?')) {
+      setUndoStack(strokes);
+      setStrokes([]);
+    }
+  };
+
+  // ── Tablas ─────────────────────────────────────────────────────────
+  const insertTable = () => {
+    setTables(prev => [...prev, {
       id: Date.now(),
-      title: 'Matriz de Acuerdos y Responsables',
-      headers: ['Concepto / Decisión', 'Responsable', 'Plazo de Entrega', 'Estado'],
-      rows: [
-        ['Despliegue de arquitectura piloto', 'Equipo Técnico', 'Viernes 20', 'En Curso'],
-        ['Aprobación de presupuesto final', 'Dirección General', 'Lunes 23', 'Aprobado']
-      ]
-    };
-    setInsertedTables(prev => [...prev, newTable]);
+      title: 'Matriz de Acuerdos Ejecutivos',
+      headers: ['Concepto / Decisión', 'Responsable', 'Plazo', 'Estado'],
+      rows: [['', '', '', ''], ['', '', '', '']]
+    }]);
   };
-
-  const removeTable = (tableId) => {
-    setInsertedTables(prev => prev.filter(t => t.id !== tableId));
+  const removeTable = (id) => setTables(prev => prev.filter(t => t.id !== id));
+  const addTableRow = (id) => {
+    setTables(prev => prev.map(t =>
+      t.id === id ? { ...t, rows: [...t.rows, ['', '', '', '']] } : t
+    ));
   };
-
-  const addTableRow = (tableId) => {
-    setInsertedTables(prev => prev.map(t => {
-      if (t.id === tableId) {
-        return {
-          ...t,
-          rows: [...t.rows, ['', '', '', '']]
-        };
-      }
-      return t;
+  const updateCell = (id, ri, ci, val) => {
+    setTables(prev => prev.map(t => {
+      if (t.id !== id) return t;
+      const rows = [...t.rows];
+      rows[ri] = [...rows[ri]];
+      rows[ri][ci] = val;
+      return { ...t, rows };
     }));
   };
 
-  const updateTableCell = (tableId, rowIndex, colIndex, val) => {
-    setInsertedTables(prev => prev.map(t => {
-      if (t.id === tableId) {
-        const newRows = [...t.rows];
-        newRows[rowIndex] = [...newRows[rowIndex]];
-        newRows[rowIndex][colIndex] = val;
-        return { ...t, rows: newRows };
-      }
-      return t;
-    }));
-  };
-
-  // Inserción de Mapa Mental
+  // ── Mapas Mentales ─────────────────────────────────────────────────
   const insertMindmap = () => {
-    const newMindmap = {
+    setMindmaps(prev => [...prev, {
       id: Date.now(),
-      centralTopic: subjectTitle || 'Estrategia Principal',
+      topic: subjectTitle || 'Estrategia Principal',
       branches: [
-        { id: 1, title: 'Pilares Clave', subitems: ['Entregas de alto valor', 'Validación continua'] },
-        { id: 2, title: 'Riesgos & Contingencias', subitems: ['Tiempos de ejecución', 'Dependencias externas'] },
-        { id: 3, title: 'Próximos Pasos', subitems: ['Sincronización semanal', 'Envío de minuta firmada'] }
+        { id: 1, title: 'Pilar Operativo', items: ['Acción prioritaria', 'Recursos'] },
+        { id: 2, title: 'Impacto Comercial', items: ['Clientes clave', 'Entregables'] },
+        { id: 3, title: 'Próximos Pasos', items: ['Seguimiento semana', 'Validación'] },
       ]
-    };
-    setMindmapNodes(prev => [...prev, newMindmap]);
+    }]);
   };
+  const removeMindmap = (id) => setMindmaps(prev => prev.filter(m => m.id !== id));
 
-  const removeMindmap = (mindmapId) => {
-    setMindmapNodes(prev => prev.filter(m => m.id !== mindmapId));
-  };
-
-  // Estructuración mágica con IA
-  const autoStructureWithAi = async () => {
-    if (!notebookText.trim()) return;
-    setIsAiStructuring(true);
+  // ── IA Estructuración ──────────────────────────────────────────────
+  const structureWithAi = async () => {
+    if (!text.trim()) return;
+    setIsStructuring(true);
     try {
       const res = await fetch('/api/second-brain/ask', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          question: `Organiza y estructura las siguientes notas de cuaderno de forma concisa y elegante en puntos estratégicos: "${notebookText}"`
+          question: 'Organiza y sintetiza las siguientes notas tomadas en vivo en el cuaderno: "' + text + '"'
         })
       });
       const data = await res.json();
       if (data.answer) {
-        setNotebookText(prev => prev + "\n\n---\n✦ SÍNTESIS ESTRATÉGICA POR IA:\n" + data.answer);
-
+        setText(prev => prev + '\n\n--- SÍNTESIS Y ACCIONES IA ---\n' + data.answer);
       }
     } catch (e) {
-      console.warn('Error auto-estructurando con IA:', e);
+      console.warn('Error IA:', e);
     } finally {
-      setIsAiStructuring(false);
+      setIsStructuring(false);
     }
   };
 
-  const handleSaveNote = () => {
+  // ── Guardar ────────────────────────────────────────────────────────
+  const handleSave = () => {
     if (onSaveToNotes) {
       onSaveToNotes({
-        title: subjectTitle ? `Notas: ${subjectTitle}` : `Libreta Ejecutiva ${new Date().toLocaleDateString()}`,
-        content: notebookText,
+        title: subjectTitle ? 'Cuaderno: ' + subjectTitle : 'Nota ' + new Date().toLocaleDateString(),
+        content: text,
         paperStyle,
-        tables: insertedTables,
-        mindmaps: mindmapNodes
+        tables,
+        mindmaps,
+        hasHandwriting: strokes.length > 0,
       });
     }
-    setSaveSuccessMessage('¡Guardado en archivo de notas!');
-    setTimeout(() => setSaveSuccessMessage(''), 3000);
+    setSaveMsg('Guardado con éxito');
+    setTimeout(() => setSaveMsg(''), 2500);
   };
 
-  const getSheetClass = () => {
-    switch (paperStyle) {
-      case 'grid': return 'luxury-sheet-grid';
-      case 'dots': return 'luxury-sheet-dots';
-      case 'dark-velvet': return 'luxury-sheet-dark';
-      default: return 'luxury-sheet-ivory';
-    }
-  };
-
-  const currentDateStr = new Date().toLocaleDateString('es-ES', {
-    weekday: 'long',
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric'
+  const dateStr = new Date().toLocaleDateString('es-ES', {
+    weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
   });
 
+  const paperClass = {
+    lined:        'nb-paper-lined',
+    grid:         'nb-paper-grid',
+    dots:         'nb-paper-dots',
+    'dark-velvet': 'nb-paper-dark',
+  }[paperStyle] || 'nb-paper-lined';
+
+  const isDark = paperStyle === 'dark-velvet';
+
   return (
-    <div className="w-full space-y-4 animate-fade-in">
-      {/* ============================================================== */}
-      {/* BARRA DE HERRAMIENTAS EJECUTIVAS DE LA PAPELERÍA              */}
-      {/* ============================================================== */}
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-3 sm:p-4 shadow-xl flex flex-wrap items-center justify-between gap-3">
-        {/* Lado Izquierdo: Identidad y Modo de Entrada */}
-        <div className="flex items-center flex-wrap gap-2.5">
-          <div className="flex items-center gap-2 pr-3 border-r border-slate-800">
-            <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-amber-600 via-amber-500 to-yellow-500 flex items-center justify-center text-slate-950 font-black shadow-md shadow-amber-500/20 shrink-0">
-              <BookOpen className="w-5 h-5" />
-            </div>
-            <div>
-              <span className="text-xs font-black text-slate-100 tracking-wider uppercase block">
-                Atelier ProActur
-              </span>
-              <span className="text-[11px] text-amber-400 font-semibold block">
-                Cuaderno Fino Moleskine
-              </span>
-            </div>
-          </div>
+    <div className="nb-fullscreen-overlay">
+      <div className="nb-ambient-bg" />
 
-          {/* Selector de Entrada: Teclado vs Stylus / Pluma */}
-          <div className="inline-flex items-center bg-slate-950 p-1 rounded-xl border border-slate-800 shadow-inner gap-1">
-            <button
-              type="button"
-              onClick={() => setInputMode('keyboard')}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                inputMode === 'keyboard'
-                  ? 'bg-amber-500 text-slate-950 shadow-md font-black'
-                  : 'text-slate-400 hover:text-slate-200'
-              }`}
-            >
-              <Keyboard className="w-3.5 h-3.5" />
-              <span>Tipografía</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setInputMode('stylus')}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                inputMode === 'stylus'
-                  ? 'bg-gradient-to-r from-amber-500 to-amber-600 text-slate-950 shadow-md font-black'
-                  : 'text-slate-400 hover:text-slate-200'
-              }`}
-            >
-              <PenTool className="w-3.5 h-3.5" />
-              <span>Pluma / Stylus</span>
-            </button>
-          </div>
-
-          {/* Selector de Papel */}
-          <select
-            value={paperStyle}
-            onChange={(e) => setPaperStyle(e.target.value)}
-            className="bg-slate-950 border border-slate-800 text-xs font-bold text-amber-200/90 rounded-xl px-3 py-1.5 focus:outline-none focus:border-amber-500 shadow-sm"
+      {/* Barra de Encabezado Ejecutiva */}
+      <div className="nb-topbar">
+        <div className="nb-topbar-left">
+          <button
+            type="button"
+            onClick={onClose}
+            className="nb-btn-icon nb-btn-close"
+            title="Cerrar cuaderno y volver"
           >
-            {PAPER_STYLES.map(p => (
-              <option key={p.id} value={p.id}>{p.name}</option>
-            ))}
-          </select>
+            <X className="w-5 h-5" />
+          </button>
+
+          <div className="nb-title-area">
+            <input
+              type="text"
+              value={subjectTitle}
+              onChange={e => setSubjectTitle(e.target.value)}
+              placeholder="Asunto o Título de la Nota..."
+              className="nb-title-input"
+            />
+            <span className="nb-date">{dateStr}</span>
+          </div>
         </div>
 
-        {/* Lado Derecho: Paleta de Tinta, Acciones e Inserción */}
-        <div className="flex items-center flex-wrap gap-2">
-          {/* Selector de Tinta para escritura */}
-          {inputMode === 'keyboard' ? (
-            <div className="flex items-center gap-1 bg-slate-950 px-2 py-1 rounded-xl border border-slate-800">
-              <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider pr-1">Tinta:</span>
-              {INK_COLORS.map(ink => (
-                <button
-                  key={ink.id}
-                  type="button"
-                  onClick={() => setSelectedInk(ink)}
-                  className={`w-5 h-5 rounded-full border transition-all ${
-                    selectedInk.id === ink.id ? 'ring-2 ring-amber-400 scale-110 border-white' : 'border-slate-700 opacity-60 hover:opacity-100'
-                  }`}
-                  style={{ backgroundColor: ink.color }}
-                  title={ink.name}
-                />
-              ))}
-            </div>
-          ) : (
-            <div className="flex items-center gap-2 bg-slate-950 px-2 py-1 rounded-xl border border-slate-800">
-              {INK_COLORS.map(ink => (
-                <button
-                  key={ink.id}
-                  type="button"
-                  onClick={() => setSelectedInk(ink)}
-                  className={`w-5 h-5 rounded-full border transition-all ${
-                    selectedInk.id === ink.id ? 'ring-2 ring-amber-400 scale-110 border-white' : 'border-slate-700 opacity-60 hover:opacity-100'
-                  }`}
-                  style={{ backgroundColor: ink.color }}
-                  title={ink.name}
-                />
-              ))}
-              <div className="w-[1px] h-3 bg-slate-800 mx-0.5" />
-              <button
-                type="button"
-                onClick={undoLastStroke}
-                className="p-1 text-slate-400 hover:text-amber-300 transition-colors"
-                title="Deshacer último trazo"
-              >
-                <Undo className="w-3.5 h-3.5" />
-              </button>
-              <button
-                type="button"
-                onClick={clearCanvas}
-                className="p-1 text-slate-400 hover:text-rose-400 transition-colors"
-                title="Limpiar trazos manuscritos"
-              >
-                <Trash2 className="w-3.5 h-3.5" />
-              </button>
-            </div>
-          )}
+        {/* Indicador de Grabación en 2do Plano */}
+        {isRecordingActive && (
+          <div className="nb-recording-pill" title="La grabación continúa en segundo plano">
+            <span className="nb-rec-dot" />
+            <span className="nb-rec-text">
+              {'Grabando (' + Math.floor(recordingTime / 60) + ':' + String(recordingTime % 60).padStart(2, '0') + ')'}
+            </span>
+          </div>
+        )}
 
-          {/* Insertar Tabla */}
+        <div className="nb-topbar-right">
           <button
             type="button"
-            onClick={insertExecutiveTable}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-950 hover:bg-slate-800 border border-slate-800 text-amber-200/90 text-xs font-bold transition-all shadow-sm"
+            onClick={structureWithAi}
+            disabled={isStructuring || !text.trim()}
+            className="nb-btn-action nb-btn-ai"
+            title="Pulir ortografía, redacción y estructurar con IA"
           >
-            <Table className="w-3.5 h-3.5 text-amber-400" />
-            <span className="hidden sm:inline">Tabla</span>
+            <Sparkles className="w-4 h-4" />
+            <span className="nb-btn-label">{isStructuring ? 'Procesando...' : 'Pulir con IA'}</span>
           </button>
-
-          {/* Insertar Mapa Mental */}
           <button
             type="button"
-            onClick={insertMindmap}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-950 hover:bg-slate-800 border border-slate-800 text-purple-200/90 text-xs font-bold transition-all shadow-sm"
+            onClick={handleSave}
+            className="nb-btn-action nb-btn-save"
+            title="Guardar nota en el repositorio permanente"
           >
-            <GitBranch className="w-3.5 h-3.5 text-purple-400" />
-            <span className="hidden sm:inline">Esquema</span>
-          </button>
-
-          {/* Organizar con IA */}
-          <button
-            type="button"
-            onClick={autoStructureWithAi}
-            disabled={isAiStructuring || !notebookText.trim()}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gradient-to-r from-amber-600/30 to-amber-500/20 hover:from-amber-600/50 hover:to-amber-500/40 border border-amber-500/40 text-amber-200 text-xs font-bold transition-all disabled:opacity-40 shadow-sm"
-          >
-            <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-            <span>{isAiStructuring ? 'Organizando...' : 'Sello IA'}</span>
-          </button>
-
-          {/* Guardar */}
-          <button
-            type="button"
-            onClick={handleSaveNote}
-            className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-black text-xs transition-all shadow-md active:scale-95"
-          >
-            <Save className="w-3.5 h-3.5" />
-            <span>Guardar</span>
+            <Save className="w-4 h-4" />
+            <span className="nb-btn-label">Guardar</span>
           </button>
         </div>
       </div>
 
-      {saveSuccessMessage && (
-        <div className="p-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 font-bold text-xs flex items-center justify-center gap-2 animate-fade-in">
+      {saveMsg && (
+        <div className="nb-toast">
           <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-          <span>{saveSuccessMessage}</span>
+          <span>{saveMsg}</span>
         </div>
       )}
 
-      {/* ============================================================== */}
-      {/* EL ESCRITORIO DE CUERO Y LA HOJA ULTRA-REALISTA (MOLESKINE 3D)  */}
-      {/* ============================================================== */}
-      <div className="luxury-notebook-desk p-4 sm:p-8 md:p-12 rounded-3xl relative overflow-hidden flex justify-center">
-        {/* Cinta Marcapáginas en Satín Carmesí */}
-        <div className="absolute top-0 right-12 sm:right-24 w-8 h-28 bg-gradient-to-b from-rose-800 via-rose-700 to-rose-900 shadow-xl z-20 pointer-events-none rounded-b-md border-x border-rose-950/40 flex items-end justify-center pb-2">
-          <div className="w-2 h-2 rounded-full bg-amber-400/80 shadow" />
+      {/* Lienzo del Cuaderno */}
+      <div className="nb-desk-area">
+        {/* Lomo y Encuadernación con Anillas */}
+        <div className="nb-spine">
+          {Array.from({ length: 24 }).map((_, i) => (
+            <div key={i} className="nb-spiral-ring" />
+          ))}
         </div>
 
-        {/* Lomo y Encuadernación del Cuaderno */}
-        <div className="w-full max-w-4xl relative flex">
-          {/* Anillos Metálicos de Espiral (Lado Izquierdo) */}
-          <div className="w-6 sm:w-8 flex flex-col justify-around py-8 z-30 select-none pointer-events-none shrink-0">
-            {[...Array(14)].map((_, i) => (
-              <div key={i} className="flex items-center -mr-2">
-                <div className="w-5 sm:w-6 h-3 rounded-full spiral-ring transform -rotate-12" />
-                <div className="w-2 h-2 rounded-full bg-slate-950/80 shadow-inner -ml-1" />
+        {/* Hoja de Papel */}
+        <div className={'nb-paper ' + paperClass} ref={containerRef}>
+          {/* Margen rojo clásico en papel Oxford */}
+          {(paperStyle === 'lined' || paperStyle === 'dark-velvet') && (
+            <div className="nb-margin-line" />
+          )}
+
+          {/* Encabezado del Cuaderno */}
+          <div className={'nb-paper-header ' + (isDark ? 'nb-paper-header-dark' : '')}>
+            <span className="nb-paper-date">{dateStr}</span>
+            {subjectTitle && <span className="nb-paper-subject">{subjectTitle}</span>}
+          </div>
+
+          {/* Barra Flotante de Instrumentos de Escritura */}
+          <div className={'nb-paper-toolbar ' + (isDark ? 'nb-toolbar-dark' : '')}>
+            {/* Modos de Instrumento */}
+            <div className="nb-tool-group">
+              <button
+                type="button"
+                onClick={() => setToolMode('fountain')}
+                className={'nb-tool-btn ' + (toolMode === 'fountain' ? 'nb-tool-active' : '')}
+                title="Pluma Fuente (Caligrafía con variación de presión y velocidad)"
+              >
+                <PenTool className="w-4 h-4" />
+                <span className="text-[11px] font-bold hidden sm:inline">Pluma</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setToolMode('ballpoint')}
+                className={'nb-tool-btn ' + (toolMode === 'ballpoint' ? 'nb-tool-active' : '')}
+                title="Bolígrafo Fino (Trazo certero y uniforme)"
+              >
+                <Edit3 className="w-4 h-4" />
+                <span className="text-[11px] font-bold hidden sm:inline">Bolígrafo</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setToolMode('highlighter')}
+                className={'nb-tool-btn ' + (toolMode === 'highlighter' ? 'nb-tool-active' : '')}
+                title="Resaltador / Marcador Ámbar"
+              >
+                <Highlighter className="w-4 h-4 text-amber-500" />
+                <span className="text-[11px] font-bold hidden sm:inline">Resaltar</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setToolMode('eraser')}
+                className={'nb-tool-btn ' + (toolMode === 'eraser' ? 'nb-tool-active' : '')}
+                title="Goma de Borrar trazos"
+              >
+                <Eraser className="w-4 h-4 text-rose-400" />
+                <span className="text-[11px] font-bold hidden sm:inline">Borrador</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setToolMode('text');
+                  if (textareaRef.current) textareaRef.current.focus();
+                }}
+                className={'nb-tool-btn ' + (toolMode === 'text' ? 'nb-tool-active' : '')}
+                title="Teclado (Escribir mecanografiado sobre renglones)"
+              >
+                <Keyboard className="w-4 h-4" />
+                <span className="text-[11px] font-bold hidden sm:inline">Teclado</span>
+              </button>
+            </div>
+
+            <div className="nb-tool-divider" />
+
+            {/* Grosores de Trazo */}
+            {toolMode !== 'text' && toolMode !== 'eraser' && (
+              <>
+                <div className="nb-tool-group">
+                  {PEN_WIDTHS.map(w => (
+                    <button
+                      key={w.id}
+                      type="button"
+                      onClick={() => setPenWidth(w.val)}
+                      className={'nb-width-btn ' + (penWidth === w.val ? 'nb-width-active' : '')}
+                      title={'Grosor: ' + w.label}
+                    >
+                      <span
+                        className="rounded-full bg-current"
+                        style={{ width: `${w.val * 2 + 1}px`, height: `${w.val * 2 + 1}px` }}
+                      />
+                    </button>
+                  ))}
+                </div>
+                <div className="nb-tool-divider" />
+              </>
+            )}
+
+            {/* Paleta de Tintas */}
+            {toolMode !== 'eraser' && (
+              <>
+                <div className="nb-tool-group">
+                  {INK_COLORS.map(c => (
+                    <button
+                      key={c.id}
+                      type="button"
+                      onClick={() => setInk(c)}
+                      className={'nb-ink-dot ' + (ink.id === c.id ? 'nb-ink-active' : '')}
+                      style={{ backgroundColor: isDark && c.id === 'black' ? '#f1f5f9' : c.hex }}
+                      title={'Tinta: ' + c.label}
+                    />
+                  ))}
+                </div>
+                <div className="nb-tool-divider" />
+              </>
+            )}
+
+            {/* Selector de Papel */}
+            <div className="nb-tool-group nb-paper-picker">
+              <button
+                type="button"
+                onClick={() => setShowPaperMenu(!showPaperMenu)}
+                className="nb-tool-btn"
+                title="Elegir textura de papel"
+              >
+                <BookOpen className="w-4 h-4 text-amber-500" />
+                <span className="text-xs font-semibold hidden md:inline">Papel</span>
+                <ChevronDown className="w-3 h-3" />
+              </button>
+              {showPaperMenu && (
+                <div className="nb-paper-menu">
+                  {PAPER_STYLES.map(p => (
+                    <button
+                      key={p.id}
+                      type="button"
+                      onClick={() => { setPaperStyle(p.id); setShowPaperMenu(false); }}
+                      className={'nb-paper-option ' + (paperStyle === p.id ? 'nb-paper-selected' : '')}
+                    >
+                      <span className="text-base">{p.icon}</span>
+                      <span>{p.label}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="nb-tool-divider" />
+
+            {/* Inserción de Objetos */}
+            <button type="button" onClick={insertTable} className="nb-tool-btn" title="Insertar Matriz de Acuerdos">
+              <Table className="w-4 h-4" />
+              <span className="text-xs hidden lg:inline">Tabla</span>
+            </button>
+            <button type="button" onClick={insertMindmap} className="nb-tool-btn" title="Insertar Mapa Mental">
+              <GitBranch className="w-4 h-4" />
+              <span className="text-xs hidden lg:inline">Esquema</span>
+            </button>
+
+            {/* Acciones de Tinta */}
+            {strokes.length > 0 && (
+              <>
+                <div className="nb-tool-divider" />
+                <button type="button" onClick={handleUndo} className="nb-tool-btn" title="Deshacer trazo">
+                  <Undo className="w-4 h-4" />
+                </button>
+                {undoStack.length > 0 && (
+                  <button type="button" onClick={handleRedo} className="nb-tool-btn" title="Rehacer trazo">
+                    <Redo className="w-4 h-4" />
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={handleClearAllStrokes}
+                  className="nb-tool-btn nb-tool-danger"
+                  title="Limpiar tinta"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </button>
+              </>
+            )}
+          </div>
+
+          {/* Tablas y Mapas Mentales Incrustados */}
+          <div className="nb-rich-objects">
+            {tables.map(tbl => (
+              <div key={tbl.id} className={'nb-embedded-table ' + (isDark ? 'nb-embed-dark' : '')}>
+                <div className="nb-embed-header">
+                  <div className="nb-embed-title-row">
+                    <Table className="w-3.5 h-3.5 text-indigo-400" />
+                    <input type="text" defaultValue={tbl.title} className="nb-embed-title-input" />
+                  </div>
+                  <div className="nb-embed-actions">
+                    <button type="button" onClick={() => addTableRow(tbl.id)} className="nb-embed-btn">+ Fila</button>
+                    <button type="button" onClick={() => removeTable(tbl.id)} className="nb-embed-close"><X className="w-3 h-3" /></button>
+                  </div>
+                </div>
+                <table className="nb-table">
+                  <thead>
+                    <tr>
+                      {tbl.headers.map((h, i) => <th key={i}>{h}</th>)}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {tbl.rows.map((row, ri) => (
+                      <tr key={ri}>
+                        {row.map((cell, ci) => (
+                          <td key={ci}>
+                            <input
+                              type="text"
+                              value={cell}
+                              onChange={e => updateCell(tbl.id, ri, ci, e.target.value)}
+                              className="nb-cell-input"
+                              placeholder="..."
+                            />
+                          </td>
+                        ))}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ))}
+
+            {mindmaps.map(mm => (
+              <div key={mm.id} className={'nb-embedded-mindmap ' + (isDark ? 'nb-embed-dark' : '')}>
+                <div className="nb-embed-header">
+                  <div className="nb-embed-title-row">
+                    <GitBranch className="w-3.5 h-3.5 text-amber-400" />
+                    <span className="nb-embed-topic">{mm.topic}</span>
+                  </div>
+                  <button type="button" onClick={() => removeMindmap(mm.id)} className="nb-embed-close">
+                    <X className="w-3 h-3" />
+                  </button>
+                </div>
+                <div className="nb-mindmap-grid">
+                  {mm.branches.map(b => (
+                    <div key={b.id} className="nb-mindmap-branch">
+                      <h5 className="nb-branch-title">
+                        <CornerDownRight className="w-3 h-3 text-indigo-400" />
+                        {b.title}
+                      </h5>
+                      <ul className="nb-branch-items">
+                        {b.items.map((s, idx) => (
+                          <li key={idx}><span className="nb-branch-bullet" />{s || '...'}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  ))}
+                </div>
               </div>
             ))}
           </div>
 
-          {/* ============================================================ */}
-          {/* LA HOJA REAL CON SUS RENGLONES MILIMÉTRICOS Y MARGEN ROJO     */}
-          {/* ============================================================ */}
-          <div
-            className={`flex-1 rounded-2xl relative flex flex-col min-h-[750px] transition-all duration-300 ${getSheetClass()}`}
-            style={{
-              fontFamily: 'Charter, Georgia, Cambria, "Times New Roman", serif'
-            }}
-          >
-            {/* Encabezado Pre-impreso de Papelería Fina */}
-            <div className="px-8 sm:px-14 pt-6 pb-4 border-b border-dashed border-slate-300/80 flex flex-wrap items-center justify-between gap-3 text-xs text-slate-500 font-serif select-none">
-              <div className="flex items-center gap-2">
-                <span className="font-bold tracking-widest text-[10px] uppercase text-slate-400">FECHA:</span>
-                <span className="text-slate-700 font-semibold italic capitalize">{currentDateStr}</span>
-              </div>
+          {/* Área de Escritura: Coexistencia de Mecanografía y Tinta Caligráfica */}
+          <div className="nb-writing-surface">
+            {/* Capa de Texto Mecanografiado */}
+            <textarea
+              ref={textareaRef}
+              value={text}
+              onChange={e => setText(e.target.value)}
+              placeholder="Empieza a escribir sobre los renglones..."
+              spellCheck="true"
+              className={'nb-textarea ' + (isDark ? 'nb-textarea-dark' : '')}
+              style={{
+                color: isDark && ink.id === 'black' ? '#e2e8f0' : ink.hex,
+                pointerEvents: toolMode === 'text' ? 'auto' : 'none',
+              }}
+            />
 
-              <div className="flex items-center gap-2 flex-1 max-w-sm ml-2">
-                <span className="font-bold tracking-widest text-[10px] uppercase text-slate-400 shrink-0">ASUNTO:</span>
-                <input
-                  type="text"
-                  value={subjectTitle}
-                  onChange={(e) => setSubjectTitle(e.target.value)}
-                  placeholder="Título de la sesión..."
-                  className="bg-transparent text-slate-800 font-bold border-b border-slate-300/60 focus:outline-none focus:border-amber-600 w-full text-xs"
-                />
-              </div>
+            {/* Capa de Tinta Digital (Canvas Caligráfico de Alta Precisión) */}
+            <canvas
+              ref={canvasRef}
+              onPointerDown={handlePointerDown}
+              onPointerMove={handlePointerMove}
+              onPointerUp={handlePointerUp}
+              onPointerCancel={handlePointerUp}
+              className="nb-canvas-overlay"
+              style={{
+                pointerEvents: toolMode === 'text' ? 'none' : 'auto',
+                cursor: toolMode === 'eraser'
+                  ? 'cell'
+                  : toolMode === 'highlighter'
+                  ? 'crosshair'
+                  : 'crosshair',
+              }}
+            />
+          </div>
 
-              <div className="flex items-center gap-2 text-slate-400 font-mono text-[11px]">
-                <span>PÁG. 01</span>
-                {isRecordingActive && (
-                  <span className="flex items-center gap-1 text-red-600 font-sans font-black uppercase text-[10px] animate-pulse">
-                    <span className="w-2 h-2 rounded-full bg-red-600" />
-                    Grabando ({Math.floor(recordingTime / 60).toString().padStart(2, '0')}:{(recordingTime % 60).toString().padStart(2, '0')})
-                  </span>
-                )}
-              </div>
-            </div>
-
-            {/* Cuerpo de la Hoja con Renglones */}
-            <div className="relative flex-1 px-8 sm:px-14 py-4 flex flex-col">
-              {/* Margen Rojo Tradicional a la Izquierda */}
-              <div className="absolute top-0 bottom-0 left-[62px] sm:left-[70px] w-[1px] bg-red-500/35 pointer-events-none" />
-
-              {/* Tablas Insertadas como Papel Pegado */}
-              {insertedTables.map(tbl => (
-                <div key={tbl.id} className="mb-6 ml-6 relative z-10 animate-fade-in">
-                  <div className="bg-white/95 border-2 border-slate-300 rounded-xl p-3 shadow-md backdrop-blur-sm">
-                    <div className="flex items-center justify-between pb-2 border-b border-slate-200 mb-2">
-                      <div className="flex items-center gap-2">
-                        <Table className="w-3.5 h-3.5 text-slate-700" />
-                        <input
-                          type="text"
-                          defaultValue={tbl.title}
-                          className="bg-transparent font-bold text-xs text-slate-800 focus:outline-none"
-                        />
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <button
-                          type="button"
-                          onClick={() => addTableRow(tbl.id)}
-                          className="px-2 py-0.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded text-[10px] font-bold border border-slate-300 transition-colors"
-                        >
-                          + Fila
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => removeTable(tbl.id)}
-                          className="p-1 text-slate-400 hover:text-red-500 transition-colors"
-                        >
-                          <X className="w-3 h-3" />
-                        </button>
-                      </div>
-                    </div>
-                    <table className="w-full text-xs text-left border-collapse">
-                      <thead>
-                        <tr className="bg-slate-100/90 text-slate-700 border-b border-slate-300 font-bold text-[11px]">
-                          {tbl.headers.map((h, i) => (
-                            <th key={i} className="py-1 px-2">{h}</th>
-                          ))}
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {tbl.rows.map((row, rIdx) => (
-                          <tr key={rIdx} className="border-b border-slate-200/80 hover:bg-slate-50/80">
-                            {row.map((cell, cIdx) => (
-                              <td key={cIdx} className="py-1 px-2">
-                                <input
-                                  type="text"
-                                  value={cell}
-                                  onChange={(e) => updateTableCell(tbl.id, rIdx, cIdx, e.target.value)}
-                                  className="bg-transparent text-slate-800 w-full focus:outline-none focus:bg-white"
-                                  placeholder="..."
-                                />
-                              </td>
-                            ))}
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              ))}
-
-              {/* Mapas Mentales Insertados */}
-              {mindmapNodes.map(mm => (
-                <div key={mm.id} className="mb-6 ml-6 relative z-10 animate-fade-in">
-                  <div className="bg-white/95 border-2 border-purple-300 rounded-xl p-3 shadow-md backdrop-blur-sm">
-                    <div className="flex items-center justify-between pb-2 border-b border-purple-200 mb-2">
-                      <div className="flex items-center gap-2">
-                        <GitBranch className="w-3.5 h-3.5 text-purple-700" />
-                        <span className="font-bold text-xs text-purple-900">{mm.centralTopic}</span>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => removeMindmap(mm.id)}
-                        className="p-1 text-slate-400 hover:text-red-500 transition-colors"
-                      >
-                        <X className="w-3 h-3" />
-                      </button>
-                    </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                      {mm.branches.map(b => (
-                        <div key={b.id} className="bg-purple-50/70 border border-purple-200 rounded-lg p-2">
-                          <h5 className="font-bold text-[11px] text-purple-900 mb-1 flex items-center gap-1">
-                            <CornerDownRight className="w-2.5 h-2.5 text-purple-600" />
-                            {b.title}
-                          </h5>
-                          <ul className="space-y-1 text-[10px] text-slate-700">
-                            {b.subitems.map((s, idx) => (
-                              <li key={idx} className="flex items-start gap-1">
-                                <span className="w-1 h-1 rounded-full bg-purple-500 mt-1 shrink-0" />
-                                <span>{s}</span>
-                              </li>
-                            ))}
-                          </ul>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              ))}
-
-              {/* Área de Escritura: Textarea Alineado al Renglón o Canvas de Dibujo */}
-              <div className="flex-1 relative pl-6 sm:pl-8 min-h-[500px]">
-                {inputMode === 'keyboard' ? (
-                  <textarea
-                    value={notebookText}
-                    onChange={(e) => setNotebookText(e.target.value)}
-                    placeholder="Escribe tus notas aquí sobre los renglones... El texto se alinea con cada línea y se envía en tiempo real al análisis de la reunión."
-                    spellCheck="true"
-                    className="w-full h-full min-h-[480px] luxury-notebook-textarea"
-                    style={{
-                      color: selectedInk.color
-                    }}
-                  />
-                ) : (
-                  <canvas
-                    ref={canvasRef}
-                    width={850}
-                    height={600}
-                    onMouseDown={startDrawing}
-                    onMouseMove={draw}
-                    onMouseUp={endDrawing}
-                    onMouseLeave={endDrawing}
-                    onTouchStart={startDrawing}
-                    onTouchMove={draw}
-                    onTouchEnd={endDrawing}
-                    className="w-full h-[600px] rounded-xl cursor-crosshair touch-none relative z-10"
-                  />
-                )}
-              </div>
-            </div>
-
-            {/* Pie de Página con Marca de Papelería Fina */}
-            <div className="px-8 sm:px-14 py-3 border-t border-slate-200/60 flex items-center justify-between text-[10px] text-slate-400 select-none font-serif">
-              <span>PROACTUR NOTEBOOK ARCHIVE • EDICIÓN EJECUTIVA 2026</span>
-              <div className="flex items-center gap-2">
-                <span className="w-1.5 h-1.5 rounded-full bg-amber-500/60" />
-                <span>PAPEL 120 G/M² ANTI-REFLEJO</span>
-              </div>
-            </div>
+          {/* Pie de Página de Lujo */}
+          <div className={'nb-paper-footer ' + (isDark ? 'nb-footer-dark' : '')}>
+            <span>PROACTUR EXECUTIVE NOTEBOOK</span>
+            <span className="font-mono">CALIGRAFÍA 120 G/M²</span>
           </div>
         </div>
       </div>

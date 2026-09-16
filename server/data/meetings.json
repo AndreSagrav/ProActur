@@ -1,6 +1,46 @@
 [
   {
     "title": "Reunion en Vivo 15/9/2026",
+    "summary": "Se verificó que la aplicación de escritorio presenta fallos y los resúmenes ejecutivos han desaparecido; se acordó investigar la causa y restaurar la funcionalidad.",
+    "keyTopics": [],
+    "keyDecisions": [
+      "Priorizar la investigación de la causa de la desaparición de los resúmenes ejecutivos",
+      "Restaurar la funcionalidad de los resúmenes ejecutivos en la aplicación de escritorio"
+    ],
+    "actionItems": [
+      {
+        "task": "Investigar la causa de la desaparición de los resúmenes ejecutivos",
+        "assignee": "Por asignar",
+        "priority": "Alta",
+        "deadline": "Pendiente",
+        "completed": false
+      },
+      {
+        "task": "Restaurar la funcionalidad de los resúmenes ejecutivos en la aplicación de escritorio",
+        "assignee": "Por asignar",
+        "priority": "Alta",
+        "deadline": "Pendiente",
+        "completed": false
+      },
+      {
+        "task": "Verificar el correcto funcionamiento de la aplicación de escritorio y documentar los fallos actuales",
+        "assignee": "Por asignar",
+        "priority": "Alta",
+        "deadline": "Pendiente",
+        "completed": false
+      }
+    ],
+    "proactiveAdvice": [
+      "Implementar pruebas automatizadas para detectar la pérdida de funcionalidades antes de despliegues",
+      "Comunicar a los usuarios el estado de los resúmenes ejecutivos y establecer un canal de soporte rápido"
+    ],
+    "transcript": "a ver eso también es una prueba quiero verificar que el la aplicación de escritorio también está funcionando bien como tiene que ser no veo resúmenes ejecutivos estaban funcionando pero parece que ya se cambiaron ya se quitaron entonces Cómo podemos hacer y después sigue fallando y no tenemos posibilidad de corregirlo",
+    "source": "live-meeting",
+    "createdAt": "2026-09-15T19:58:50.960Z",
+    "id": "meet_1789502330960_eo1e79"
+  },
+  {
+    "title": "Reunion en Vivo 15/9/2026",
     "summary": "Se revisaron los problemas de corrosión en la base del termostato y la posible sobrecalentamiento de la vara de plástico, confirmando la necesidad de mantener el sistema totalmente sellado y sin ingreso de aire. Se acordó establecer un programa de cambios de refrigerante cada 6 meses, validar la marca y especificaciones del refrigerante compatible con Chevrolet y su compatibilidad con componentes de aluminio, y evitar el uso de refrigerantes de baja calidad. Además, se decidió realizar pruebas de electro‑lisis para detectar corrosión interna y documentar los resultados.",
     "keyTopics": [],
     "keyDecisions": [

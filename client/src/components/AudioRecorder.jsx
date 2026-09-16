@@ -795,52 +795,60 @@ export default function AudioRecorder({ onMeetingProcessed, onRecordingStatusCha
         </div>
       )}
 
-      {/* Tabs superiores */}
+      {/* Selector de Entrada y Acciones Ejecutivas */}
       {!isRecording && (
-        <div className="flex border-b border-slate-800 mb-5 gap-2 overflow-x-auto pb-1">
-          <button
-            onClick={() => setActiveTab('record')}
-            className={`flex items-center gap-2 px-3 sm:px-4 py-2 text-xs sm:text-sm font-medium border-b-2 transition-all whitespace-nowrap ${
-              activeTab === 'record'
-                ? 'border-indigo-500 text-indigo-400 font-semibold'
-                : 'border-transparent text-slate-400 hover:text-slate-200'
-            }`}
-          >
-            <Mic className="w-4 h-4" />
-            Grabar en Vivo (Copiloto IA)
-          </button>
-          <button
-            onClick={() => setActiveTab('upload')}
-            className={`flex items-center gap-2 px-3 sm:px-4 py-2 text-xs sm:text-sm font-medium border-b-2 transition-all whitespace-nowrap ${
-              activeTab === 'upload'
-                ? 'border-indigo-500 text-indigo-400 font-semibold'
-                : 'border-transparent text-slate-400 hover:text-slate-200'
-            }`}
-          >
-            <Upload className="w-4 h-4" />
-            Subir Audio
-          </button>
-          <button
-            onClick={() => setActiveTab('text')}
-            className={`flex items-center gap-2 px-3 sm:px-4 py-2 text-xs sm:text-sm font-medium border-b-2 transition-all whitespace-nowrap ${
-              activeTab === 'text'
-                ? 'border-indigo-500 text-indigo-400 font-semibold'
-                : 'border-transparent text-slate-400 hover:text-slate-200'
-            }`}
-          >
-            <FileText className="w-4 h-4" />
-            Pegar Minuta / Notas
-          </button>
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800/80 pb-3 mb-5">
+          {/* Tabs de Modo de Entrada */}
+          <div className="inline-flex items-center p-1 bg-slate-950/70 border border-slate-800/80 rounded-xl overflow-x-auto gap-1">
+            <button
+              type="button"
+              onClick={() => setActiveTab('record')}
+              className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs sm:text-sm font-semibold transition-all whitespace-nowrap ${
+                activeTab === 'record'
+                  ? 'bg-indigo-600 text-white shadow-sm'
+                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900/60'
+              }`}
+            >
+              <Mic className="w-3.5 h-3.5" />
+              <span>Grabar en Vivo</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab('upload')}
+              className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs sm:text-sm font-semibold transition-all whitespace-nowrap ${
+                activeTab === 'upload'
+                  ? 'bg-indigo-600 text-white shadow-sm'
+                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900/60'
+              }`}
+            >
+              <Upload className="w-3.5 h-3.5" />
+              <span>Subir Audio</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab('text')}
+              className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs sm:text-sm font-semibold transition-all whitespace-nowrap ${
+                activeTab === 'text'
+                  ? 'bg-indigo-600 text-white shadow-sm'
+                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900/60'
+              }`}
+            >
+              <FileText className="w-3.5 h-3.5" />
+              <span>Pegar Minuta</span>
+            </button>
+          </div>
 
+          {/* Acceso a Cuaderno Ejecutivo */}
           {onOpenNotebook && (
             <button
               type="button"
               onClick={onOpenNotebook}
-              className="flex items-center gap-1.5 px-3 sm:px-4 py-2 text-xs sm:text-sm font-bold text-amber-300 hover:text-amber-200 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 rounded-xl transition-all whitespace-nowrap ml-auto shadow-sm"
-              title="Abrir Cuaderno Ejecutivo Digital"
+              className="flex items-center justify-center gap-2 px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-amber-500/15 via-indigo-500/10 to-amber-500/15 hover:from-amber-500/25 hover:to-indigo-500/25 border border-amber-500/35 hover:border-amber-400/50 text-amber-300 hover:text-amber-200 text-xs font-bold shadow-sm transition-all shrink-0 active:scale-95 group self-start sm:self-auto"
+              title="Abrir Cuaderno Ejecutivo Digital en Pantalla Completa"
             >
-              <BookOpen className="w-4 h-4 text-amber-400" />
-              <span>Abrir Cuaderno Fino</span>
+              <BookOpen className="w-4 h-4 text-amber-400 group-hover:scale-110 transition-transform" />
+              <span>Cuaderno Ejecutivo</span>
+              <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-amber-400/20 text-amber-200 font-mono tracking-wide">Fino</span>
             </button>
           )}
         </div>
