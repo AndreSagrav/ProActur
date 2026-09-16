@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect, useCallback } from 'react';
+﻿import React, { useState, useEffect, useCallback, useRef } from 'react';;
 import {
   Sparkles, Brain, Settings, Palette, Plus, Search, Calendar, Share2, CheckCircle2,
   Clock, CheckSquare, ChevronRight, Radio, FileText, BookOpen, PenTool,
