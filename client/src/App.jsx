@@ -2,7 +2,7 @@
 import {
   Sparkles, Brain, Settings, Palette, Plus, Search, Calendar, Share2, CheckCircle2,
   Clock, CheckSquare, ChevronRight, Radio, FileText, BookOpen, PenTool,
-  ArrowLeft, Activity, ShieldCheck
+  ArrowLeft, Activity, ShieldCheck, GitMerge, Loader2, X
 } from 'lucide-react';
 
 import AudioRecorder from './components/AudioRecorder';
@@ -25,6 +25,12 @@ export default function App() {
   const [meetings, setMeetings] = useState([]);
   const [selectedMeetingId, setSelectedMeetingId] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
+  const [isMergeMode, setIsMergeMode] = useState(false);
+  const [selectedMergeIds, setSelectedMergeIds] = useState([]);
+  const [isMerging, setIsMerging] = useState(false);
+  const [showMergeModal, setShowMergeModal] = useState(false);
+  const [mergeDirective, setMergeDirective] = useState('');
+  const [mergeSuccessToast, setMergeSuccessToast] = useState('');
   const [healthData, setHealthData] = useState(null);
   const [keepAliveData, setKeepAliveData] = useState(null);
   const [isSecondBrainOpen, setIsSecondBrainOpen] = useState(false);
@@ -108,6 +114,42 @@ export default function App() {
       if (res.ok) setHealthData(await res.json());
     } catch (err) {
       console.error('Error en health check:', err);
+    }
+  };
+
+  const handleMergeMeetings = async () => {
+    if (selectedMergeIds.length < 2 || isMerging) return;
+    setIsMerging(true);
+    try {
+      const res = await fetch(`${API}/api/meetings/merge`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          meetingIds: selectedMergeIds,
+          directive: mergeDirective.trim()
+        })
+      });
+
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.error || `HTTP ${res.status}`);
+      }
+
+      const mergedMeeting = await res.json();
+      setMeetings(prev => [mergedMeeting, ...prev]);
+      setSelectedMeetingId(mergedMeeting.id);
+      setShowMobileDetail(true);
+      setIsMergeMode(false);
+      setSelectedMergeIds([]);
+      setShowMergeModal(false);
+      setMergeDirective('');
+      setMergeSuccessToast('¡Minuta Maestra creada con éxito a partir de las sesiones fusionadas!');
+      setTimeout(() => setMergeSuccessToast(''), 4500);
+    } catch (err) {
+      console.error('[Merge Error]', err);
+      alert('Error al fusionar sesiones: ' + err.message);
+    } finally {
+      setIsMerging(false);
     }
   };
 
@@ -425,24 +467,79 @@ const handleNewNote = (linkedMeeting = null) => {
                 />
               </div>
 
-              {/* Encabezado de Historial con Buscador */}
+              {/* Encabezado de Historial con Buscador y Fusión */}
               <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-4 shadow-md space-y-3">
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between gap-2">
                   <h3 className="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center gap-2">
                     <FileText className="w-4 h-4 text-indigo-400" />
                     Reuniones ({filteredMeetings.length})
                   </h3>
-                  <button
-                    onClick={() => {
-                      setSelectedMeetingId(null);
-                      setShowMobileDetail(false);
-                    }}
-                    className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold bg-indigo-600 hover:bg-indigo-500 text-white shadow transition-all"
-                  >
-                    <Plus className="w-3.5 h-3.5" />
-                    Nueva
-                  </button>
+                  <div className="flex items-center gap-1.5">
+                    {filteredMeetings.length >= 2 && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsMergeMode(!isMergeMode);
+                          setSelectedMergeIds([]);
+                        }}
+                        className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold transition-all ${
+                          isMergeMode
+                            ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40 shadow-sm'
+                            : 'bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700/60'
+                        }`}
+                        title="Fusionar múltiples reuniones (ej. capacitaciones de varios días o serie de proyectos)"
+                      >
+                        <GitMerge className="w-3.5 h-3.5 text-amber-400" />
+                        <span>{isMergeMode ? 'Cancelar' : 'Fusionar'}</span>
+                      </button>
+                    )}
+                    <button
+                      onClick={() => {
+                        setSelectedMeetingId(null);
+                        setShowMobileDetail(false);
+                      }}
+                      className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold bg-indigo-600 hover:bg-indigo-500 text-white shadow transition-all"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      Nueva
+                    </button>
+                  </div>
                 </div>
+
+                {/* Banner Activo de Selección Múltiple para Fusión */}
+                {isMergeMode && (
+                  <div className="p-3 bg-gradient-to-r from-amber-500/15 via-indigo-500/15 to-purple-500/15 border border-amber-500/40 rounded-xl shadow-lg space-y-2 animate-fade-in">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-xs font-bold text-amber-200 flex items-center gap-1.5">
+                        <GitMerge className="w-4 h-4 text-amber-400" />
+                        {selectedMergeIds.length} seleccionadas
+                      </span>
+                      <button
+                        type="button"
+                        disabled={selectedMergeIds.length < 2 || isMerging}
+                        onClick={() => setShowMergeModal(true)}
+                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all shadow ${
+                          selectedMergeIds.length >= 2 && !isMerging
+                            ? 'bg-amber-500 hover:bg-amber-400 text-slate-950 shadow-amber-500/20'
+                            : 'bg-slate-800 text-slate-500 cursor-not-allowed border border-slate-700'
+                        }`}
+                      >
+                        {isMerging ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
+                        <span>Fusionar con IA</span>
+                      </button>
+                    </div>
+                    <p className="text-[11px] text-slate-400 leading-tight">
+                      Marca 2 o más sesiones para que la IA genere una Minuta Maestra consolidada de capacitación.
+                    </p>
+                  </div>
+                )}
+
+                {mergeSuccessToast && (
+                  <div className="p-2.5 bg-emerald-950/40 border border-emerald-500/40 rounded-xl text-emerald-300 text-xs font-medium flex items-center gap-2 animate-fade-in">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                    <span>{mergeSuccessToast}</span>
+                  </div>
+                )}
 
                 <div className="relative">
                   <Search className="w-4 h-4 text-slate-500 absolute left-3 top-2.5" />
@@ -466,38 +563,78 @@ const handleNewNote = (linkedMeeting = null) => {
                   filteredMeetings.map((m) => {
                     const isSelected = m.id === selectedMeetingId;
                     const tasksCount = m.actionItems?.length || 0;
-                    const isSynced = Boolean(m.notionSync?.url);
+                    const isChecked = selectedMergeIds.includes(m.id);
 
                     return (
                       <div
                         key={m.id}
                         onClick={() => {
-                          setSelectedMeetingId(m.id);
-                          setShowMobileDetail(true);
+                          if (isMergeMode) {
+                            if (isChecked) {
+                              setSelectedMergeIds(prev => prev.filter(id => id !== m.id));
+                            } else {
+                              setSelectedMergeIds(prev => [...prev, m.id]);
+                            }
+                          } else {
+                            setSelectedMeetingId(m.id);
+                            setShowMobileDetail(true);
+                          }
                         }}
                         className={`p-3.5 sm:p-4 rounded-xl border transition-all cursor-pointer text-left relative overflow-hidden group ${
-                          isSelected
+                          isChecked
+                            ? 'bg-amber-950/25 border-amber-500/60 shadow-md shadow-amber-500/10'
+                            : isSelected
                             ? 'bg-slate-800/90 border-indigo-500/60 shadow-lg shadow-indigo-500/10'
                             : 'bg-slate-900/70 hover:bg-slate-800/60 border-slate-800'
                         }`}
                       >
-                        {isSelected && <div className="absolute left-0 top-0 bottom-0 w-1 bg-indigo-500" />}
-                        <div className="flex items-center justify-between gap-2 mb-1">
-                          <span className="text-[11px] text-slate-400 flex items-center gap-1">
-                            <Calendar className="w-3 h-3" />
-                            {new Date(m.createdAt || Date.now()).toLocaleDateString('es-ES', { month: 'short', day: 'numeric' })}
-                          </span>
-                          
-                        </div>
-                        <h4 className="text-sm font-semibold text-slate-100 group-hover:text-indigo-300 transition-colors line-clamp-1">
-                          {m.title || 'Reunion sin titulo'}
-                        </h4>
-                        <p className="text-xs text-slate-400 line-clamp-2 mt-1">{m.summary}</p>
-                        <div className="flex items-center justify-between mt-3 text-[11px] text-slate-500 border-t border-slate-800/80 pt-2">
-                          <span className="flex items-center gap-1">
-                            <CheckSquare className="w-3 h-3" /> {tasksCount} tareas
-                          </span>
-                          <ChevronRight className="w-3.5 h-3.5 text-slate-600 group-hover:text-slate-300 transition-colors" />
+                        {isSelected && !isMergeMode && <div className="absolute left-0 top-0 bottom-0 w-1 bg-indigo-500" />}
+                        {isChecked && <div className="absolute left-0 top-0 bottom-0 w-1 bg-amber-500" />}
+
+                        <div className="flex items-start gap-3">
+                          {isMergeMode && (
+                            <div className="pt-0.5 shrink-0" onClick={(e) => e.stopPropagation()}>
+                              <input
+                                type="checkbox"
+                                checked={isChecked}
+                                onChange={(e) => {
+                                  if (e.target.checked) {
+                                    setSelectedMergeIds(prev => [...prev, m.id]);
+                                  } else {
+                                    setSelectedMergeIds(prev => prev.filter(id => id !== m.id));
+                                  }
+                                }}
+                                className="w-4 h-4 rounded border-slate-700 text-amber-500 focus:ring-amber-400 bg-slate-900 cursor-pointer"
+                              />
+                            </div>
+                          )}
+
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center justify-between gap-2 mb-1">
+                              <span className="text-[11px] text-slate-400 flex items-center gap-1">
+                                <Calendar className="w-3 h-3" />
+                                {new Date(m.createdAt || Date.now()).toLocaleDateString('es-ES', { month: 'short', day: 'numeric' })}
+                              </span>
+
+                              {(m.isMergedSeries || m.source === 'merged-series') && (
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-amber-500/20 text-amber-300 text-[10px] font-bold">
+                                  <GitMerge className="w-3 h-3" />
+                                  Maestra
+                                </span>
+                              )}
+                            </div>
+
+                            <h4 className="text-sm font-semibold text-slate-100 group-hover:text-indigo-300 transition-colors line-clamp-1">
+                              {m.title || 'Reunión sin título'}
+                            </h4>
+                            <p className="text-xs text-slate-400 line-clamp-2 mt-1">{m.summary}</p>
+                            <div className="flex items-center justify-between mt-3 text-[11px] text-slate-500 border-t border-slate-800/80 pt-2">
+                              <span className="flex items-center gap-1">
+                                <CheckSquare className="w-3 h-3" /> {tasksCount} tareas
+                              </span>
+                              <ChevronRight className="w-3.5 h-3.5 text-slate-600 group-hover:text-slate-300 transition-colors" />
+                            </div>
+                          </div>
                         </div>
                       </div>
                     );
@@ -739,6 +876,94 @@ const handleNewNote = (linkedMeeting = null) => {
         meetings={meetings}
         onSaved={handleEventSaved}
       />
+    
+      {/* Modal de Fusión de Sesiones / Capacitación */}
+      {showMergeModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-fade-in">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-lg p-5 sm:p-6 shadow-2xl space-y-4">
+            <div className="flex items-start justify-between">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 rounded-xl bg-amber-500/15 text-amber-400 border border-amber-500/30">
+                  <GitMerge className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-slate-100">
+                    Fusionar {selectedMergeIds.length} Sesiones con IA
+                  </h3>
+                  <p className="text-xs text-slate-400">
+                    Se sintetizarán las jornadas en una Minuta Maestra Integral.
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowMergeModal(false)}
+                className="p-1 rounded-lg text-slate-400 hover:text-slate-200 hover:bg-slate-800 transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="space-y-3">
+              <div>
+                <label className="block text-xs font-semibold text-slate-300 mb-1">
+                  Nombre de la Capacitación o Serie (Opcional)
+                </label>
+                <input
+                  type="text"
+                  value={mergeDirective}
+                  onChange={(e) => setMergeDirective(e.target.value)}
+                  placeholder="Ej. Capacitación en Mantenimiento Preventivo (Días 1 a 3)..."
+                  className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3.5 py-2.5 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-amber-500"
+                />
+                <p className="text-[10px] text-slate-500 mt-1">
+                  Si lo dejas en blanco, la IA analizará los temas tratados y titulará la serie automáticamente.
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-[11px] uppercase tracking-wider text-slate-400 font-bold mb-1.5">
+                  Sesiones que se consolidarán:
+                </label>
+                <div className="max-h-40 overflow-y-auto space-y-1.5 pr-1">
+                  {meetings
+                    .filter(m => selectedMergeIds.includes(m.id))
+                    .map(m => (
+                      <div key={m.id} className="flex items-center justify-between p-2 rounded-lg bg-slate-800/60 border border-slate-700/50 text-xs">
+                        <span className="text-slate-200 font-medium truncate max-w-[280px]">
+                          {m.title}
+                        </span>
+                        <span className="text-[10px] text-slate-400 shrink-0">
+                          {new Date(m.createdAt || Date.now()).toLocaleDateString('es-ES')}
+                        </span>
+                      </div>
+                    ))}
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-slate-800">
+              <button
+                type="button"
+                onClick={() => setShowMergeModal(false)}
+                className="px-4 py-2 rounded-xl text-xs font-medium text-slate-300 hover:bg-slate-800 transition-colors"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                disabled={isMerging}
+                onClick={handleMergeMeetings}
+                className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 shadow-md shadow-amber-500/20 transition-all active:scale-95"
+              >
+                {isMerging ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
+                <span>{isMerging ? 'Sintetizando...' : 'Consolidar Minuta Maestra'}</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }

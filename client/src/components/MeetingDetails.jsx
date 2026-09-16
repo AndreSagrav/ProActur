@@ -3,7 +3,7 @@ import {
   CheckSquare, Square, ExternalLink, Share2, CheckCircle2,
   AlertTriangle, ChevronDown, ChevronUp, Calendar, User, Clock,
   Lightbulb, Target, FileText, Loader2, Trash2, BookOpen, CalendarPlus,
-  Copy, Check, Volume2, Brain, Send, Sparkles, MessageSquare, CornerDownLeft
+  Copy, Check, Volume2, Brain, Send, Sparkles, MessageSquare, CornerDownLeft, GitMerge
 } from 'lucide-react';
 
 const API = import.meta.env.VITE_API_URL || '';
@@ -154,6 +154,13 @@ export default function MeetingDetails({ meeting, onUpdateMeeting, onDeleteMeeti
           {meeting.transcript && (
             <span className="px-2.5 py-1 rounded-xl bg-slate-800/60 border border-slate-700/40 text-slate-400 text-[11px] font-mono">
               {meeting.transcript.split(/\s+/).filter(Boolean).length} palabras
+            </span>
+          )}
+
+          {(meeting.isMergedSeries || meeting.source === 'merged-series') && (
+            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-amber-500/15 border border-amber-500/30 text-amber-300 font-bold text-[11px] shadow-sm">
+              <GitMerge className="w-3.5 h-3.5 text-amber-400" />
+              Minuta Maestra ({meeting.mergedSessionCount || 'Multi'} Sesiones Fusionadas)
             </span>
           )}
         </div>

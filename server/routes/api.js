@@ -163,12 +163,37 @@ router.post('/meetings/live-analyze', upload.single('audio'), async (req, res) =
   }
 });
 
-// Finalizar y guardar reunion analizada en vivo
+// Finalizar y guardar reunion analizada en vivo (con titulación automática por IA)
 router.post('/meetings/live-finalize', async (req, res) => {
   try {
     const meetingData = req.body;
+    let finalTitle = meetingData.title;
+
+    // Si el usuario no especificó un título manual claro, la IA lo genera a partir del contexto
+    if (!finalTitle || aiService.isGenericTitle(finalTitle)) {
+      if (meetingData.aiTitle && !aiService.isGenericTitle(meetingData.aiTitle)) {
+        finalTitle = meetingData.aiTitle;
+      } else {
+        try {
+          const generated = await aiService.generateExecutiveTitle({
+            transcript: meetingData.transcript,
+            summary: meetingData.summary,
+            keyTopics: meetingData.keyTopics,
+            userNotes: meetingData.userNotes
+          });
+          if (generated) finalTitle = generated;
+        } catch (titleErr) {
+          console.warn('[Live Finalize] Error generando título por IA:', titleErr.message);
+        }
+      }
+    }
+
+    if (!finalTitle || aiService.isGenericTitle(finalTitle)) {
+      finalTitle = 'Reunión Ejecutiva ' + new Date().toLocaleDateString('es-ES');
+    }
+
     const saved = await storageService.saveMeeting({
-      title: meetingData.title || ('Reunion ' + new Date().toLocaleDateString('es-ES')),
+      title: finalTitle,
       summary: meetingData.summary || 'Resumen de reunion analizada en vivo por ProActur AI',
       keyTopics: meetingData.keyTopics || [],
       keyDecisions: meetingData.keyDecisions || [],
@@ -186,6 +211,7 @@ router.post('/meetings/live-finalize', async (req, res) => {
   }
 });
 
+// Procesar audio de reunión (con titulación contextual por IA)
 router.post('/meetings/process-audio', upload.single('audio'), async (req, res) => {
   try {
     const { audioBase64, audioMimeType } = req.body || {};
@@ -205,7 +231,8 @@ router.post('/meetings/process-audio', upload.single('audio'), async (req, res) 
       return res.status(400).json({ error: 'No se envió ningún archivo de audio.' });
     }
 
-    const meetingTitle = req.body.title || 'Reunión Grabada ' + new Date().toLocaleString('es-ES');
+    const rawTitle = req.body.title;
+    const meetingTitle = (rawTitle && !aiService.isGenericTitle(rawTitle)) ? rawTitle : null;
 
     console.log(`[ProActur AI] Procesando audio de reunión: ${audioBuffer.length} bytes (${mimeType})`);
 
@@ -215,11 +242,29 @@ router.post('/meetings/process-audio', upload.single('audio'), async (req, res) 
       meetingTitle
     });
 
+    // Si no había título explícito o el resultado no trajo uno, generamos uno ejecutivo a partir del contexto
+    let finalTitle = result.title || meetingTitle;
+    if (!finalTitle || aiService.isGenericTitle(finalTitle)) {
+      try {
+        const generated = await aiService.generateExecutiveTitle({
+          summary: result.summary,
+          keyTopics: result.keyTopics,
+          transcript: result.transcript
+        });
+        if (generated) finalTitle = generated;
+      } catch (_) {}
+    }
+
+    if (!finalTitle) {
+      finalTitle = 'Reunión Grabada ' + new Date().toLocaleDateString('es-ES');
+    }
+
     // Guardar la reunión analizada en Supabase y local
     const saved = await storageService.saveMeeting({
       ...result,
+      title: finalTitle,
       source: 'audio',
-      audioSize: req.file.size
+      audioSize: req.file ? req.file.size : (audioBuffer ? audioBuffer.length : 0)
     });
 
     res.json(saved);
@@ -229,7 +274,7 @@ router.post('/meetings/process-audio', upload.single('audio'), async (req, res) 
   }
 });
 
-// Procesar reunión desde Texto / Minuta previa
+// Procesar reunión desde Texto / Minuta previa (con titulación contextual por IA)
 router.post('/meetings/process-text', async (req, res) => {
   try {
     const { rawText, title } = req.body;
@@ -237,21 +282,76 @@ router.post('/meetings/process-text', async (req, res) => {
       return res.status(400).json({ error: 'El texto o notas de la reunión están vacíos.' });
     }
 
+    const rawTitle = title;
+    const meetingTitle = (rawTitle && !aiService.isGenericTitle(rawTitle)) ? rawTitle : null;
+
     console.log(`[ProActur AI] Analizando notas de reunión con IA...`);
 
     const result = await aiService.processMeeting({
       rawText,
-      meetingTitle: title
+      meetingTitle
     });
+
+    let finalTitle = result.title || meetingTitle;
+    if (!finalTitle || aiService.isGenericTitle(finalTitle)) {
+      try {
+        const generated = await aiService.generateExecutiveTitle({
+          summary: result.summary,
+          keyTopics: result.keyTopics,
+          transcript: rawText
+        });
+        if (generated) finalTitle = generated;
+      } catch (_) {}
+    }
+
+    if (!finalTitle) {
+      finalTitle = 'Minuta de Trabajo ' + new Date().toLocaleDateString('es-ES');
+    }
 
     const saved = await storageService.saveMeeting({
       ...result,
+      title: finalTitle,
       source: 'text'
     });
 
     res.json(saved);
   } catch (err) {
     console.error('[ProActur AI] Error procesando texto:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// FUSIONAR Y SINTETIZAR MÚLTIPLES SESIONES (CAPACITACIONES / SERIES) CON IA
+router.post('/meetings/merge', async (req, res) => {
+  try {
+    const { meetingIds, directive } = req.body || {};
+    if (!Array.isArray(meetingIds) || meetingIds.length < 2) {
+      return res.status(400).json({ error: 'Se requieren al menos 2 reuniones para realizar la fusión.' });
+    }
+
+    const allMeetings = await storageService.getMeetings();
+    const meetingsToMerge = allMeetings.filter(m => meetingIds.includes(m.id));
+
+    if (meetingsToMerge.length < 2) {
+      return res.status(404).json({ error: 'No se encontraron las reuniones seleccionadas para fusionar.' });
+    }
+
+    console.log(`[ProActur AI] Fusionando ${meetingsToMerge.length} sesiones con IA...`);
+
+    const mergedData = await aiService.mergeMeetings({
+      meetings: meetingsToMerge,
+      directive: directive || ''
+    });
+
+    const saved = await storageService.saveMeeting({
+      ...mergedData,
+      source: 'merged-series',
+      createdAt: new Date().toISOString()
+    });
+
+    res.json(saved);
+  } catch (err) {
+    console.error('[Meeting Merge Error]:', err);
     res.status(500).json({ error: err.message });
   }
 });

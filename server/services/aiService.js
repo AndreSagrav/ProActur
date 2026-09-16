@@ -73,7 +73,7 @@ ${rawText ? `Notas o transcripción previa provista:\n${rawText}\n` : ''}
 
 Debes responder ÚNICAMENTE con un objeto JSON válido (sin markdown, sin bloques de código \`\`\`json, solo el JSON puro) con la siguiente estructura exacta:
 {
-  "title": "${meetingTitle || 'Título conciso y profesional de la reunión'}",
+  "title": "${(meetingTitle && !this.isGenericTitle(meetingTitle)) ? meetingTitle : 'Título ejecutivo conciso (máximo 5 a 7 palabras) que sintetice con precisión el tema central de la reunión'}",
   "summary": "Resumen ejecutivo de 2 o 3 párrafos claros y directos",
   "keyTopics": ["Tema 1", "Tema 2", "Tema 3"],
   "keyDecisions": [
@@ -159,9 +159,32 @@ Debes responder ÚNICAMENTE con un objeto JSON válido (sin markdown, sin bloque
     return null;
   }
 
+  isGenericTitle(title) {
+    if (!title || typeof title !== 'string') return true;
+    const clean = title.trim();
+    if (clean.length < 3) return true;
+    const lower = clean.toLowerCase();
+    const genericPatterns = [
+      /^reuni[oó]n\s*(en\s*vivo|grabada|sin\s*t[ií]tulo)?\s*(\d+[/.-]\d+.*)?$/i,
+      /^reuni[oó]n\s*\d+[/.-]\d+.*$/i,
+      /^ej\.\s*sincronizaci[oó]n/i,
+      /^ejemplo/i,
+      /^nueva reuni[oó]n/i,
+      /^notas de reuni[oó]n/i,
+      /^sin t[ií]tulo/i,
+      /^t[ií]tulo conciso/i
+    ];
+    return genericPatterns.some(p => p.test(clean)) || lower === 'reunión' || lower === 'reunion';
+  }
+
   normalizeParsedResponse(parsed) {
     if (!parsed || typeof parsed !== 'object') return null;
+    const normalizedTitle = (parsed.title && typeof parsed.title === 'string' && !this.isGenericTitle(parsed.title))
+      ? parsed.title.trim()
+      : undefined;
+
     return {
+      title: normalizedTitle,
       summary: parsed.summary || 'Resumen en proceso de estructuración...',
       keyTopics: Array.isArray(parsed.keyTopics) ? parsed.keyTopics : [],
       keyDecisions: Array.isArray(parsed.keyDecisions) ? parsed.keyDecisions : [],
@@ -233,6 +256,7 @@ ${currentTranscript ? `Texto preliminar hablado:\n${currentTranscript}\n` : 'Ana
 
 Devuelve UNICAMENTE un JSON valido (sin bloques markdown de codigo json) con este formato exacto:
 {
+  "title": "Titulo ejecutivo conciso (maximo 5 a 7 palabras) del tema principal tratado hasta ahora (ej. 'Estrategia Comercial Q3' o 'Capacitacion en Mantenimiento')",
   "summary": "Sintesis ejecutiva clara y directa de lo tratado",
   "keyTopics": ["Tema 1", "Tema 2"],
   "keyDecisions": ["Decision acordada 1", "Decision acordada 2"],
@@ -1020,4 +1044,215 @@ INSTRUCCIONES CLAVE:
     return `He revisado el registro de "${title}". Sobre tu consulta: ${summary}`;
   }
 
+
+  // --- GENERACIÓN DE TÍTULO EJECUTIVO INTELIGENTE ---
+  async generateExecutiveTitle({ transcript, summary, keyTopics, userNotes }) {
+    const contextText = [
+      summary ? `Resumen: ${summary}` : '',
+      keyTopics && keyTopics.length > 0 ? `Temas: ${keyTopics.join(', ')}` : '',
+      transcript ? `Transcripción: ${transcript.substring(0, 1200)}` : '',
+      userNotes ? `Notas: ${userNotes.substring(0, 500)}` : ''
+    ].filter(Boolean).join('\n');
+
+    if (!contextText.trim() || contextText.length < 15) {
+      return null;
+    }
+
+    const prompt = `Genera un título ejecutivo, conciso y específico (máximo de 4 a 7 palabras) que sintetice la siguiente reunión o sesión de trabajo.
+IMPORTANTE: Devuelve ÚNICAMENTE el texto del título (sin comillas, sin prefijos como "Título:", sin puntos finales y sin explicaciones adicionales).
+
+CONTEXTO:
+${contextText}`;
+
+    // 1. Groq ultra-rápido (150ms)
+    if (config.GROQ_API_KEY) {
+      try {
+        const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${config.GROQ_API_KEY}`
+          },
+          body: JSON.stringify({
+            model: this.groqModel || 'llama-3.3-70b-versatile',
+            messages: [{ role: 'user', content: prompt }],
+            temperature: 0.2,
+            max_tokens: 30
+          })
+        });
+        if (res.ok) {
+          const data = await res.json();
+          const title = data.choices?.[0]?.message?.content?.trim().replace(/^["']|["']$/g, '');
+          if (title && title.length > 3 && !this.isGenericTitle(title)) return title;
+        }
+      } catch (err) {
+        console.warn('[AI] Groq title gen error:', err.message);
+      }
+    }
+
+    // 2. Gemini Flash
+    if (config.GEMINI_API_KEY) {
+      try {
+        const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${this.geminiModel}:generateContent`;
+        const res = await fetch(endpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'x-goog-api-key': config.GEMINI_API_KEY },
+          body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
+        });
+        if (res.ok) {
+          const data = await res.json();
+          const title = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim().replace(/^["']|["']$/g, '');
+          if (title && title.length > 3 && !this.isGenericTitle(title)) return title;
+        }
+      } catch (err) {
+        console.warn('[AI] Gemini title gen error:', err.message);
+      }
+    }
+
+    // 3. Fallback heurístico inteligente si no hay internet
+    if (keyTopics && keyTopics.length > 0 && keyTopics[0].length > 4 && !this.isGenericTitle(keyTopics[0])) {
+      return keyTopics[0].substring(0, 50);
+    }
+    if (summary && summary.length > 15) {
+      const firstSentence = summary.split(/[.\n]/)[0].trim();
+      if (firstSentence.length > 10 && !this.isGenericTitle(firstSentence)) return firstSentence.substring(0, 55);
+    }
+    return null;
+  }
+
+  // --- FUSIÓN Y SÍNTESIS DE MÚLTIPLES SESIONES (CAPACITACIONES / SERIES) ---
+  async mergeMeetings({ meetings, directive = '' }) {
+    if (!Array.isArray(meetings) || meetings.length < 2) {
+      throw new Error('Se requieren al menos 2 reuniones para realizar la fusión.');
+    }
+
+    // Ordenar cronológicamente
+    const sorted = [...meetings].sort((a, b) => new Date(a.createdAt || 0) - new Date(b.createdAt || 0));
+
+    const sessionsContext = sorted.map((m, idx) => {
+      const date = m.createdAt ? new Date(m.createdAt).toLocaleDateString('es-ES') : `Sesión ${idx + 1}`;
+      return `--- JORNADA / SESIÓN ${idx + 1} (${date}) ---
+Título registrado: ${m.title}
+Resumen: ${m.summary || 'Sin resumen'}
+Temas tratados: ${(m.keyTopics || []).join(', ')}
+Decisiones acordadas: ${(m.keyDecisions || []).join(' | ')}
+Tareas asignadas: ${(m.actionItems || []).map(t => `${t.task} [${t.assignee || 'Por asignar'}, ${t.deadline || 'Pendiente'}]`).join('; ')}
+Transcripción/Notas: ${(m.transcript || '').substring(0, 2000)}`;
+    }).join('\n\n');
+
+    const prompt = `Eres ProActur AI, consultor de inteligencia ejecutiva de clase mundial.
+Tu tarea es FUSIONAR Y SINTETIZAR una serie de ${sorted.length} sesiones de trabajo (por ejemplo: jornadas de una capacitación de varios días, módulos formativos o etapas de un proyecto) en una sola MINUTA MAESTRA INTEGRAL Y CONSOLIDADA.
+
+${directive ? `DIRECTRIZ O TEMA PRINCIPAL PROVISTO POR EL USUARIO: "${directive}"\n` : ''}
+
+HISTORIAL DE LAS ${sorted.length} SESIONES A CONSOLIDAR (EN ORDEN CRONOLÓGICO):
+${sessionsContext}
+
+DIRECTRICES PARA LA SÍNTESIS CONSOLIDADA:
+1. TÍTULO MAESTRO: Genera un título integral de alto impacto que englobe toda la capacitación o ciclo de sesiones (ejemplo: "Capacitación Integral en Mantenimiento Preventivo — Días 1 a 3" o "Serie Estratégica: Planificación y Ejecución Comercial").
+2. RESUMEN EJECUTIVO GLOBAL: Redacta una síntesis completa y articulada de 2 a 4 párrafos que narre el progreso a través de las diferentes jornadas, unificando conceptos y conclusiones.
+3. CRONOLOGÍA POR JORNADAS (keyTopics): Enlista cada sesión como un módulo temático (ejemplo: "Día 1: Diagnóstico inicial", "Día 2: Implementación práctica", "Día 3: Evaluación y cierre").
+4. DECISIONES ACORDADAS (keyDecisions): Unifica todas las decisiones de todas las sesiones, eliminando duplicados y ordenándolas por importancia.
+5. PLAN MAESTRO DE ACCIÓN (actionItems): Combina y consolida todas las tareas y compromisos de todas las jornadas, deduplicando tareas idénticas y asegurando que cada una tenga su responsable y prioridad.
+6. CONSEJOS PROACTIVOS GLOBALES (proactiveAdvice): Recomendaciones y alertas estratégicas para la adopción y seguimiento de todo lo acordado en la serie.
+
+Devuelve ÚNICAMENTE un objeto JSON válido (sin markdown) con esta estructura exacta:
+{
+  "title": "Título Maestro de la Serie / Capacitación",
+  "summary": "Resumen ejecutivo integral del ciclo completo de sesiones",
+  "keyTopics": ["Día/Módulo 1: ...", "Día/Módulo 2: ..."],
+  "keyDecisions": ["Decisión integral 1", "Decisión integral 2"],
+  "actionItems": [
+    {
+      "task": "Descripción clara de la tarea",
+      "assignee": "Responsable",
+      "priority": "Alta | Media | Baja",
+      "deadline": "Fecha límite o Pendiente",
+      "completed": false
+    }
+  ],
+  "proactiveAdvice": ["Recomendación estratégica para la implementación post-capacitación"],
+  "transcript": "Síntesis cronológica y notas consolidadas de las ${sorted.length} jornadas fusionadas."
+}`;
+
+    let mergedResult = null;
+
+    // Intento 1: Gemini Flash
+    if (config.GEMINI_API_KEY) {
+      try {
+        const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${this.geminiModel}:generateContent`;
+        const res = await fetch(endpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'x-goog-api-key': config.GEMINI_API_KEY },
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: prompt }] }],
+            generationConfig: { temperature: 0.2, responseMimeType: 'application/json' }
+          })
+        });
+        if (res.ok) {
+          const data = await res.json();
+          const raw = data.candidates?.[0]?.content?.parts?.[0]?.text;
+          mergedResult = this.cleanJsonResponse(raw);
+        }
+      } catch (err) {
+        console.warn('[AI Merge] Gemini falló:', err.message);
+      }
+    }
+
+    // Intento 2: Groq LPU
+    if (!mergedResult && config.GROQ_API_KEY) {
+      try {
+        const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${config.GROQ_API_KEY}`
+          },
+          body: JSON.stringify({
+            model: this.groqModel || 'llama-3.3-70b-versatile',
+            messages: [{ role: 'user', content: prompt }],
+            temperature: 0.2,
+            response_format: { type: 'json_object' }
+          })
+        });
+        if (res.ok) {
+          const data = await res.json();
+          const raw = data.choices?.[0]?.message?.content;
+          mergedResult = this.cleanJsonResponse(raw);
+        }
+      } catch (err) {
+        console.warn('[AI Merge] Groq falló:', err.message);
+      }
+    }
+
+    // Fallback determinista local
+    if (!mergedResult) {
+      const allTasks = [];
+      const allDecisions = [];
+      sorted.forEach(m => {
+        if (Array.isArray(m.actionItems)) allTasks.push(...m.actionItems);
+        if (Array.isArray(m.keyDecisions)) allDecisions.push(...m.keyDecisions);
+      });
+      mergedResult = {
+        title: directive || `Capacitación Consolidada: ${sorted.map(s => s.title).join(' / ')}`,
+        summary: sorted.map((s, i) => `Jornada ${i + 1} (${s.title}): ${s.summary}`).join('\n\n'),
+        keyTopics: sorted.map((s, i) => `Módulo ${i + 1}: ${s.title}`),
+        keyDecisions: Array.from(new Set(allDecisions)),
+        actionItems: allTasks,
+        proactiveAdvice: ['Revisar compromisos y cronograma de seguimiento consolidado.'],
+        transcript: sorted.map((s, i) => `[SESIÓN ${i + 1}: ${s.title}]\n${s.transcript || s.summary}`).join('\n\n')
+      };
+    }
+
+    return {
+      ...mergedResult,
+      isMergedSeries: true,
+      mergedSessionCount: sorted.length,
+      mergedFromIds: sorted.map(m => m.id),
+      mergedSessionTitles: sorted.map(m => m.title)
+    };
+  }
+
 }
+
+module.exports = new AIService();

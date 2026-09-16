@@ -31,6 +31,8 @@ export default function AudioRecorder({ onMeetingProcessed, onRecordingStatusCha
   const [selectedFile, setSelectedFile] = useState(null);
   const [rawText, setRawText] = useState('');
   const [meetingTitle, setMeetingTitle] = useState('');
+  const userEditedTitleRef = useRef(false);
+  const liveAiTitleRef = useRef('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
@@ -405,6 +407,12 @@ export default function AudioRecorder({ onMeetingProcessed, onRecordingStatusCha
       }
 
       const data = await res.json();
+      if (data.title && typeof data.title === 'string' && data.title.trim().length > 3) {
+        liveAiTitleRef.current = data.title.trim();
+        if (!userEditedTitleRef.current) {
+          setMeetingTitle(data.title.trim());
+        }
+      }
       if (data.summary) setLiveSummary(data.summary);
       if (Array.isArray(data.keyDecisions) && data.keyDecisions.length > 0) {
         setLiveDecisions(data.keyDecisions);
@@ -600,7 +608,8 @@ export default function AudioRecorder({ onMeetingProcessed, onRecordingStatusCha
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            title: current.title.trim() || `Reunion en Vivo ${new Date().toLocaleDateString('es-ES')}`,
+            title: userEditedTitleRef.current ? current.title.trim() : (liveAiTitleRef.current || current.title.trim()),
+            aiTitle: liveAiTitleRef.current || undefined,
             summary: current.summary || 'Resumen de reunion en vivo',
             keyDecisions: current.decisions,
             actionItems: current.actionItems,
@@ -863,8 +872,11 @@ export default function AudioRecorder({ onMeetingProcessed, onRecordingStatusCha
           <input
             type="text"
             value={meetingTitle}
-            onChange={(e) => setMeetingTitle(e.target.value)}
-            placeholder="Ej. Sincronizacion Estrategica Semanal..."
+            onChange={(e) => {
+              userEditedTitleRef.current = Boolean(e.target.value.trim());
+              setMeetingTitle(e.target.value);
+            }}
+            placeholder="Título de la reunión (la IA lo generará si lo dejas en blanco)..."
             className="w-full bg-slate-800/80 border border-slate-700/80 rounded-xl px-4 py-2.5 text-xs sm:text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all"
           />
         </div>
