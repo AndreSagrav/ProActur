@@ -7,39 +7,49 @@ export const THEMES = [
     label: 'Modo Oscuro Ejecutivo',
     desc: 'Contraste balanceado slate e índigo',
     icon: '🌑',
-    type: 'dark'
+    type: 'dark',
+    previewColor: '#0f172a',
+    accentColor: '#6366f1'
   },
   {
     id: 'colorblind-safe',
-    name: 'Accesible Daltonismo (Rojo-Verde)',
+    name: 'Accesible Daltonismo',
     label: 'Protan / Deutan Seguro',
-    desc: 'Paleta Okabe-Ito (azul cobalto + ámbar oro, sin rojo/verde ambiguos)',
+    desc: 'Paleta Okabe-Ito (azul cobalto + ámbar oro)',
     icon: '👁️',
-    type: 'colorblind'
+    type: 'colorblind',
+    previewColor: '#1e3a8a',
+    accentColor: '#3b82f6'
   },
   {
     id: 'tritanopia',
-    name: 'Accesible Daltonismo (Azul-Amarillo)',
+    name: 'Tritanopía',
     label: 'Tritan Seguro',
     desc: 'Paleta de alto contraste magenta y verde azulado',
     icon: '🎨',
-    type: 'colorblind'
+    type: 'colorblind',
+    previewColor: '#86198f',
+    accentColor: '#d946ef'
   },
   {
     id: 'high-contrast',
-    name: 'Baja Visión (Alto Contraste)',
+    name: 'Alto Contraste',
     label: 'Contraste Extremo OLED',
     desc: 'Negro absoluto con bordes amarillos y texto hiperlegible',
     icon: '🕶️',
-    type: 'contrast'
+    type: 'contrast',
+    previewColor: '#000000',
+    accentColor: '#facc15'
   },
   {
     id: 'soft-light',
     name: 'Luz Suave Diurna',
     label: 'Descanso Ocular',
-    desc: 'Fondo apergaminado sin reflejos ni luz azul dañina',
+    desc: 'Fondo diurno apergaminado de alto contraste',
     icon: '☀️',
-    type: 'light'
+    type: 'light',
+    previewColor: '#f8fafc',
+    accentColor: '#4f46e5'
   }
 ];
 

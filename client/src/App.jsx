@@ -340,31 +340,20 @@ const handleNewNote = (linkedMeeting = null) => {
                 {THEMES && Object.values(THEMES).map(t => (
                   <button
                     key={t.id}
+                    type="button"
                     onClick={() => setTheme(t.id)}
-                    className={`w-6 h-6 rounded-lg flex items-center justify-center transition-all ${
+                    className={`w-7 h-7 rounded-lg flex items-center justify-center transition-all text-xs border ${
                       theme === t.id
-                        ? 'ring-2 ring-white scale-110 shadow-lg'
-                        : 'opacity-70 hover:opacity-100 hover:scale-105'
+                        ? 'ring-2 ring-indigo-500 border-white scale-110 shadow-lg font-bold'
+                        : 'border-slate-700/60 opacity-75 hover:opacity-100 hover:scale-105'
                     }`}
                     style={{ backgroundColor: t.previewColor }}
-                    title={`${t.name}: ${t.description}`}
+                    title={`${t.name}: ${t.desc || t.label}`}
                   >
-                    {theme === t.id && <span className="w-1.5 h-1.5 rounded-full bg-white shadow" />}
+                    <span>{t.icon}</span>
                   </button>
                 ))}
-              </div>
-
-              <div className="w-[1px] h-4 bg-slate-700 mx-1" />
-
-              {/* Alternador de Tamano de Fuente */}
-              <button
-                onClick={() => setFontSize(fontSize === 'xlarge' ? 'normal' : fontSize === 'large' ? 'xlarge' : 'large')}
-                className="px-2 py-1 text-xs font-black text-amber-300 hover:text-white bg-slate-800/80 hover:bg-slate-700 rounded-lg transition-colors whitespace-nowrap"
-                title="Cambiar tamaño de letra (Normal / Grande / Extra Grande)"
-              >
-                {fontSize === 'xlarge' ? 'A+++ (+30%)' : fontSize === 'large' ? 'A++ (+15%)' : 'A (Normal)'}
-              </button>
-            </div>
+              </div></div>
           </div>
         </div>
       </header>

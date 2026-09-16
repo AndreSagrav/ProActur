@@ -7,17 +7,19 @@
     --sal: env(safe-area-inset-left, 0px);
     --sar: env(safe-area-inset-right, 0px);
     --font-primary: 'Plus Jakarta Sans', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    font-family: var(--font-primary);
   }
 
   body {
-    font-family: var(--font-primary);
-    @apply bg-slate-950 text-slate-100 antialiased min-h-screen selection:bg-indigo-500 selection:text-white;
-    -webkit-font-smoothing: antialiased;
-    -moz-osx-font-smoothing: grayscale;
+    background-color: #020617;
+    color: #f8fafc;
+    overflow-x: hidden;
     -webkit-tap-highlight-color: transparent;
   }
 
-  /* Modificadores de tamaño de texto para baja visión */
+  /* ------------------------------------------------------------- */
+  /* ESCALADO TIPOGRÁFICO DE ACCESIBILIDAD                         */
+  /* ------------------------------------------------------------- */
   html[data-font-size="large"] {
     font-size: 115%;
   }
@@ -25,116 +27,351 @@
     font-size: 130%;
   }
 
-  /* ------------------------------------------------------------- */
-  /* TEMAS ACCESIBLES Y ADAPTADOS A DALTONISMO                     */
-  /* ------------------------------------------------------------- */
-
-  /* 1. Tema Protanopía / Deuteranopía (Rojo-Verde Seguro - WCAG AAA) */
-  html[data-theme="colorblind-safe"] body {
-    background-color: #070d18;
-    color: #f1f5f9;
-  }
-  html[data-theme="colorblind-safe"] .bg-slate-950 {
-    background-color: #070d18 !important;
-  }
-  html[data-theme="colorblind-safe"] .bg-slate-900 {
-    background-color: #0f1c30 !important;
-    border-color: #2563eb40 !important;
-  }
-  html[data-theme="colorblind-safe"] .bg-indigo-600 {
-    background-color: #2563eb !important; /* Azul cobalto de alto contraste */
-  }
-  html[data-theme="colorblind-safe"] .text-indigo-400 {
-    color: #60a5fa !important;
-  }
-  html[data-theme="colorblind-safe"] .text-emerald-400 {
-    color: #38bdf8 !important; /* Cian en lugar de verde ambiguo */
-  }
-  html[data-theme="colorblind-safe"] .text-amber-400 {
-    color: #f59e0b !important; /* Ámbar oro */
-  }
-  html[data-theme="colorblind-safe"] .text-red-400 {
-    color: #fb923c !important; /* Naranja en lugar de rojo confuso */
-  }
-
-  /* 2. Tema Tritanopía (Azul-Amarillo Seguro) */
-  html[data-theme="tritanopia"] body {
-    background-color: #0d0a14;
-    color: #faf5ff;
-  }
-  html[data-theme="tritanopia"] .bg-slate-950 {
-    background-color: #0d0a14 !important;
-  }
-  html[data-theme="tritanopia"] .bg-slate-900 {
-    background-color: #1a1528 !important;
-    border-color: #d946ef30 !important;
-  }
-  html[data-theme="tritanopia"] .bg-indigo-600 {
-    background-color: #d946ef !important; /* Magenta puro */
-  }
-  html[data-theme="tritanopia"] .text-indigo-400 {
-    color: #f472b6 !important;
-  }
-  html[data-theme="tritanopia"] .text-emerald-400 {
-    color: #2dd4bf !important; /* Verde azulado */
-  }
-
-  /* 3. Tema Alto Contraste Extremo (Baja Visión OLED) */
-  html[data-theme="high-contrast"] body {
-    background-color: #000000 !important;
-    color: #ffffff !important;
-  }
-  html[data-theme="high-contrast"] .bg-slate-950,
-  html[data-theme="high-contrast"] .bg-slate-900,
-  html[data-theme="high-contrast"] .bg-slate-800 {
-    background-color: #000000 !important;
-    border-color: #facc15 !important; /* Borde amarillo brillante 100% visible */
-    border-width: 2px !important;
-  }
-  html[data-theme="high-contrast"] button {
-    border-width: 2px !important;
-    font-weight: 700 !important;
-  }
-  html[data-theme="high-contrast"] .text-slate-400,
-  html[data-theme="high-contrast"] .text-slate-500 {
-    color: #e2e8f0 !important;
-  }
-  html[data-theme="high-contrast"] .bg-indigo-600 {
-    background-color: #facc15 !important;
-    color: #000000 !important;
-  }
-
-  /* 4. Tema Luz Suave Diurna (Sin luz azul estridente) */
-  html[data-theme="soft-light"] body {
+  /* ============================================================= */
+  /* TEMA 1: LUZ SUAVE DIURNA (SOFT-LIGHT)                         */
+  /* Máximo contraste, sin fondos oscuros accidentales, WCAG AAA   */
+  /* ============================================================= */
+  html[data-theme="soft-light"] body,
+  html[data-theme="soft-light"] #root,
+  html[data-theme="soft-light"] .min-h-screen {
     background-color: #f8fafc !important;
+    background-image: none !important;
     color: #0f172a !important;
   }
-  html[data-theme="soft-light"] .bg-slate-950 {
+
+  /* Superficies principales (Cards, Header, Paneles) */
+  html[data-theme="soft-light"] header,
+  html[data-theme="soft-light"] nav,
+  html[data-theme="soft-light"] aside,
+  html[data-theme="soft-light"] section,
+  html[data-theme="soft-light"] [class*="bg-slate-950"],
+  html[data-theme="soft-light"] [class*="bg-slate-900"] {
     background-color: #ffffff !important;
-    border-color: #e2e8f0 !important;
+    border-color: #cbd5e1 !important;
+    color: #0f172a !important;
+    box-shadow: 0 4px 16px -2px rgba(15, 23, 42, 0.05) !important;
   }
-  html[data-theme="soft-light"] .bg-slate-900 {
+
+  /* Superficies secundarias (Sub-tarjetas, listas, items) */
+  html[data-theme="soft-light"] [class*="bg-slate-800"],
+  html[data-theme="soft-light"] [class*="bg-slate-700"] {
     background-color: #f1f5f9 !important;
     border-color: #cbd5e1 !important;
     color: #0f172a !important;
   }
-  html[data-theme="soft-light"] .bg-slate-800 {
-    background-color: #e2e8f0 !important;
+
+  /* Bordes generales */
+  html[data-theme="soft-light"] [class*="border-slate-"] {
     border-color: #cbd5e1 !important;
+  }
+
+  /* Tipografías: Contraste profundo y nítido */
+  html[data-theme="soft-light"] [class*="text-white"],
+  html[data-theme="soft-light"] [class*="text-slate-100"],
+  html[data-theme="soft-light"] [class*="text-slate-200"] {
     color: #0f172a !important;
   }
-  html[data-theme="soft-light"] .text-white,
-  html[data-theme="soft-light"] .text-slate-100,
-  html[data-theme="soft-light"] .text-slate-200 {
-    color: #0f172a !important;
-  }
-  html[data-theme="soft-light"] .text-slate-300,
-  html[data-theme="soft-light"] .text-slate-400 {
+  html[data-theme="soft-light"] [class*="text-slate-300"],
+  html[data-theme="soft-light"] [class*="text-slate-400"] {
     color: #334155 !important;
+    font-weight: 600 !important;
   }
-  html[data-theme="soft-light"] .bg-indigo-600 {
+  html[data-theme="soft-light"] [class*="text-slate-500"] {
+    color: #64748b !important;
+  }
+
+  /* Formularios e Inputs */
+  html[data-theme="soft-light"] input,
+  html[data-theme="soft-light"] textarea,
+  html[data-theme="soft-light"] select {
+    background-color: #ffffff !important;
+    border: 1px solid #94a3b8 !important;
+    color: #0f172a !important;
+  }
+  html[data-theme="soft-light"] input::placeholder,
+  html[data-theme="soft-light"] textarea::placeholder {
+    color: #64748b !important;
+    opacity: 1 !important;
+  }
+  html[data-theme="soft-light"] input:focus,
+  html[data-theme="soft-light"] textarea:focus {
+    border-color: #4f46e5 !important;
+    box-shadow: 0 0 0 2px rgba(79, 70, 229, 0.15) !important;
+  }
+
+  /* Botones primarios y pestañas activas */
+  html[data-theme="soft-light"] .bg-indigo-600,
+  html[data-theme="soft-light"] [class*="bg-indigo-600"] {
     background-color: #4f46e5 !important;
     color: #ffffff !important;
+    border-color: #4338ca !important;
+  }
+  html[data-theme="soft-light"] .bg-indigo-600 *,
+  html[data-theme="soft-light"] [class*="bg-indigo-600"] * {
+    color: #ffffff !important;
+  }
+
+  /* Botones secundarios e inactivos */
+  html[data-theme="soft-light"] button[class*="bg-slate-800"],
+  html[data-theme="soft-light"] button[class*="bg-slate-900"] {
+    background-color: #f1f5f9 !important;
+    border: 1px solid #cbd5e1 !important;
+    color: #1e293b !important;
+  }
+  html[data-theme="soft-light"] button[class*="bg-slate-800"]:hover,
+  html[data-theme="soft-light"] button[class*="bg-slate-900"]:hover {
+    background-color: #e2e8f0 !important;
+    color: #0f172a !important;
+  }
+
+  /* Badges y estados de color */
+  html[data-theme="soft-light"] [class*="bg-amber-950"],
+  html[data-theme="soft-light"] [class*="bg-amber-500/"] {
+    background-color: #fef3c7 !important;
+    border-color: #f59e0b !important;
+  }
+  html[data-theme="soft-light"] [class*="text-amber-400"],
+  html[data-theme="soft-light"] [class*="text-amber-300"] {
+    color: #92400e !important;
+  }
+
+  html[data-theme="soft-light"] [class*="bg-emerald-950"],
+  html[data-theme="soft-light"] [class*="bg-emerald-500/"] {
+    background-color: #d1fae5 !important;
+    border-color: #10b981 !important;
+  }
+  html[data-theme="soft-light"] [class*="text-emerald-400"],
+  html[data-theme="soft-light"] [class*="text-emerald-300"] {
+    color: #065f46 !important;
+  }
+
+  html[data-theme="soft-light"] [class*="bg-red-950"],
+  html[data-theme="soft-light"] [class*="bg-red-500/"],
+  html[data-theme="soft-light"] [class*="bg-rose-950"] {
+    background-color: #ffe4e6 !important;
+    border-color: #f43f5e !important;
+  }
+  html[data-theme="soft-light"] [class*="text-red-400"],
+  html[data-theme="soft-light"] [class*="text-rose-400"] {
+    color: #9f1239 !important;
+  }
+
+  html[data-theme="soft-light"] [class*="text-indigo-400"],
+  html[data-theme="soft-light"] [class*="text-indigo-300"] {
+    color: #4338ca !important;
+  }
+
+  /* ============================================================= */
+  /* TEMA 2: ALTO CONTRASTE EXTREMO (HIGH-CONTRAST OLED)           */
+  /* Negro absoluto, bordes amarillo neón, texto hipervisible      */
+  /* ============================================================= */
+  html[data-theme="high-contrast"] body,
+  html[data-theme="high-contrast"] #root,
+  html[data-theme="high-contrast"] .min-h-screen {
+    background-color: #000000 !important;
+    background-image: none !important;
+    color: #ffffff !important;
+  }
+
+  html[data-theme="high-contrast"] header,
+  html[data-theme="high-contrast"] nav,
+  html[data-theme="high-contrast"] aside,
+  html[data-theme="high-contrast"] section,
+  html[data-theme="high-contrast"] [class*="bg-slate-950"],
+  html[data-theme="high-contrast"] [class*="bg-slate-900"],
+  html[data-theme="high-contrast"] [class*="bg-slate-800"] {
+    background-color: #000000 !important;
+    border-color: #facc15 !important;
+    border-width: 2px !important;
+    color: #ffffff !important;
+  }
+
+  html[data-theme="high-contrast"] [class*="border-slate-"] {
+    border-color: #facc15 !important;
+    border-width: 2px !important;
+  }
+
+  html[data-theme="high-contrast"] input,
+  html[data-theme="high-contrast"] textarea,
+  html[data-theme="high-contrast"] select {
+    background-color: #000000 !important;
+    border: 2px solid #facc15 !important;
+    color: #ffffff !important;
+  }
+  html[data-theme="high-contrast"] input::placeholder,
+  html[data-theme="high-contrast"] textarea::placeholder {
+    color: #fef08a !important;
+    opacity: 1 !important;
+  }
+
+  html[data-theme="high-contrast"] [class*="text-white"],
+  html[data-theme="high-contrast"] [class*="text-slate-100"],
+  html[data-theme="high-contrast"] [class*="text-slate-200"],
+  html[data-theme="high-contrast"] [class*="text-slate-300"],
+  html[data-theme="high-contrast"] [class*="text-slate-400"],
+  html[data-theme="high-contrast"] [class*="text-slate-500"] {
+    color: #ffffff !important;
+  }
+
+  html[data-theme="high-contrast"] .bg-indigo-600,
+  html[data-theme="high-contrast"] [class*="bg-indigo-600"] {
+    background-color: #facc15 !important;
+    color: #000000 !important;
+    border: 2px solid #ffffff !important;
+  }
+  html[data-theme="high-contrast"] .bg-indigo-600 *,
+  html[data-theme="high-contrast"] [class*="bg-indigo-600"] * {
+    color: #000000 !important;
+    font-weight: 900 !important;
+  }
+
+  html[data-theme="high-contrast"] [class*="text-amber-"],
+  html[data-theme="high-contrast"] [class*="text-yellow-"] {
+    color: #fef08a !important;
+  }
+  html[data-theme="high-contrast"] [class*="text-emerald-"],
+  html[data-theme="high-contrast"] [class*="text-green-"] {
+    color: #86efac !important;
+  }
+  html[data-theme="high-contrast"] [class*="text-red-"],
+  html[data-theme="high-contrast"] [class*="text-rose-"] {
+    color: #fca5a5 !important;
+  }
+
+  /* ============================================================= */
+  /* TEMA 3: ACCESIBLE DALTONISMO PROTAN/DEUTAN (OKABE-ITO)        */
+  /* Azul cobalto, ámbar oro y cyan (sin confusión rojo/verde)     */
+  /* ============================================================= */
+  html[data-theme="colorblind-safe"] body,
+  html[data-theme="colorblind-safe"] #root,
+  html[data-theme="colorblind-safe"] .min-h-screen {
+    background-color: #050a14 !important;
+    background-image: none !important;
+    color: #f8fafc !important;
+  }
+
+  html[data-theme="colorblind-safe"] [class*="bg-slate-950"] {
+    background-color: #070e1b !important;
+    border-color: #1e3a8a !important;
+  }
+  html[data-theme="colorblind-safe"] [class*="bg-slate-900"] {
+    background-color: #0d1728 !important;
+    border-color: #2563eb60 !important;
+  }
+  html[data-theme="colorblind-safe"] [class*="bg-slate-800"] {
+    background-color: #14223b !important;
+    border-color: #3b82f640 !important;
+  }
+
+  html[data-theme="colorblind-safe"] input,
+  html[data-theme="colorblind-safe"] textarea,
+  html[data-theme="colorblind-safe"] select {
+    background-color: #080f1e !important;
+    border-color: #3b82f680 !important;
+    color: #f8fafc !important;
+  }
+  html[data-theme="colorblind-safe"] input::placeholder,
+  html[data-theme="colorblind-safe"] textarea::placeholder {
+    color: #93c5fd !important;
+    opacity: 0.8 !important;
+  }
+
+  html[data-theme="colorblind-safe"] [class*="text-white"],
+  html[data-theme="colorblind-safe"] [class*="text-slate-100"] {
+    color: #ffffff !important;
+  }
+  html[data-theme="colorblind-safe"] [class*="text-slate-200"],
+  html[data-theme="colorblind-safe"] [class*="text-slate-300"] {
+    color: #e2e8f0 !important;
+  }
+  html[data-theme="colorblind-safe"] [class*="text-slate-400"] {
+    color: #93c5fd !important;
+  }
+  html[data-theme="colorblind-safe"] [class*="text-slate-500"] {
+    color: #60a5fa !important;
+  }
+
+  html[data-theme="colorblind-safe"] .bg-indigo-600,
+  html[data-theme="colorblind-safe"] [class*="bg-indigo-600"] {
+    background-color: #2563eb !important;
+    color: #ffffff !important;
+  }
+  html[data-theme="colorblind-safe"] [class*="text-emerald-400"],
+  html[data-theme="colorblind-safe"] [class*="text-emerald-300"] {
+    color: #38bdf8 !important; /* Cyan */
+  }
+  html[data-theme="colorblind-safe"] [class*="text-red-400"],
+  html[data-theme="colorblind-safe"] [class*="text-rose-400"] {
+    color: #fb923c !important; /* Naranja seguro */
+  }
+  html[data-theme="colorblind-safe"] [class*="text-amber-400"],
+  html[data-theme="colorblind-safe"] [class*="text-amber-300"] {
+    color: #f59e0b !important; /* Oro puro */
+  }
+
+  /* ============================================================= */
+  /* TEMA 4: TRITANOPÍA (AZUL-AMARILLO SEGURO)                     */
+  /* Magenta radiante, teal y lavanda de alto contraste            */
+  /* ============================================================= */
+  html[data-theme="tritanopia"] body,
+  html[data-theme="tritanopia"] #root,
+  html[data-theme="tritanopia"] .min-h-screen {
+    background-color: #090511 !important;
+    background-image: none !important;
+    color: #faf5ff !important;
+  }
+
+  html[data-theme="tritanopia"] [class*="bg-slate-950"] {
+    background-color: #0e0a18 !important;
+    border-color: #701a75 !important;
+  }
+  html[data-theme="tritanopia"] [class*="bg-slate-900"] {
+    background-color: #171126 !important;
+    border-color: #c026d350 !important;
+  }
+  html[data-theme="tritanopia"] [class*="bg-slate-800"] {
+    background-color: #221838 !important;
+    border-color: #d946ef40 !important;
+  }
+
+  html[data-theme="tritanopia"] input,
+  html[data-theme="tritanopia"] textarea,
+  html[data-theme="tritanopia"] select {
+    background-color: #100a1d !important;
+    border-color: #d946ef70 !important;
+    color: #faf5ff !important;
+  }
+  html[data-theme="tritanopia"] input::placeholder,
+  html[data-theme="tritanopia"] textarea::placeholder {
+    color: #e879f9 !important;
+    opacity: 0.8 !important;
+  }
+
+  html[data-theme="tritanopia"] .bg-indigo-600,
+  html[data-theme="tritanopia"] [class*="bg-indigo-600"] {
+    background-color: #c026d3 !important;
+    color: #ffffff !important;
+  }
+  html[data-theme="tritanopia"] [class*="text-indigo-400"] {
+    color: #f472b6 !important;
+  }
+  html[data-theme="tritanopia"] [class*="text-emerald-400"] {
+    color: #2dd4bf !important;
+  }
+  html[data-theme="tritanopia"] [class*="text-amber-400"],
+  html[data-theme="tritanopia"] [class*="text-yellow-400"] {
+    color: #f43f5e !important;
+  }
+
+  /* ============================================================= */
+  /* TEMA 5: OBSIDIAN DARK (EJECUTIVO PREDETERMINADO)              */
+  /* Calibración fina de contrastes para legibilidad impecable     */
+  /* ============================================================= */
+  html[data-theme="obsidian"] [class*="text-slate-400"] {
+    color: #94a3b8 !important;
+  }
+  html[data-theme="obsidian"] [class*="text-slate-500"] {
+    color: #64748b !important;
   }
 }
 
