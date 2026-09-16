@@ -23,7 +23,7 @@ const isMobileDevice = () => {
     || (window.innerWidth <= 768);
 };
 
-export default function AudioRecorder({ onMeetingProcessed }) {
+export default function AudioRecorder({ onMeetingProcessed, onRecordingStatusChange, externalNotebookNotes, recorderRef }) {
   const [activeTab, setActiveTab] = useState('record'); // 'record' | 'upload' | 'text'
   const [isRecording, setIsRecording] = useState(false);
   const [recordingTime, setRecordingTime] = useState(0);
@@ -96,6 +96,30 @@ export default function AudioRecorder({ onMeetingProcessed }) {
       isAnalyzing: isAnalyzingLive
     };
   }, [liveTranscript, liveDecisions, liveActionItems, liveAdvice, liveSummary, meetingTitle, isRecording, isAnalyzingLive]);
+
+  // Sincronización continua de estado con la aplicación y Dynamic Island
+  useEffect(() => {
+    if (recorderRef) {
+      recorderRef.current = {
+        stopAndFinalize: stopAndFinalizeRecording,
+        triggerAnalysis: triggerLiveAnalysis
+      };
+    }
+  }, [meetingTitle, liveDecisions, liveActionItems, liveSummary, liveTranscript]);
+
+  useEffect(() => {
+    if (onRecordingStatusChange) {
+      onRecordingStatusChange({
+        isRecording,
+        recordingTime,
+        audioLevel,
+        decisionsCount: liveDecisions.length,
+        actionItemsCount: liveActionItems.length,
+        title: meetingTitle || 'Reunión en vivo',
+        stopAndFinalize: stopAndFinalizeRecording
+      });
+    }
+  }, [isRecording, recordingTime, audioLevel, liveDecisions.length, liveActionItems.length, meetingTitle]);
 
   // 1. Verificacion de grabaciones no finalizadas en IndexedDB al cargar
   useEffect(() => {
@@ -305,7 +329,9 @@ export default function AudioRecorder({ onMeetingProcessed }) {
       return;
     }
 
-    const notesToUse = typeof explicitNotes === 'string' ? explicitNotes : (current.userNotes || '');
+    const externalNotes = typeof externalNotebookNotes === 'string' ? externalNotebookNotes : '';
+    const internalNotes = typeof explicitNotes === 'string' ? explicitNotes : (current.userNotes || '');
+    const notesToUse = [internalNotes, externalNotes].filter(Boolean).join('\n\n');
     const userNotesText = notesToUse.trim();
     const textToAnalyze = (current.transcript || '').trim();
     const hasAudio = audioChunksRef.current && audioChunksRef.current.length > 0;

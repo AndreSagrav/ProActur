@@ -16,6 +16,7 @@ import CalendarView from './components/CalendarView';
 import EventModal from './components/EventModal';
 import NotebookList from './components/NotebookList';
 import NoteEditor from './components/NoteEditor';
+import ExecutiveNotebook from './components/ExecutiveNotebook';
 
 const API = import.meta.env.VITE_API_URL || '';
 
@@ -40,6 +41,19 @@ export default function App() {
   const [eventModalOpen, setEventModalOpen] = useState(false);
   const [editingEvent, setEditingEvent] = useState(null);
   const [eventInitialDate, setEventInitialDate] = useState(null);
+
+  // Estado de Grabación Persistente en 2do Plano (Zero-Interrupción)
+  const recorderRef = useRef(null);
+  const [recordingState, setRecordingState] = useState({
+    isRecording: false,
+    recordingTime: 0,
+    audioLevel: 0,
+    decisionsCount: 0,
+    actionItemsCount: 0,
+    title: ''
+  });
+  const [executiveNotebookText, setExecutiveNotebookText] = useState('');
+  const [notebookViewMode, setNotebookViewMode] = useState('executive'); // 'executive' | 'list'
 
   // Notebook state
   const [selectedNote, setSelectedNote] = useState(null);
@@ -156,7 +170,27 @@ export default function App() {
   };
 
   // Notebook handlers
-  const handleNewNote = (linkedMeeting = null) => {
+    const handleSaveExecutiveNote = async (noteData) => {
+    try {
+      const res = await fetch(`${API}/api/notes`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: noteData.title,
+          content: noteData.content,
+          meetingId: selectedMeeting?.id || null,
+          tags: ['cuaderno-ejecutivo', noteData.paperStyle]
+        })
+      });
+      if (res.ok) {
+        // Recargar notas si se desea
+      }
+    } catch (e) {
+      console.error('Error guardando nota ejecutiva:', e);
+    }
+  };
+
+const handleNewNote = (linkedMeeting = null) => {
     setSelectedNote(null);
     setLinkedMeetingForNote(linkedMeeting);
     setIsEditingNote(true);
@@ -336,17 +370,68 @@ export default function App() {
       </header>
 
       {/* Contenedor Principal Adaptativo */}
-      <main className="max-w-7xl mx-auto px-3 sm:px-6 py-4 sm:py-6 flex-1 w-full">
+      <main className="max-w-7xl mx-auto px-3 sm:px-6 py-4 sm:py-6 flex-1 w-full relative">
+        {/* PÍLDORA DINÁMICA FLOTANTE (DYNAMIC ISLAND): Grabación e IA activas en 2do plano */}
+        {recordingState.isRecording && activeTab !== 'meetings' && (
+          <div className="sticky top-2 z-50 max-w-xl mx-auto px-2 mb-4 animate-fade-in">
+            <div className="bg-slate-950/95 border border-red-500/50 rounded-full px-4 sm:px-5 py-2.5 shadow-2xl shadow-red-500/20 backdrop-blur-2xl flex items-center justify-between gap-2.5">
+              <div className="flex items-center gap-2.5 min-w-0">
+                <span className="relative flex h-3 w-3 shrink-0">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-3 w-3 bg-red-500"></span>
+                </span>
+                <span className="font-mono font-black text-slate-100 text-xs sm:text-sm shrink-0">
+                  {Math.floor(recordingState.recordingTime / 60).toString().padStart(2, '0')}:{(recordingState.recordingTime % 60).toString().padStart(2, '0')}
+                </span>
+                <div className="hidden sm:flex items-center gap-0.5 h-3.5 w-10 shrink-0">
+                  {[...Array(6)].map((_, i) => (
+                    <span
+                      key={i}
+                      className={`w-1 rounded-full transition-all duration-75 ${
+                        recordingState.audioLevel > i * 16 ? 'bg-red-400 h-3.5' : 'bg-slate-800 h-1'
+                      }`}
+                    />
+                  ))}
+                </div>
+                <span className="text-[11px] text-slate-300 font-medium truncate">
+                  {recordingState.decisionsCount > 0 ? `${recordingState.decisionsCount} acuerdos en vivo` : 'IA escuchando...'}
+                </span>
+              </div>
+
+              <div className="flex items-center gap-1.5 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('meetings')}
+                  className="px-3 py-1.5 rounded-full bg-slate-800 hover:bg-slate-700 text-indigo-300 font-bold text-xs border border-slate-700 transition-all active:scale-95 shadow-sm"
+                >
+                  Ver Reunión
+                </button>
+                <button
+                  type="button"
+                  onClick={() => recorderRef.current?.stopAndFinalize?.()}
+                  className="px-3 py-1.5 rounded-full bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 hover:to-rose-500 text-white font-bold text-xs shadow-md transition-all active:scale-95"
+                >
+                  Finalizar
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
         {/* =================================================================== */}
         {/* PESTAÑA: REUNIONES                                                  */}
         {/* =================================================================== */}
-        {activeTab === 'meetings' && (
+        <div className={activeTab === 'meetings' ? 'block' : 'hidden'}>
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 sm:gap-6">
             {/* Columna Izquierda: Grabadora + Lista de Reuniones (Desktop o Movil si no hay detalle) */}
             <aside className={`lg:col-span-4 flex flex-col gap-4 ${showMobileDetail ? 'hidden lg:flex' : 'flex'}`}>
               {/* Grabador de Audio siempre visible en el listado para movil y desktop */}
               <div className="lg:hidden">
-                <AudioRecorder onMeetingProcessed={handleMeetingProcessed} />
+                <AudioRecorder
+                  onMeetingProcessed={handleMeetingProcessed}
+                  onRecordingStatusChange={(st) => setRecordingState(st)}
+                  externalNotebookNotes={executiveNotebookText}
+                  recorderRef={recorderRef}
+                />
               </div>
 
               {/* Encabezado de Historial con Buscador */}
@@ -444,10 +529,15 @@ export default function App() {
 
               {/* Grabador en desktop */}
               <div className="hidden lg:block">
-                <AudioRecorder onMeetingProcessed={handleMeetingProcessed} />
+                <AudioRecorder
+                  onMeetingProcessed={handleMeetingProcessed}
+                  onRecordingStatusChange={(st) => setRecordingState(st)}
+                  externalNotebookNotes={executiveNotebookText}
+                  recorderRef={recorderRef}
+                />
               </div>
 
-              {/* Detalle de reunión seleccionada */}
+                            {/* Detalle de reunión seleccionada */}
               {selectedMeeting && (
                 <MeetingDetails
                   meeting={selectedMeeting}
@@ -459,7 +549,7 @@ export default function App() {
               )}
             </section>
           </div>
-        )}
+        </div>
 
         {/* =================================================================== */}
         {/* PESTAÑA: AGENDA / CALENDARIO                                        */}
@@ -489,27 +579,85 @@ export default function App() {
         {/* =================================================================== */}
         {/* PESTAÑA: LIBRETA CANVAS                                             */}
         {/* =================================================================== */}
+        {/* PESTAÑA: LIBRETA / CUADERNO EJECUTIVO                               */}
+        {/* =================================================================== */}
         {activeTab === 'notebook' && (
-          <div className="w-full">
-            {isEditingNote ? (
-              <div className="bg-slate-900/90 border border-slate-800 rounded-2xl shadow-xl overflow-hidden min-h-[75vh]">
-                <NoteEditor
-                  note={selectedNote}
-                  linkedMeeting={linkedMeetingForNote}
-                  meetings={meetings}
-                  onSave={handleNoteSaved}
-                  onClose={() => {
-                    setIsEditingNote(false);
-                    setSelectedNote(null);
-                    setLinkedMeetingForNote(null);
-                  }}
-                />
+          <div className="w-full space-y-4">
+            {/* Selector de Vista: Cuaderno Fino vs Archivo de Notas */}
+            <div className="flex items-center justify-between bg-slate-900/80 border border-slate-800/80 rounded-2xl p-2 px-3 backdrop-blur-md">
+              <div className="flex items-center gap-1 sm:gap-2">
+                <button
+                  type="button"
+                  onClick={() => setNotebookViewMode('executive')}
+                  className={`flex items-center gap-1.5 px-3 sm:px-4 py-1.5 sm:py-2 rounded-xl text-xs sm:text-sm font-bold transition-all ${
+                    notebookViewMode === 'executive'
+                      ? 'bg-gradient-to-r from-amber-500 to-indigo-600 text-white shadow-md shadow-indigo-500/20'
+                      : 'text-slate-400 hover:text-slate-200'
+                  }`}
+                >
+                  <BookOpen className="w-4 h-4" />
+                  <span>Cuaderno Ejecutivo</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setNotebookViewMode('list')}
+                  className={`flex items-center gap-1.5 px-3 sm:px-4 py-1.5 sm:py-2 rounded-xl text-xs sm:text-sm font-bold transition-all ${
+                    notebookViewMode === 'list'
+                      ? 'bg-slate-800 text-indigo-300 shadow-md'
+                      : 'text-slate-400 hover:text-slate-200'
+                  }`}
+                >
+                  <FileText className="w-4 h-4" />
+                  <span>Archivo de Notas</span>
+                </button>
               </div>
-            ) : (
-              <NotebookList
-                onSelectNote={handleSelectNote}
-                onNewNote={() => handleNewNote()}
+
+              {recordingState.isRecording && (
+                <div className="flex items-center gap-2">
+                  <span className="relative flex h-2.5 w-2.5">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-red-500"></span>
+                  </span>
+                  <span className="text-xs text-red-400 font-bold hidden sm:inline">
+                    Reunión en vivo activa
+                  </span>
+                </div>
+              )}
+            </div>
+
+            {notebookViewMode === 'executive' ? (
+              <ExecutiveNotebook
+                initialContent={executiveNotebookText}
+                onContentChange={(val) => setExecutiveNotebookText(val)}
+                activeMeeting={selectedMeeting || (recordingState.isRecording ? { title: recordingState.title } : null)}
+                isRecordingActive={recordingState.isRecording}
+                recordingTime={recordingState.recordingTime}
+                onSaveToNotes={handleSaveExecutiveNote}
               />
+            ) : (
+              <div className="w-full">
+                {isEditingNote ? (
+                  <div className="bg-slate-900/90 border border-slate-800 rounded-2xl shadow-xl overflow-hidden min-h-[75vh]">
+                    <NoteEditor
+                      note={selectedNote}
+                      linkedMeeting={linkedMeetingForNote}
+                      meetings={meetings}
+                      onSave={handleNoteSaved}
+                      onClose={() => {
+                        setIsEditingNote(false);
+                        setSelectedNote(null);
+                        setLinkedMeetingForNote(null);
+                      }}
+                    />
+                  </div>
+                ) : (
+                  <NotebookList
+                    onSelectNote={handleSelectNote}
+                    onNewNote={() => handleNewNote()}
+                  />
+                )}
+              </div>
             )}
           </div>
         )}
