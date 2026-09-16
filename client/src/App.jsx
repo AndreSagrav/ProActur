@@ -236,7 +236,7 @@ const handleNewNote = (linkedMeeting = null) => {
   const TABS = [
     { key: 'meetings', label: 'Reuniones', icon: FileText },
     { key: 'chat', label: 'Chat con IA', icon: Brain },
-    { key: 'notebook', label: 'Libreta Canvas', icon: BookOpen },
+    { key: 'notebook', label: 'Cuaderno Ejecutivo', icon: BookOpen },
     { key: 'calendar', label: 'Agenda', icon: Calendar },
   ];
 
@@ -420,6 +420,7 @@ const handleNewNote = (linkedMeeting = null) => {
                   onRecordingStatusChange={(st) => setRecordingState(st)}
                   externalNotebookNotes={executiveNotebookText}
                   recorderRef={recorderRef}
+                  onOpenNotebook={() => setActiveTab('notebook')}
                 />
               </div>
 
@@ -523,6 +524,7 @@ const handleNewNote = (linkedMeeting = null) => {
                   onRecordingStatusChange={(st) => setRecordingState(st)}
                   externalNotebookNotes={executiveNotebookText}
                   recorderRef={recorderRef}
+                  onOpenNotebook={() => setActiveTab('notebook')}
                 />
               </div>
 

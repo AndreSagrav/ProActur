@@ -3,7 +3,7 @@ import HandwritingCanvas from './HandwritingCanvas';
 import {
   Mic, Square, Upload, FileText, Loader2, Sparkles, Volume2, AlertCircle,
   CheckCircle2, CheckSquare, Clock, Zap, Brain, ShieldAlert, ArrowRight,
-  RotateCcw, ShieldCheck, Trash2, PenTool, Keyboard
+  RotateCcw, ShieldCheck, Trash2, PenTool, Keyboard, BookOpen
 } from 'lucide-react';
 
 import {
@@ -23,7 +23,7 @@ const isMobileDevice = () => {
     || (window.innerWidth <= 768);
 };
 
-export default function AudioRecorder({ onMeetingProcessed, onRecordingStatusChange, externalNotebookNotes, recorderRef }) {
+export default function AudioRecorder({ onMeetingProcessed, onRecordingStatusChange, externalNotebookNotes, recorderRef, onOpenNotebook }) {
   const [activeTab, setActiveTab] = useState('record'); // 'record' | 'upload' | 'text'
   const [isRecording, setIsRecording] = useState(false);
   const [recordingTime, setRecordingTime] = useState(0);
@@ -831,6 +831,18 @@ export default function AudioRecorder({ onMeetingProcessed, onRecordingStatusCha
             <FileText className="w-4 h-4" />
             Pegar Minuta / Notas
           </button>
+
+          {onOpenNotebook && (
+            <button
+              type="button"
+              onClick={onOpenNotebook}
+              className="flex items-center gap-1.5 px-3 sm:px-4 py-2 text-xs sm:text-sm font-bold text-amber-300 hover:text-amber-200 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 rounded-xl transition-all whitespace-nowrap ml-auto shadow-sm"
+              title="Abrir Cuaderno Ejecutivo Digital"
+            >
+              <BookOpen className="w-4 h-4 text-amber-400" />
+              <span>Abrir Cuaderno Fino</span>
+            </button>
+          )}
         </div>
       )}
 
@@ -1011,6 +1023,28 @@ export default function AudioRecorder({ onMeetingProcessed, onRecordingStatusCha
 
                 {/* Sub-barra de Modo de Entrada (Solo cuando la pestaña Notas está activa) */}
                 {activeLiveTab === 'notes' && (
+                  <div className="space-y-3">
+                    {onOpenNotebook && (
+                      <div className="p-3.5 bg-gradient-to-r from-amber-500/10 via-indigo-600/10 to-violet-600/10 border border-indigo-500/30 rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-3 shadow-md">
+                        <div className="flex items-center gap-2.5">
+                          <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-amber-500 to-indigo-600 flex items-center justify-center text-white shadow shrink-0">
+                            <BookOpen className="w-4 h-4" />
+                          </div>
+                          <div>
+                            <h4 className="text-xs font-bold text-slate-100">¿Deseas la experiencia de Cuaderno Fino?</h4>
+                            <p className="text-[11px] text-slate-400">Renglones Oxford, caligrafía suave, tablas y mapas mentales en 1er plano. La reunión sigue en 2do plano.</p>
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={onOpenNotebook}
+                          className="w-full sm:w-auto px-4 py-2 rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 text-white text-xs font-black shadow-lg shadow-indigo-500/25 transition-all shrink-0 active:scale-95 flex items-center justify-center gap-1.5"
+                        >
+                          <BookOpen className="w-3.5 h-3.5 text-amber-300" />
+                          <span>Abrir Cuaderno Completo</span>
+                        </button>
+                      </div>
+                    )}
                   <div className="flex items-center justify-between gap-2 px-1 pt-0.5">
                     <span className="text-[11px] sm:text-xs font-semibold text-slate-400">
                       Modo de escritura:
@@ -1041,6 +1075,7 @@ export default function AudioRecorder({ onMeetingProcessed, onRecordingStatusCha
                         <span>Lápiz Canvas</span>
                       </button>
                     </div>
+                  </div>
                   </div>
                 )}
 
