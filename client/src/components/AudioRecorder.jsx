@@ -804,71 +804,67 @@ export default function AudioRecorder({ onMeetingProcessed, onRecordingStatusCha
         </div>
       )}
 
-      {/* Selector de Entrada y Acciones Ejecutivas */}
+      {/* Selector de Modo de Entrada (Segmented Control 100% Responsivo y Simétrico) */}
       {!isRecording && (
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800/80 pb-3 mb-5">
-          {/* Tabs de Modo de Entrada */}
-          <div className="inline-flex items-center p-1 bg-slate-950/70 border border-slate-800/80 rounded-xl overflow-x-auto gap-1">
-            <button
-              type="button"
-              onClick={() => setActiveTab('record')}
-              className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs sm:text-sm font-semibold transition-all whitespace-nowrap ${
-                activeTab === 'record'
-                  ? 'bg-indigo-600 text-white shadow-sm'
-                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900/60'
-              }`}
-            >
-              <Mic className="w-3.5 h-3.5" />
-              <span>Grabar en Vivo</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => setActiveTab('upload')}
-              className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs sm:text-sm font-semibold transition-all whitespace-nowrap ${
-                activeTab === 'upload'
-                  ? 'bg-indigo-600 text-white shadow-sm'
-                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900/60'
-              }`}
-            >
-              <Upload className="w-3.5 h-3.5" />
-              <span>Subir Audio</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => setActiveTab('text')}
-              className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs sm:text-sm font-semibold transition-all whitespace-nowrap ${
-                activeTab === 'text'
-                  ? 'bg-indigo-600 text-white shadow-sm'
-                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900/60'
-              }`}
-            >
-              <FileText className="w-3.5 h-3.5" />
-              <span>Pegar Minuta</span>
-            </button>
-          </div>
-
-          {/* Acceso a Cuaderno Ejecutivo */}
-          {onOpenNotebook && (
-            <button
-              type="button"
-              onClick={onOpenNotebook}
-              className="flex items-center justify-center gap-2 px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-amber-500/15 via-indigo-500/10 to-amber-500/15 hover:from-amber-500/25 hover:to-indigo-500/25 border border-amber-500/35 hover:border-amber-400/50 text-amber-300 hover:text-amber-200 text-xs font-bold shadow-sm transition-all shrink-0 active:scale-95 group self-start sm:self-auto"
-              title="Abrir Cuaderno Ejecutivo Digital en Pantalla Completa"
-            >
-              <BookOpen className="w-4 h-4 text-amber-400 group-hover:scale-110 transition-transform" />
-              <span>Cuaderno Ejecutivo</span>
-              <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-amber-400/20 text-amber-200 font-mono tracking-wide">Fino</span>
-            </button>
-          )}
+        <div className="w-full grid grid-cols-3 p-1 bg-slate-950/80 border border-slate-800/80 rounded-2xl mb-4 shadow-inner">
+          <button
+            type="button"
+            onClick={() => setActiveTab('record')}
+            className={`flex items-center justify-center gap-1.5 py-2.5 px-2 rounded-xl text-xs sm:text-sm font-bold transition-all ${
+              activeTab === 'record'
+                ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/30'
+                : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900/60'
+            }`}
+          >
+            <Mic className="w-4 h-4 shrink-0" />
+            <span className="truncate">En Vivo</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab('upload')}
+            className={`flex items-center justify-center gap-1.5 py-2.5 px-2 rounded-xl text-xs sm:text-sm font-bold transition-all ${
+              activeTab === 'upload'
+                ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/30'
+                : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900/60'
+            }`}
+          >
+            <Upload className="w-4 h-4 shrink-0" />
+            <span className="truncate">Subir Audio</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab('text')}
+            className={`flex items-center justify-center gap-1.5 py-2.5 px-2 rounded-xl text-xs sm:text-sm font-bold transition-all ${
+              activeTab === 'text'
+                ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/30'
+                : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900/60'
+            }`}
+          >
+            <FileText className="w-4 h-4 shrink-0" />
+            <span className="truncate">Minuta</span>
+          </button>
         </div>
       )}
 
-      {/* Titulo de la reunion */}
+      {/* Titulo de la reunion con Acceso a Cuaderno Integrado */}
       {!isRecording && (
         <div className="mb-4">
-          <label className="block text-[11px] uppercase tracking-wider text-slate-400 font-semibold mb-1.5">
-            Titulo de la Reunion (Opcional)
-          </label>
+          <div className="flex items-center justify-between gap-2 mb-1.5">
+            <label className="block text-[11px] uppercase tracking-wider text-slate-400 font-semibold truncate">
+              Título de la Reunión (Opcional)
+            </label>
+            {onOpenNotebook && (
+              <button
+                type="button"
+                onClick={onOpenNotebook}
+                className="inline-flex items-center gap-1.5 text-xs text-amber-400 hover:text-amber-300 font-bold transition-all active:scale-95 shrink-0 group px-2 py-0.5 rounded-lg hover:bg-amber-500/10"
+                title="Abrir cuaderno ejecutivo de notas en pantalla completa"
+              >
+                <BookOpen className="w-3.5 h-3.5 text-amber-400 group-hover:scale-110 transition-transform" />
+                <span>Abrir Cuaderno Fino</span>
+              </button>
+            )}
+          </div>
           <input
             type="text"
             value={meetingTitle}

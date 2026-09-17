@@ -756,7 +756,7 @@ const handleNewNote = (linkedMeeting = null) => {
       {/* =================================================================== */}
       {/* BARRA DE NAVEGACION INFERIOR PARA MOVILES Y TABLETS (< md)          */}
       {/* =================================================================== */}
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-slate-950/95 backdrop-blur-2xl border-t border-slate-800/80 px-2 py-1 safe-bottom shadow-2xl">
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-slate-950/95 backdrop-blur-2xl border-t border-slate-800/80 px-2 pt-1.5 pb-4 safe-bottom shadow-2xl">
         <div className="grid grid-cols-4 items-center">
           {/* 1. Reuniones */}
           <button
