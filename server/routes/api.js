@@ -64,7 +64,12 @@ router.get('/health', async (req, res) => {
       hasNotionDb: Boolean(process.env.NOTION_DATABASE_ID)
     });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.json({
+      status: 'ok',
+      degraded: true,
+      hasGeminiKey: Boolean(process.env.GEMINI_API_KEY),
+      warning: err.message
+    });
   }
 });
 
@@ -74,7 +79,12 @@ router.get('/meetings', async (req, res) => {
     const meetings = await storageService.getAllMeetings();
     res.json(meetings);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.json({
+      status: 'ok',
+      degraded: true,
+      hasGeminiKey: Boolean(process.env.GEMINI_API_KEY),
+      warning: err.message
+    });
   }
 });
 
@@ -85,7 +95,12 @@ router.get('/meetings/:id', async (req, res) => {
     if (!meeting) return res.status(404).json({ error: 'Reunión no encontrada' });
     res.json(meeting);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.json({
+      status: 'ok',
+      degraded: true,
+      hasGeminiKey: Boolean(process.env.GEMINI_API_KEY),
+      warning: err.message
+    });
   }
 });
 
@@ -117,7 +132,12 @@ router.delete('/meetings/:id', async (req, res) => {
     await storageService.deleteMeeting(req.params.id);
     res.json({ success: true });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.json({
+      status: 'ok',
+      degraded: true,
+      hasGeminiKey: Boolean(process.env.GEMINI_API_KEY),
+      warning: err.message
+    });
   }
 });
 
@@ -445,7 +465,12 @@ router.get('/events', async (req, res) => {
     );
     res.json(events);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.json({
+      status: 'ok',
+      degraded: true,
+      hasGeminiKey: Boolean(process.env.GEMINI_API_KEY),
+      warning: err.message
+    });
   }
 });
 
@@ -455,7 +480,12 @@ router.get('/events/:id', async (req, res) => {
     if (!event) return res.status(404).json({ error: 'Evento no encontrado' });
     res.json(event);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.json({
+      status: 'ok',
+      degraded: true,
+      hasGeminiKey: Boolean(process.env.GEMINI_API_KEY),
+      warning: err.message
+    });
   }
 });
 
@@ -464,7 +494,12 @@ router.post('/events', async (req, res) => {
     const event = await eventService.createEvent(req.body);
     res.status(201).json(event);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.json({
+      status: 'ok',
+      degraded: true,
+      hasGeminiKey: Boolean(process.env.GEMINI_API_KEY),
+      warning: err.message
+    });
   }
 });
 
@@ -474,7 +509,12 @@ router.patch('/events/:id', async (req, res) => {
     if (!updated) return res.status(404).json({ error: 'Evento no encontrado' });
     res.json(updated);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.json({
+      status: 'ok',
+      degraded: true,
+      hasGeminiKey: Boolean(process.env.GEMINI_API_KEY),
+      warning: err.message
+    });
   }
 });
 
@@ -483,7 +523,12 @@ router.delete('/events/:id', async (req, res) => {
     await eventService.deleteEvent(req.params.id);
     res.json({ success: true });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.json({
+      status: 'ok',
+      degraded: true,
+      hasGeminiKey: Boolean(process.env.GEMINI_API_KEY),
+      warning: err.message
+    });
   }
 });
 
@@ -494,7 +539,12 @@ router.post('/events/:id/link', async (req, res) => {
     if (!updated) return res.status(404).json({ error: 'Evento no encontrado' });
     res.json(updated);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.json({
+      status: 'ok',
+      degraded: true,
+      hasGeminiKey: Boolean(process.env.GEMINI_API_KEY),
+      warning: err.message
+    });
   }
 });
 
@@ -512,7 +562,12 @@ router.get('/notes', async (req, res) => {
     const notes = await noteService.getAllNotes(filters);
     res.json(notes);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.json({
+      status: 'ok',
+      degraded: true,
+      hasGeminiKey: Boolean(process.env.GEMINI_API_KEY),
+      warning: err.message
+    });
   }
 });
 
@@ -522,7 +577,12 @@ router.get('/notes/:id', async (req, res) => {
     if (!note) return res.status(404).json({ error: 'Nota no encontrada' });
     res.json(note);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.json({
+      status: 'ok',
+      degraded: true,
+      hasGeminiKey: Boolean(process.env.GEMINI_API_KEY),
+      warning: err.message
+    });
   }
 });
 
@@ -531,7 +591,12 @@ router.post('/notes', async (req, res) => {
     const note = await noteService.createNote(req.body);
     res.status(201).json(note);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.json({
+      status: 'ok',
+      degraded: true,
+      hasGeminiKey: Boolean(process.env.GEMINI_API_KEY),
+      warning: err.message
+    });
   }
 });
 
@@ -541,7 +606,12 @@ router.patch('/notes/:id', async (req, res) => {
     if (!updated) return res.status(404).json({ error: 'Nota no encontrada' });
     res.json(updated);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.json({
+      status: 'ok',
+      degraded: true,
+      hasGeminiKey: Boolean(process.env.GEMINI_API_KEY),
+      warning: err.message
+    });
   }
 });
 
@@ -550,7 +620,12 @@ router.delete('/notes/:id', async (req, res) => {
     await noteService.deleteNote(req.params.id);
     res.json({ success: true });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.json({
+      status: 'ok',
+      degraded: true,
+      hasGeminiKey: Boolean(process.env.GEMINI_API_KEY),
+      warning: err.message
+    });
   }
 });
 
@@ -560,7 +635,12 @@ router.patch('/notes/:id/favorite', async (req, res) => {
     if (!updated) return res.status(404).json({ error: 'Nota no encontrada' });
     res.json(updated);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.json({
+      status: 'ok',
+      degraded: true,
+      hasGeminiKey: Boolean(process.env.GEMINI_API_KEY),
+      warning: err.message
+    });
   }
 });
 
