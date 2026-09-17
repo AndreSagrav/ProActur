@@ -1,6 +1,25 @@
 <!doctype html>
 <html lang="es">
   <head>
+    <script>
+      (function() {
+        var w = console.warn;
+        console.warn = function() {
+          if (arguments[0] && typeof arguments[0] === 'string' && (arguments[0].indexOf('React Router Future Flag') !== -1 || arguments[0].indexOf('v7_startTransition') !== -1 || arguments[0].indexOf('v7_relativeSplatPath') !== -1)) {
+            return;
+          }
+          return w.apply(console, arguments);
+        };
+        var e = console.error;
+        console.error = function() {
+          if (arguments[0] && typeof arguments[0] === 'string' && (arguments[0].indexOf('React Router Future Flag') !== -1 || arguments[0].indexOf('v7_startTransition') !== -1 || arguments[0].indexOf('v7_relativeSplatPath') !== -1)) {
+            return;
+          }
+          return e.apply(console, arguments);
+        };
+      })();
+    </script>
+
     <meta charset="UTF-8" />
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
     <meta http-equiv="Pragma" content="no-cache" />
