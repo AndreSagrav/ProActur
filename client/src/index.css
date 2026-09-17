@@ -82,7 +82,7 @@
 
   /* Formularios e Inputs */
   html[data-theme="soft-light"] input,
-  html[data-theme="soft-light"] textarea,
+  html[data-theme="soft-light"] textarea:not(.nb-textarea),
   html[data-theme="soft-light"] select {
     background-color: #ffffff !important;
     border: 1px solid #94a3b8 !important;
@@ -192,7 +192,7 @@
   }
 
   html[data-theme="high-contrast"] input,
-  html[data-theme="high-contrast"] textarea,
+  html[data-theme="high-contrast"] textarea:not(.nb-textarea),
   html[data-theme="high-contrast"] select {
     background-color: #000000 !important;
     border: 2px solid #facc15 !important;
@@ -264,7 +264,7 @@
   }
 
   html[data-theme="colorblind-safe"] input,
-  html[data-theme="colorblind-safe"] textarea,
+  html[data-theme="colorblind-safe"] textarea:not(.nb-textarea),
   html[data-theme="colorblind-safe"] select {
     background-color: #080f1e !important;
     border-color: #3b82f680 !important;
@@ -335,7 +335,7 @@
   }
 
   html[data-theme="tritanopia"] input,
-  html[data-theme="tritanopia"] textarea,
+  html[data-theme="tritanopia"] textarea:not(.nb-textarea),
   html[data-theme="tritanopia"] select {
     background-color: #100a1d !important;
     border-color: #d946ef70 !important;
@@ -1447,4 +1447,39 @@
 @keyframes nbToastIn {
   from { opacity: 0; transform: translate(-50%, 16px); }
   to   { opacity: 1; transform: translate(-50%, 0); }
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════
+   NOTEBOOK SURFACE & TEXTAREA PURITY — IMMUNE TO ALL THEMES
+   ═══════════════════════════════════════════════════════════════════ */
+html textarea.nb-textarea,
+html[data-theme] textarea.nb-textarea,
+html[data-theme="obsidian"] textarea.nb-textarea,
+html[data-theme="colorblind-safe"] textarea.nb-textarea,
+html[data-theme="tritanopia"] textarea.nb-textarea,
+html[data-theme="high-contrast"] textarea.nb-textarea,
+html[data-theme="soft-light"] textarea.nb-textarea,
+html body textarea.nb-textarea,
+textarea.nb-textarea {
+  background: transparent !important;
+  background-color: transparent !important;
+  border: none !important;
+  outline: none !important;
+  box-shadow: none !important;
+}
+
+html canvas.nb-canvas-overlay,
+html[data-theme] canvas.nb-canvas-overlay,
+canvas.nb-canvas-overlay {
+  background: transparent !important;
+  background-color: transparent !important;
+  border: none !important;
+}
+
+html .nb-writing-surface,
+html[data-theme] .nb-writing-surface,
+.nb-writing-surface {
+  background: transparent !important;
+  background-color: transparent !important;
 }

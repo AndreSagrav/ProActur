@@ -780,6 +780,11 @@ ${text}`
               lang="es"
               className={'nb-textarea ' + (isDark ? 'nb-textarea-dark' : '')}
               style={{
+                backgroundColor: 'transparent',
+                background: 'transparent',
+                border: 'none',
+                outline: 'none',
+                boxShadow: 'none',
                 color: isDark && ink.id === 'black' ? '#e2e8f0' : ink.hex,
                 pointerEvents: toolMode === 'text' ? 'auto' : 'none',
               }}
@@ -794,6 +799,8 @@ ${text}`
               onPointerCancel={handlePointerUp}
               className="nb-canvas-overlay"
               style={{
+                backgroundColor: 'transparent',
+                background: 'transparent',
                 pointerEvents: toolMode === 'text' ? 'none' : 'auto',
                 cursor: toolMode === 'eraser'
                   ? 'cell'
