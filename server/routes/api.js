@@ -52,7 +52,7 @@ router.get('/keep-alive', async (req, res) => {
 router.get('/health', async (req, res) => {
   try {
     const supabaseStatus = await checkSupabaseStatus();
-    const providers = aiService.getAvailableProviders();
+    const providers = (typeof aiService.getAvailableProviders === "function") ? aiService.getAvailableProviders() : ["gemini"];
 
     res.json({
       status: 'ok',

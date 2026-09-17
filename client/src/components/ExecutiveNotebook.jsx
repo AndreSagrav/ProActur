@@ -575,6 +575,15 @@ ${text}`
                 <Keyboard className="w-3.5 h-3.5 text-emerald-400" />
                 <span className="hidden sm:inline">Teclado</span>
               </button>
+
+              <button
+                type="button"
+                onClick={() => setPaperStyle(paperStyle === 'lined' ? 'dark-velvet' : 'lined')}
+                className={`nb-tool-chip ${paperStyle === 'lined' ? 'border-amber-400/50 text-amber-200' : ''}`}
+                title={paperStyle === 'lined' ? 'Actualmente en Papel Marfil Clásico. Haz clic para cambiar a Modo Obsidiana Nocturno' : 'Actualmente en Modo Nocturno. Haz clic para cambiar a Papel Marfil Clásico'}
+              >
+                <span>{paperStyle === 'lined' ? '📜 Marfil' : '✦ Obsidiana'}</span>
+              </button>
             </div>
 
             <div className="nb-island-sep" />
@@ -766,7 +775,7 @@ ${text}`
               ref={textareaRef}
               value={text}
               onChange={e => setText(e.target.value)}
-              placeholder="Empieza a escribir sobre los renglones... (Tus notas se alinean exactamente con el papel)"
+              placeholder=""
               spellCheck="true"
               lang="es"
               className={'nb-textarea ' + (isDark ? 'nb-textarea-dark' : '')}

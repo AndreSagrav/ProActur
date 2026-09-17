@@ -673,12 +673,12 @@
 
 /* Paper: Lined (Oxford Ivory) */
 .nb-paper-lined {
-  background-color: #fdf8f0;
+  background-color: #fdf8f0 !important;
   background-image:
-    linear-gradient(to bottom, transparent 33px, #c4d4e8 33.5px, #c4d4e8 34px, transparent 34px);
-  background-size: 100% 34px;
-  background-position: 0 0;
-  color: #1a1a2e;
+    linear-gradient(to bottom, transparent 33px, #b9d1ea 33.5px, #b9d1ea 34px, transparent 34px) !important;
+  background-size: 100% 34px !important;
+  background-position: 0 0 !important;
+  color: #1a1a2e !important;
   box-shadow:
     0 2px 8px rgba(0,0,0,0.15),
     3px 3px 0 #e8e0d4,

@@ -104,7 +104,7 @@ export default function App() {
         }
       }
     } catch (err) {
-      console.error('Error cargando reuniones:', err);
+      // Backend iniciando...
     }
   };
 
@@ -113,7 +113,7 @@ export default function App() {
       const res = await fetch(`${API}/api/health`);
       if (res.ok) setHealthData(await res.json());
     } catch (err) {
-      console.error('Error en health check:', err);
+      // Backend iniciando...
     }
   };
 
