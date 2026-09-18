@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import {
-  PenTool, Keyboard, Sparkles, CheckCircle2, Table, GitBranch,
+  PenTool, Download, Keyboard, Sparkles, CheckCircle2, Table, GitBranch,
   Save, Trash2, X, Undo, Redo, ChevronDown, ChevronUp, BookOpen,
   CornerDownRight, Eraser, Highlighter, Edit3, Type, Check, Wand2
 } from 'lucide-react';
@@ -49,7 +49,8 @@ export default function ExecutiveNotebook({
 
   // Barra abatible (Collapsible Floating Toolbar)
   const [isToolbarCollapsed, setIsToolbarCollapsed] = useState(false);
-  const [palmRejection, setPalmRejection] = useState(true); // Rechazo de palma inteligente
+  const [palmRejection, setPalmRejection] = useState(true);
+  const [canvasHeight, setCanvasHeight] = useState(1400); // Rechazo de palma inteligente
   const [stylusOnly, setStylusOnly] = useState(false);       // Modo solo lápiz óptico
   const hasPen = useRef(false);
 
@@ -166,7 +167,7 @@ export default function ExecutiveNotebook({
     const rect = container.getBoundingClientRect();
     const dpr = window.devicePixelRatio || 1;
     const w = Math.floor(rect.width);
-    const h = Math.max(Math.floor(rect.height), 1200);
+    const h = Math.max(Math.floor(rect.height), canvasHeight);
 
     const neededW = Math.floor(w * dpr);
     const neededH = Math.floor(h * dpr);
@@ -190,6 +191,26 @@ export default function ExecutiveNotebook({
   useEffect(() => {
     redrawCanvas();
   }, [strokes, redrawCanvas]);
+
+  // Atajos de teclado ejecutivos: Ctrl+Z (Deshacer) y Ctrl+Y (Rehacer)
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
+        if (e.shiftKey) {
+          e.preventDefault();
+          handleRedo();
+        } else {
+          e.preventDefault();
+          handleUndo();
+        }
+      } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'y') {
+        e.preventDefault();
+        handleRedo();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [strokes, undoStack]);
 
   // ── Obtener coordenadas precisas 1:1 sin desfasamiento ─────────────
   const getPoint = (e) => {
@@ -292,7 +313,11 @@ export default function ExecutiveNotebook({
     const pts = curPoints.current;
 
     for (let i = 0; i < events.length; i++) {
-      pts.push(getPoint(events[i]));
+      const p = getPoint(events[i]);
+      pts.push(p);
+      if (p.y > canvasHeight - 200) {
+        setCanvasHeight(prev => prev + 600);
+      }
     }
     const pt = pts[pts.length - 1];
 
@@ -384,6 +409,41 @@ export default function ExecutiveNotebook({
       setUndoStack(strokes);
       setStrokes([]);
     }
+  };
+
+  // Exportar la hoja completa en alta resolución con papelería y caligrafía
+  const handleExportImage = () => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const expCanvas = document.createElement('canvas');
+    expCanvas.width = canvas.width;
+    expCanvas.height = canvas.height;
+    const expCtx = expCanvas.getContext('2d');
+    const dpr = window.devicePixelRatio || 1;
+
+    // Fondo según el tipo de papel
+    expCtx.fillStyle = paperStyle === 'lined' ? '#fdf8f0' : '#0c1019';
+    expCtx.fillRect(0, 0, expCanvas.width, expCanvas.height);
+
+    // Margen rojo clásico si es papel rayado
+    if (paperStyle === 'lined') {
+      expCtx.strokeStyle = 'rgba(239, 68, 68, 0.4)';
+      expCtx.lineWidth = 2 * dpr;
+      expCtx.beginPath();
+      expCtx.moveTo(68 * dpr, 0);
+      expCtx.lineTo(68 * dpr, expCanvas.height);
+      expCtx.stroke();
+    }
+
+    // Dibujar trazos
+    expCtx.drawImage(canvas, 0, 0);
+
+    const link = document.createElement('a');
+    link.download = `${subjectTitle ? subjectTitle.replace(/[^a-zA-Z0-9_-]/g, '_') : 'Cuaderno-ProActur'}-${new Date().toISOString().slice(0, 10)}.png`;
+    link.href = expCanvas.toDataURL('image/png');
+    link.click();
+    setSaveMsg('📷 Nota exportada en alta resolución con éxito');
+    setTimeout(() => setSaveMsg(''), 3500);
   };
 
   // ── CORRECCIÓN ORTOGRÁFICA Y CALIGRÁFICA EN TIEMPO REAL CON IA ────
@@ -680,6 +740,39 @@ ${text}`
               >
                 <Sparkles className="w-3.5 h-3.5 text-indigo-400" />
                 <span>{isStructuring ? 'Procesando...' : 'Estructurar'}</span>
+              </button>
+
+              {/* Deshacer / Rehacer */}
+              <div className="flex items-center gap-0.5 border-r border-slate-700/60 pr-1 mr-0.5">
+                <button
+                  type="button"
+                  onClick={handleUndo}
+                  disabled={strokes.length === 0}
+                  className="nb-island-btn text-slate-300 disabled:opacity-30"
+                  title="Deshacer trazo (Ctrl+Z)"
+                >
+                  <Undo className="w-3.5 h-3.5" />
+                </button>
+                <button
+                  type="button"
+                  onClick={handleRedo}
+                  disabled={undoStack.length === 0}
+                  className="nb-island-btn text-slate-300 disabled:opacity-30"
+                  title="Rehacer trazo (Ctrl+Y)"
+                >
+                  <Redo className="w-3.5 h-3.5" />
+                </button>
+              </div>
+
+              {/* Exportar */}
+              <button
+                type="button"
+                onClick={handleExportImage}
+                className="nb-island-action-btn text-sky-300 hover:text-sky-200 hover:bg-sky-500/15 border-sky-500/30"
+                title="Exportar hoja en PNG de alta resolución"
+              >
+                <Download className="w-3.5 h-3.5" />
+                <span>Exportar</span>
               </button>
 
               {/* Botón Guardar */}
