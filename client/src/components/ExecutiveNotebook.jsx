@@ -49,6 +49,9 @@ export default function ExecutiveNotebook({
 
   // Barra abatible (Collapsible Floating Toolbar)
   const [isToolbarCollapsed, setIsToolbarCollapsed] = useState(false);
+  const [palmRejection, setPalmRejection] = useState(true); // Rechazo de palma inteligente
+  const [stylusOnly, setStylusOnly] = useState(false);       // Modo solo lápiz óptico
+  const hasPen = useRef(false);
 
   // Objetos ricos
   const [tables, setTables]   = useState([]);
@@ -226,6 +229,27 @@ export default function ExecutiveNotebook({
   // ── Handlers de puntero con captura continua y renderizado 60fps ───
   const handlePointerDown = (e) => {
     if (toolMode === 'text') return;
+
+    // Detectar stylus / lápiz activo
+    if (e.pointerType === 'pen') {
+      hasPen.current = true;
+    }
+
+    // 1. RECHAZO DE PALMA EN MODO SOLO LÁPIZ
+    if (stylusOnly && e.pointerType !== 'pen') {
+      return; // Ignorar dedos/palma
+    }
+
+    // 2. RECHAZO DE PALMA INTELIGENTE (Por área de contacto)
+    // Una punta de lápiz tiene ancho < 15px. Una palma o lateral de mano tiene ancho > 22px.
+    if (palmRejection && e.pointerType === 'touch') {
+      const contactWidth = e.width || 0;
+      const contactHeight = e.height || 0;
+      if (contactWidth > 22 || contactHeight > 22) {
+        return; // Palma detectada y rechazada
+      }
+    }
+
     e.preventDefault();
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -254,13 +278,23 @@ export default function ExecutiveNotebook({
 
   const handlePointerMove = (e) => {
     if (!isDrawing.current || toolMode === 'text') return;
+
+    if (palmRejection && e.pointerType === 'touch') {
+      if ((e.width && e.width > 22) || (e.height && e.height > 22)) return;
+    }
+
     e.preventDefault();
     const canvas = canvasRef.current;
     if (!canvas) return;
 
-    const pt = getPoint(e);
+    // Usar eventos coalescentes del hardware (120Hz/240Hz) si el navegador lo soporta
+    const events = (typeof e.getCoalescedEvents === 'function') ? e.getCoalescedEvents() : [e];
     const pts = curPoints.current;
-    pts.push(pt);
+
+    for (let i = 0; i < events.length; i++) {
+      pts.push(getPoint(events[i]));
+    }
+    const pt = pts[pts.length - 1];
 
     // Dibujado instantáneo del segmento suavizado con punto medio
     const ctx = canvas.getContext('2d');
@@ -657,6 +691,16 @@ ${text}`
               >
                 <Save className="w-3.5 h-3.5 text-amber-400" />
                 <span>Guardar</span>
+              </button>
+
+              {/* Toggle Rechazo de Palma */}
+              <button
+                type="button"
+                onClick={() => setPalmRejection(!palmRejection)}
+                className={`nb-island-action-btn ${palmRejection ? 'text-amber-300 bg-amber-500/15 border-amber-500/30' : 'text-slate-400'}`}
+                title={palmRejection ? 'Rechazo de Palma ACTIVADO: La mano apoyada en la pantalla no mancha el lienzo' : 'Rechazo de Palma desactivado'}
+              >
+                <span className="text-xs">{palmRejection ? '✋ Palma Off' : '✋ Palma On'}</span>
               </button>
 
               {/* Botón para ABATIR la barra */}

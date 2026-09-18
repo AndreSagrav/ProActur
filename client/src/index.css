@@ -1240,10 +1240,7 @@
 }
 
 .nb-island-collapsed {
-  transform: translateY(-80px) scale(0.9);
-  opacity: 0;
-  pointer-events: none;
-  position: absolute;
+  display: none !important;
 }
 
 /* Minimized Abatible Pill */
