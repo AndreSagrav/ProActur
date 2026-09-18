@@ -622,46 +622,48 @@ ${text}`
 
             <div className="nb-island-sep" />
 
-            {/* Inteligencia Artificial y Herramientas */}
-            <div className="flex items-center gap-1">
-              {/* Botón de Corrección Ortográfica en Vivo */}
+            {/* Acciones de IA y Guardado — Diseño Ultra-Lujo Sin Texto Cortado */}
+            <div className="flex items-center gap-1.5 flex-shrink-0">
+              {/* Botón Pulir Ortografía y Caligrafía */}
               <button
                 type="button"
                 onClick={correctSpellingAndStyle}
                 disabled={isCorrecting || !text.trim()}
-                className="nb-action-btn bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-300 border border-emerald-500/40"
-                title="Corregir ortografía, tildes y sintaxis con IA en 1 segundo"
+                className="nb-island-action-btn text-emerald-400 hover:text-emerald-300 hover:bg-emerald-500/15 border-emerald-500/30"
+                title="Pulir ortografía, redacción y estilo con IA"
               >
                 <Wand2 className="w-3.5 h-3.5 text-emerald-400" />
-                <span className="hidden md:inline font-bold">{isCorrecting ? 'Corrigiendo...' : 'Corregir Ortografía'}</span>
+                <span>{isCorrecting ? 'Puliendo...' : 'Pulir'}</span>
               </button>
 
+              {/* Botón Sello IA / Estructurar */}
               <button
                 type="button"
                 onClick={structureWithAi}
                 disabled={isStructuring || !text.trim()}
-                className="nb-action-btn bg-indigo-500/15 hover:bg-indigo-500/25 text-indigo-300 border border-indigo-500/40"
-                title="Estructurar y generar plan de acción con IA"
+                className="nb-island-action-btn text-indigo-300 hover:text-indigo-200 hover:bg-indigo-500/15 border-indigo-500/30"
+                title="Estructurar notas y acuerdos con IA"
               >
                 <Sparkles className="w-3.5 h-3.5 text-indigo-400" />
-                <span className="hidden md:inline">{isStructuring ? 'Procesando...' : 'Sello IA'}</span>
+                <span>{isStructuring ? 'Procesando...' : 'Estructurar'}</span>
               </button>
 
+              {/* Botón Guardar */}
               <button
                 type="button"
                 onClick={handleSave}
-                className="nb-action-btn bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold shadow-md"
+                className="nb-island-action-btn text-amber-200 hover:text-amber-100 bg-amber-500/20 hover:bg-amber-500/30 border-amber-500/40 font-bold"
                 title="Guardar nota"
               >
-                <Save className="w-3.5 h-3.5" />
-                <span className="hidden sm:inline">Guardar</span>
+                <Save className="w-3.5 h-3.5 text-amber-400" />
+                <span>Guardar</span>
               </button>
 
-              {/* Botón para ABATIR la barra hacia arriba */}
+              {/* Botón para ABATIR la barra */}
               <button
                 type="button"
                 onClick={() => setIsToolbarCollapsed(true)}
-                className="nb-island-btn text-slate-400 hover:text-amber-300 hover:bg-amber-500/10 ml-1"
+                className="nb-island-btn text-slate-400 hover:text-amber-300 hover:bg-white/10 ml-0.5"
                 title="Abatir barra para escribir a pantalla completa sin obstáculos"
               >
                 <ChevronUp className="w-4 h-4" />
