@@ -1,4 +1,4 @@
-﻿import { useState, useRef, useCallback, useEffect } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 import {
   Pen, Highlighter, Eraser, Undo2, Redo2, Minus, Plus, Trash2,
   Circle, Square, Type, MoveRight, Grid3X3, GitBranch, ZoomIn, ZoomOut, RotateCcw, Maximize2, Minimize2
@@ -45,6 +45,7 @@ export default function HandwritingCanvas({ strokes: initialStrokes, onStrokesCh
   const [isFullscreen, setIsFullscreen] = useState(false);
   const currentStroke = useRef([]);
   const lastPoint = useRef(null);
+  const activePointerId = useRef(null);
   const textInputRef = useRef(null);
   const [textPosition, setTextPosition] = useState(null);
   const [tableConfig, setTableConfig] = useState(null);
@@ -340,14 +341,23 @@ export default function HandwritingCanvas({ strokes: initialStrokes, onStrokesCh
   function handlePointerDown(e) {
     e.preventDefault();
     const canvas = canvasRef.current;
-    canvas.setPointerCapture(e.pointerId);
+    if (!canvas) return;
 
-    // Palm rejection: si es pen, ignora touch
-    if (e.pointerType === 'touch' && tool !== TOOLS.ERASER) {
-      const activePen = strokes.some(s => s._penActive);
-      if (activePen) return;
+    // Palm rejection: si ya hay un trazo activo, ignora contactos secundarios
+    if (activePointerId.current !== null && activePointerId.current !== e.pointerId) {
+      if (e.pointerType === 'pen') {
+        activePointerId.current = e.pointerId;
+        currentStroke.current = [];
+      } else {
+        return;
+      }
     }
 
+    try {
+      canvas.setPointerCapture(e.pointerId);
+    } catch (_) {}
+
+    activePointerId.current = e.pointerId;
     const point = getCanvasPoint(e);
 
     if (tool === TOOLS.TEXT) {
@@ -401,6 +411,7 @@ export default function HandwritingCanvas({ strokes: initialStrokes, onStrokesCh
 
   function handlePointerMove(e) {
     if (!isDrawing) return;
+    if (activePointerId.current !== e.pointerId) return;
     e.preventDefault();
 
     const point = getCanvasPoint(e);
@@ -436,6 +447,12 @@ export default function HandwritingCanvas({ strokes: initialStrokes, onStrokesCh
       return;
     }
 
+    if (lastPoint.current) {
+      const dist = Math.hypot(point.x - lastPoint.current.x, point.y - lastPoint.current.y);
+      if (dist > 75) return; // Descartar salto abrupto de palma
+      if (dist < 0.5) return;
+    }
+
     currentStroke.current.push(point);
 
     // Dibujo en tiempo real para trazos libres
@@ -462,7 +479,9 @@ export default function HandwritingCanvas({ strokes: initialStrokes, onStrokesCh
 
   function handlePointerUp(e) {
     if (!isDrawing) return;
+    if (activePointerId.current !== null && activePointerId.current !== e.pointerId) return;
     setIsDrawing(false);
+    activePointerId.current = null;
 
     if ([TOOLS.LINE, TOOLS.RECT, TOOLS.CIRCLE, TOOLS.ARROW].includes(tool) && shapeStart) {
       const endPoint = getCanvasPoint(e);

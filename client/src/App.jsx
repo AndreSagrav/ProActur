@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect, useCallback, useRef } from 'react';;
+import React, { useState, useEffect, useCallback, useRef } from 'react';;
 import {
   Sparkles, Brain, Settings, Palette, Plus, Search, Calendar, Share2, CheckCircle2,
   Clock, CheckSquare, ChevronRight, Radio, FileText, BookOpen, PenTool,
@@ -154,10 +154,14 @@ export default function App() {
   };
 
   const handleMeetingProcessed = (meeting) => {
-    setMeetings(prev => [meeting, ...prev]);
+    setMeetings(prev => {
+      const exists = prev.some(m => m.id === meeting.id);
+      return exists ? prev.map(m => m.id === meeting.id ? meeting : m) : [meeting, ...prev];
+    });
     setSelectedMeetingId(meeting.id);
     setActiveTab('meetings');
     setShowMobileDetail(true);
+    setShowNotebookOverlay(false);
   };
 
   const handleUpdateMeeting = async (id, updates) => {
@@ -456,8 +460,8 @@ const handleNewNote = (linkedMeeting = null) => {
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 sm:gap-6">
             {/* Columna Izquierda: Grabadora + Lista de Reuniones (Desktop o Movil si no hay detalle) */}
             <aside className={`lg:col-span-4 flex flex-col gap-4 ${showMobileDetail ? 'hidden lg:flex' : 'flex'}`}>
-              {/* Grabador de Audio siempre visible en el listado para movil y desktop */}
-              <div className="lg:hidden">
+              {/* Grabador de Audio único y centralizado */}
+              <div>
                 <AudioRecorder
                   onMeetingProcessed={handleMeetingProcessed}
                   onRecordingStatusChange={(st) => setRecordingState(st)}
@@ -655,16 +659,7 @@ const handleNewNote = (linkedMeeting = null) => {
                 </button>
               </div>
 
-              {/* Grabador en desktop */}
-              <div className="hidden lg:block">
-                <AudioRecorder
-                  onMeetingProcessed={handleMeetingProcessed}
-                  onRecordingStatusChange={(st) => setRecordingState(st)}
-                  externalNotebookNotes={executiveNotebookText}
-                  recorderRef={recorderRef}
-                  onOpenNotebook={() => setShowNotebookOverlay(true)}
-                />
-              </div>
+
 
                             {/* Detalle de reunión seleccionada */}
               {selectedMeeting && (
@@ -855,6 +850,7 @@ const handleNewNote = (linkedMeeting = null) => {
           isRecordingActive={recordingState.isRecording}
           recordingTime={recordingState.recordingTime}
           onSaveToNotes={handleSaveExecutiveNote}
+          onStopAndFinalizeRecording={() => recorderRef.current?.stopAndFinalize?.()}
           onClose={() => setShowNotebookOverlay(false)}
         />
       )}

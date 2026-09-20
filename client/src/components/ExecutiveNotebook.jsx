@@ -33,6 +33,7 @@ export default function ExecutiveNotebook({
   isRecordingActive = false,
   recordingTime = 0,
   onSaveToNotes,
+  onStopAndFinalizeRecording,
   onClose,
 }) {
   // Estado del documento
@@ -49,10 +50,12 @@ export default function ExecutiveNotebook({
 
   // Barra abatible (Collapsible Floating Toolbar)
   const [isToolbarCollapsed, setIsToolbarCollapsed] = useState(false);
-  const [palmRejection, setPalmRejection] = useState(true);
-  const [canvasHeight, setCanvasHeight] = useState(1400); // Rechazo de palma inteligente
-  const [stylusOnly, setStylusOnly] = useState(false);       // Modo solo lápiz óptico
+  // Modos de dibujo: 'auto' (Rechazo Palma Inteligente), 'stylus-only' (Solo Lápiz Óptico), 'touch' (Táctil Libre)
+  const [drawingMode, setDrawingMode] = useState('auto');
+  const [canvasHeight, setCanvasHeight] = useState(1400);
   const hasPen = useRef(false);
+  const lastPenTime = useRef(0);
+  const activePointerId = useRef(null);
 
   // Objetos ricos
   const [tables, setTables]   = useState([]);
@@ -192,9 +195,14 @@ export default function ExecutiveNotebook({
     redrawCanvas();
   }, [strokes, redrawCanvas]);
 
-  // Atajos de teclado ejecutivos: Ctrl+Z (Deshacer) y Ctrl+Y (Rehacer)
+  // Atajos de teclado ejecutivos: Ctrl+Z (Deshacer), Ctrl+Y (Rehacer) y Escape (Cerrar)
   useEffect(() => {
     const handleKeyDown = (e) => {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        onClose();
+        return;
+      }
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
         if (e.shiftKey) {
           e.preventDefault();
@@ -210,7 +218,7 @@ export default function ExecutiveNotebook({
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [strokes, undoStack]);
+  }, [strokes, undoStack, onClose]);
 
   // ── Obtener coordenadas precisas 1:1 sin desfasamiento ─────────────
   const getPoint = (e) => {
@@ -247,27 +255,43 @@ export default function ExecutiveNotebook({
     return { x, y, dynamicWidth, time: now };
   };
 
-  // ── Handlers de puntero con captura continua y renderizado 60fps ───
+  // ── Handlers de puntero con captura continua y rechazo de palma total ───
   const handlePointerDown = (e) => {
     if (toolMode === 'text') return;
 
-    // Detectar stylus / lápiz activo
+    // 1. Detección instantánea de Stylus / Lápiz Óptico
     if (e.pointerType === 'pen') {
       hasPen.current = true;
+      lastPenTime.current = Date.now();
     }
 
-    // 1. RECHAZO DE PALMA EN MODO SOLO LÁPIZ
-    if (stylusOnly && e.pointerType !== 'pen') {
-      return; // Ignorar dedos/palma
+    // 2. Si hay un lápiz activo en el dispositivo, descartar el 100% de toques táctiles (palma)
+    if ((drawingMode === 'stylus-only' || (drawingMode === 'auto' && hasPen.current)) && e.pointerType !== 'pen') {
+      return;
     }
 
-    // 2. RECHAZO DE PALMA INTELIGENTE (Por área de contacto)
-    // Una punta de lápiz tiene ancho < 15px. Una palma o lateral de mano tiene ancho > 22px.
-    if (palmRejection && e.pointerType === 'touch') {
-      const contactWidth = e.width || 0;
-      const contactHeight = e.height || 0;
-      if (contactWidth > 22 || contactHeight > 22) {
-        return; // Palma detectada y rechazada
+    // 3. Descartar toques multitáctiles no primarios (evita dos dedos o palma + dedo)
+    if (e.isPrimary === false) {
+      return;
+    }
+
+    // 4. Filtro de superficie/área de contacto táctil (descarta palma o costado de mano)
+    if (e.pointerType === 'touch') {
+      if ((e.width && e.width > 20) || (e.height && e.height > 20)) return;
+      if (typeof e.radiusX === 'number' && (e.radiusX > 15 || e.radiusY > 15)) return;
+      // Si el lápiz se usó recientemente (< 5 segundos), cualquier toque táctil es la mano
+      if (Date.now() - lastPenTime.current < 5000) return;
+    }
+
+    // 5. Bloqueo estricto de puntero único: no permitir solapamiento de trazos simultáneos
+    if (isDrawing.current) {
+      if (e.pointerType === 'pen' && activePointerId.current !== e.pointerId) {
+        // El lápiz corta inmediatamente cualquier toque previo espurio
+        isDrawing.current = false;
+        activePointerId.current = null;
+        curPoints.current = [];
+      } else {
+        return;
       }
     }
 
@@ -279,11 +303,12 @@ export default function ExecutiveNotebook({
       canvas.setPointerCapture(e.pointerId);
     } catch (_) {}
 
+    activePointerId.current = e.pointerId;
     isDrawing.current = true;
     const pt = getPoint(e);
     curPoints.current = [pt];
 
-    // Dibuja el punto inicial en pantalla sin multiplicar escala
+    // Dibuja el punto inicial en pantalla
     const ctx = canvas.getContext('2d');
     const dpr = window.devicePixelRatio || 1;
     ctx.save();
@@ -300,25 +325,58 @@ export default function ExecutiveNotebook({
   const handlePointerMove = (e) => {
     if (!isDrawing.current || toolMode === 'text') return;
 
-    if (palmRejection && e.pointerType === 'touch') {
-      if ((e.width && e.width > 22) || (e.height && e.height > 22)) return;
+    // ESTRICTO: Solo procesar el puntero activo
+    if (activePointerId.current !== e.pointerId) return;
+
+    if (e.pointerType === 'pen') {
+      hasPen.current = true;
+      lastPenTime.current = Date.now();
+    } else if (hasPen.current && drawingMode !== 'touch') {
+      // Ignorar movimiento táctil si hay stylus activo
+      return;
+    }
+
+    // Filtro de área de palma en movimiento
+    if (e.pointerType === 'touch') {
+      if ((e.width && e.width > 20) || (e.height && e.height > 20)) return;
     }
 
     e.preventDefault();
     const canvas = canvasRef.current;
     if (!canvas) return;
 
-    // Usar eventos coalescentes del hardware (120Hz/240Hz) si el navegador lo soporta
-    const events = (typeof e.getCoalescedEvents === 'function') ? e.getCoalescedEvents() : [e];
+    const events = (typeof e.getCoalescedEvents === 'function')
+      ? e.getCoalescedEvents().filter(ev => !ev.pointerId || ev.pointerId === activePointerId.current)
+      : [e];
+
     const pts = curPoints.current;
+    if (pts.length === 0) return;
 
     for (let i = 0; i < events.length; i++) {
       const p = getPoint(events[i]);
+      const lastPt = pts[pts.length - 1];
+
+      // FILTRO ANTI-RAYONES / ANTI-SALTO TELEPÓRTICO:
+      // En caligrafía humana natural, dos puntos consecutivos en ~10ms no pueden distar > 75px.
+      // Si la distancia es > 75px, es una interferencia de palma/hardware touch y se ignora el salto.
+      const dist = Math.hypot(p.x - lastPt.x, p.y - lastPt.y);
+      if (dist > 75) {
+        continue;
+      }
+
+      // Evitar micro-puntos duplicados idénticos
+      if (dist < 0.5) {
+        continue;
+      }
+
       pts.push(p);
+
       if (p.y > canvasHeight - 200) {
         setCanvasHeight(prev => prev + 600);
       }
     }
+
+    if (pts.length < 2) return;
     const pt = pts[pts.length - 1];
 
     // Dibujado instantáneo del segmento suavizado con punto medio
@@ -369,7 +427,11 @@ export default function ExecutiveNotebook({
 
   const handlePointerUp = (e) => {
     if (!isDrawing.current) return;
+    if (activePointerId.current !== null && activePointerId.current !== e.pointerId) return;
+
     isDrawing.current = false;
+    activePointerId.current = null;
+
     const canvas = canvasRef.current;
     if (canvas && e.pointerId) {
       try { canvas.releasePointerCapture(e.pointerId); } catch (_) {}
@@ -561,6 +623,20 @@ ${text}`
     setTimeout(() => setSaveMsg(''), 2500);
   };
 
+  const cycleDrawingMode = () => {
+    if (drawingMode === 'auto') {
+      setDrawingMode('stylus-only');
+      setSaveMsg('✏️ Modo Solo Lápiz activado: Rechazo 100% de Palma');
+    } else if (drawingMode === 'stylus-only') {
+      setDrawingMode('touch');
+      setSaveMsg('👆 Modo Táctil activado: Dibujo libre con dedo');
+    } else {
+      setDrawingMode('auto');
+      setSaveMsg('✋ Rechazo de Palma Inteligente activado');
+    }
+    setTimeout(() => setSaveMsg(''), 2500);
+  };
+
   const dateStr = new Date().toLocaleDateString('es-ES', {
     weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
   });
@@ -589,8 +665,8 @@ ${text}`
               <button
                 type="button"
                 onClick={onClose}
-                className="nb-island-btn text-rose-400 hover:bg-rose-500/10"
-                title="Cerrar libreta y volver"
+                className="nb-island-btn text-rose-400 hover:bg-rose-500/20 hover:text-rose-300 font-bold"
+                title="Cerrar libreta y volver (Esc)"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -604,11 +680,24 @@ ${text}`
               />
 
               {isRecordingActive && (
-                <div className="nb-mini-rec-pill" title="Grabando en segundo plano">
+                <div className="flex items-center gap-1.5 bg-red-950/70 border border-red-500/50 px-2.5 py-1 rounded-full animate-fade-in shrink-0">
                   <span className="nb-rec-dot" />
-                  <span className="font-mono text-[11px]">
+                  <span className="font-mono text-xs font-bold text-red-300">
                     {Math.floor(recordingTime / 60)}:{String(recordingTime % 60).padStart(2, '0')}
                   </span>
+                  {onStopAndFinalizeRecording && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        handleSave();
+                        onStopAndFinalizeRecording();
+                      }}
+                      className="ml-1 px-2 py-0.5 rounded-full bg-red-600 hover:bg-red-500 text-white font-bold text-[10px] tracking-wide shadow transition-all active:scale-95"
+                      title="Guardar nota y finalizar la grabación de la reunión"
+                    >
+                      Finalizar
+                    </button>
+                  )}
                 </div>
               )}
             </div>
@@ -718,6 +807,24 @@ ${text}`
 
             {/* Acciones de IA y Guardado — Diseño Ultra-Lujo Sin Texto Cortado */}
             <div className="flex items-center gap-1.5 flex-shrink-0">
+              {/* Botón Selector de Rechazo de Palma / Modo Lápiz */}
+              <button
+                type="button"
+                onClick={cycleDrawingMode}
+                className={`nb-island-action-btn ${
+                  drawingMode === 'stylus-only'
+                    ? 'text-amber-300 bg-amber-500/20 border-amber-500/50 font-bold'
+                    : drawingMode === 'auto'
+                    ? 'text-emerald-300 bg-emerald-500/15 border-emerald-500/40'
+                    : 'text-slate-300 bg-slate-800/60 border-slate-700'
+                }`}
+                title="Cambiar modo de palma: Solo Lápiz (cero manchas de mano) | Palma Inteligente | Dedo"
+              >
+                <span className="text-xs">
+                  {drawingMode === 'stylus-only' ? '✏️ Solo Lápiz' : drawingMode === 'auto' ? '✋ Palma Off' : '👆 Dedo'}
+                </span>
+              </button>
+
               {/* Botón Pulir Ortografía y Caligrafía */}
               <button
                 type="button"
@@ -786,16 +893,6 @@ ${text}`
                 <span>Guardar</span>
               </button>
 
-              {/* Toggle Rechazo de Palma */}
-              <button
-                type="button"
-                onClick={() => setPalmRejection(!palmRejection)}
-                className={`nb-island-action-btn ${palmRejection ? 'text-amber-300 bg-amber-500/15 border-amber-500/30' : 'text-slate-400'}`}
-                title={palmRejection ? 'Rechazo de Palma ACTIVADO: La mano apoyada en la pantalla no mancha el lienzo' : 'Rechazo de Palma desactivado'}
-              >
-                <span className="text-xs">{palmRejection ? '✋ Palma Off' : '✋ Palma On'}</span>
-              </button>
-
               {/* Botón para ABATIR la barra */}
               <button
                 type="button"
@@ -808,33 +905,58 @@ ${text}`
             </div>
           </div>
         ) : (
-          /* Pestaña Abatida Compacta (Mini Pill) */
+          /* Pestaña Abatida Compacta (Mini Pill) SIEMPRE VISIBLE Y FUNCIONAL */
           <div className="nb-island-minimized">
             <button
               type="button"
               onClick={() => setIsToolbarCollapsed(false)}
-              className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-slate-900/95 border border-amber-500/40 text-amber-300 text-xs font-bold shadow-2xl backdrop-blur-xl hover:scale-105 active:scale-95 transition-all"
-              title="Desplegar barra de herramientas"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-slate-900/95 border border-amber-500/40 text-amber-300 text-xs font-bold shadow-2xl backdrop-blur-xl hover:scale-105 active:scale-95 transition-all"
+              title="Desplegar barra completa de herramientas"
             >
               <PenTool className="w-3.5 h-3.5 text-amber-400" />
-              <span>Desplegar Herramientas</span>
+              <span>Herramientas</span>
               <ChevronDown className="w-3.5 h-3.5 text-amber-400" />
             </button>
+
+            {isRecordingActive && (
+              <div className="flex items-center gap-1.5 bg-red-950/80 border border-red-500/50 px-2.5 py-1 rounded-full">
+                <span className="nb-rec-dot" />
+                <span className="font-mono text-[11px] font-bold text-red-300">
+                  {Math.floor(recordingTime / 60)}:{String(recordingTime % 60).padStart(2, '0')}
+                </span>
+                {onStopAndFinalizeRecording && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      handleSave();
+                      onStopAndFinalizeRecording();
+                    }}
+                    className="px-2 py-0.5 rounded-full bg-red-600 hover:bg-red-500 text-white font-bold text-[10px]"
+                  >
+                    Finalizar
+                  </button>
+                )}
+              </div>
+            )}
+
             <button
               type="button"
               onClick={handleSave}
-              className="p-1.5 rounded-full bg-amber-500 text-slate-950 shadow-lg hover:bg-amber-400 transition-all active:scale-95"
+              className="flex items-center gap-1 px-2.5 py-1.5 rounded-full bg-amber-500 text-slate-950 text-xs font-bold shadow-lg hover:bg-amber-400 transition-all active:scale-95"
               title="Guardar nota rápida"
             >
               <Save className="w-3.5 h-3.5" />
+              <span>Guardar</span>
             </button>
+
             <button
               type="button"
               onClick={onClose}
-              className="p-1.5 rounded-full bg-slate-800 text-slate-400 hover:text-rose-400 hover:bg-slate-700 transition-all active:scale-95"
-              title="Cerrar libreta"
+              className="flex items-center gap-1 px-2.5 py-1.5 rounded-full bg-rose-950/70 border border-rose-500/40 text-rose-300 hover:text-white hover:bg-rose-900 text-xs font-bold transition-all active:scale-95"
+              title="Cerrar libreta y volver al inicio (Esc)"
             >
-              <X className="w-3.5 h-3.5" />
+              <X className="w-3.5 h-3.5 text-rose-400" />
+              <span>Salir</span>
             </button>
           </div>
         )}
