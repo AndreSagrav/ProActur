@@ -13,7 +13,7 @@ export default function SecondBrainModal({ isOpen, onClose, totalMeetings }) {
   const [messages, setMessages] = useState([
     {
       role: 'assistant',
-      text: '¡Hola! Soy tu Asistente IA y Segundo Cerebro. Tengo acceso a todas tus reuniones y libretas de notas. Puedes preguntarme sobre cualquier acuerdo, tarea pendiente, fecha o idea que hayas registrado.'
+      text: 'Sistema de Inteligencia Ejecutiva. Acceso en tiempo real a minutas, acuerdos, tareas y anotaciones de libreta. Indique su consulta o instrucción.'
     }
   ]);
   const [loading, setLoading] = useState(false);
@@ -49,7 +49,7 @@ export default function SecondBrainModal({ isOpen, onClose, totalMeetings }) {
     } catch (err) {
       setMessages(prev => [
         ...prev,
-        { role: 'assistant', text: `❌ Error conectando con la IA: ${err.message}` }
+        { role: 'assistant', text: `❌ Error en consulta: ${err.message}` }
       ]);
     } finally {
       setLoading(false);
@@ -72,13 +72,13 @@ export default function SecondBrainModal({ isOpen, onClose, totalMeetings }) {
             </div>
             <div>
               <h3 className="font-bold text-slate-100 flex items-center gap-2 text-base">
-                Chat con la IA (Segundo Cerebro)
+                Asistente Ejecutivo
                 <span className="text-[10px] px-2 py-0.5 rounded-full bg-indigo-500/15 text-indigo-300 border border-indigo-500/30 font-bold">
-                  {totalMeetings} reuniones + libretas indexadas
+                  {totalMeetings} reuniones indexadas
                 </span>
               </h3>
               <p className="text-xs text-slate-400">
-                Pregúntale cualquier cosa a tu memoria cruzada de reuniones y libretas
+                Análisis transversal de acuerdos, tareas y registros ejecutivos
               </p>
             </div>
           </div>
@@ -155,7 +155,7 @@ export default function SecondBrainModal({ isOpen, onClose, totalMeetings }) {
               type="text"
               value={question}
               onChange={(e) => setQuestion(e.target.value)}
-              placeholder="Chatea con la IA: '¿Qué acordamos con el equipo?', '¿Qué tareas tengo para mañana?'..."
+              placeholder="Indique consulta o requerimiento analítico..."
               className="w-full bg-slate-800/90 border border-slate-700 rounded-xl pl-4 pr-12 py-3 text-xs sm:text-sm text-slate-100 placeholder-slate-400 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all"
             />
             <button

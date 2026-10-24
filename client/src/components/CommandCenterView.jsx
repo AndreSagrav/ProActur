@@ -185,7 +185,16 @@ export default function CommandCenterView({
                   <p className="text-xs text-slate-400">Control de flujo y presupuestos</p>
                 </div>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1.5">
+                <button 
+                  type="button"
+                  onClick={() => onNavigate && onNavigate('finance')}
+                  className="px-2.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold flex items-center gap-1 cursor-pointer transition-all"
+                  title="Abrir módulo completo de Finanzas"
+                >
+                  <span>Detalle</span>
+                  <ChevronRight className="w-3.5 h-3.5 text-slate-400" />
+                </button>
                 <button 
                   type="button"
                   onClick={() => setShowAddTxModal(true)}

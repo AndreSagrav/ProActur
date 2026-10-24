@@ -135,6 +135,23 @@ class FinanceService {
 
     return newTx;
   }
+
+  async deleteTransaction(id) {
+    const data = this.readLocal();
+    const index = data.transactions.findIndex(t => t.id === id);
+    if (index === -1) return false;
+    const [deleted] = data.transactions.splice(index, 1);
+    const targetAccount = data.accounts.find(a => a.id === deleted.accountId);
+    if (targetAccount) {
+      if (deleted.type === 'gasto') {
+        targetAccount.balance += deleted.amount;
+      } else if (deleted.type === 'ingreso') {
+        targetAccount.balance -= deleted.amount;
+      }
+    }
+    this.writeLocal(data);
+    return true;
+  }
 }
 
 module.exports = new FinanceService();

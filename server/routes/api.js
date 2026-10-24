@@ -204,6 +204,26 @@ router.post('/meetings/live-analyze', upload.single('audio'), async (req, res) =
   }
 });
 
+// Sincronizar automáticamente acuerdos/tareas extraídas hacia el gestor unificado de tareas
+async function syncMeetingTasks(savedMeeting) {
+  try {
+    if (!savedMeeting || !Array.isArray(savedMeeting.actionItems) || savedMeeting.actionItems.length === 0) return;
+    for (const item of savedMeeting.actionItems) {
+      const text = typeof item === 'string' ? item : (item.task || item.text || item.title || '');
+      if (text && text.trim()) {
+        await taskService.createTask({
+          title: text.trim(),
+          priority: 'high',
+          source: 'meeting',
+          meetingId: savedMeeting.id
+        }).catch(() => {});
+      }
+    }
+  } catch (err) {
+    console.warn('[TaskSync Warn]', err.message);
+  }
+}
+
 // Finalizar y guardar reunion analizada en vivo (con titulación automática por IA)
 router.post('/meetings/live-finalize', async (req, res) => {
   try {
@@ -244,6 +264,8 @@ router.post('/meetings/live-finalize', async (req, res) => {
       source: 'live-meeting',
       createdAt: new Date().toISOString()
     });
+
+    await syncMeetingTasks(saved);
 
     res.json(saved);
   } catch (err) {
@@ -308,6 +330,8 @@ router.post('/meetings/process-audio', upload.single('audio'), async (req, res) 
       audioSize: req.file ? req.file.size : (audioBuffer ? audioBuffer.length : 0)
     });
 
+    await syncMeetingTasks(saved);
+
     res.json(saved);
   } catch (err) {
     console.error('[ProActur AI] Error procesando audio:', err);
@@ -355,6 +379,8 @@ router.post('/meetings/process-text', async (req, res) => {
       source: 'text'
     });
 
+    await syncMeetingTasks(saved);
+
     res.json(saved);
   } catch (err) {
     console.error('[ProActur AI] Error procesando texto:', err);
@@ -389,6 +415,8 @@ router.post('/meetings/merge', async (req, res) => {
       source: 'merged-series',
       createdAt: new Date().toISOString()
     });
+
+    await syncMeetingTasks(saved);
 
     res.json(saved);
   } catch (err) {
@@ -728,6 +756,16 @@ router.post('/finance/transactions', async (req, res) => {
     res.json(created);
   } catch (err) {
     console.error('[Finance Add Transaction Error]:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.delete('/finance/transactions/:id', async (req, res) => {
+  try {
+    const success = await financeService.deleteTransaction(req.params.id);
+    if (!success) return res.status(404).json({ error: 'Movimiento no encontrado' });
+    res.json({ success: true });
+  } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });

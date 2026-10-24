@@ -15,7 +15,7 @@ export default function ChatView({ totalMeetings = 0 }) {
   const [messages, setMessages] = useState([
     {
       role: 'assistant',
-      text: '¡Hola! Soy tu Asistente IA de ProActur. Tengo acceso a todas tus reuniones grabadas y a tus libretas de notas. Puedes hacerme cualquier pregunta sobre compromisos, acuerdos, fechas o temas discutidos.'
+      text: 'Plataforma de Inteligencia Ejecutiva activa. Acceso sincronizado a minutas de reuniones, acuerdos registrados y libretas de trabajo. Indique su requerimiento o consulta analítica.'
     }
   ]);
   const [loading, setLoading] = useState(false);
@@ -80,14 +80,14 @@ export default function ChatView({ totalMeetings = 0 }) {
           </div>
           <div>
             <h2 className="text-base font-bold text-slate-100 flex items-center gap-2">
-              Chat con la IA (Segundo Cerebro ProActur)
+              Asistente Ejecutivo & Inteligencia Analítica
               <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 font-bold flex items-center gap-1">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                IA Activa
+                Motor Operativo
               </span>
             </h2>
             <p className="text-xs text-slate-400">
-              Conversación en vivo sobre tus reuniones, acuerdos y libretas canvas
+              Análisis consolidado sobre minutas, tareas, acuerdos y documentación ejecutiva
             </p>
           </div>
         </div>
@@ -95,13 +95,13 @@ export default function ChatView({ totalMeetings = 0 }) {
         <button
           onClick={() => setMessages([{
             role: 'assistant',
-            text: 'Conversación reiniciada. ¿Qué deseas consultar sobre tus reuniones o libretas?'
+            text: 'Sesión reiniciada. Indique el requerimiento o consulta sobre sus registros.'
           }])}
           className="p-2 text-slate-400 hover:text-slate-200 hover:bg-slate-800 rounded-xl transition-colors text-xs flex items-center gap-1"
-          title="Reiniciar conversación"
+          title="Reiniciar sesión de consulta"
         >
           <RefreshCw className="w-3.5 h-3.5" />
-          <span className="hidden sm:inline">Limpiar Chat</span>
+          <span className="hidden sm:inline">Reiniciar Sesión</span>
         </button>
       </div>
 
@@ -172,7 +172,7 @@ export default function ChatView({ totalMeetings = 0 }) {
             type="text"
             value={question}
             onChange={(e) => setQuestion(e.target.value)}
-            placeholder="Pregúntale a la IA en vivo: '¿Qué acordamos con el equipo?', '¿Qué tareas tengo para mañana?'..."
+            placeholder="Ingrese consulta o instrucción para análisis de minutas y registros..."
             className="w-full bg-slate-900 border border-slate-700 rounded-2xl pl-4 pr-12 py-3.5 text-xs sm:text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all shadow-inner"
           />
           <button
