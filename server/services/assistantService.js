@@ -86,17 +86,23 @@ Estructura JSON requerida según acción:
     const prompt = `Instrucción del usuario: "${cmd}"`;
 
     let rawResponse = null;
-    // Cadena de Fallback dedicada y ultra-rápida para el Asistente:
-    // 1° Groq (0.5s de respuesta inmediata) -> 2° Gemini Flash -> 3° OpenRouter -> 4° Motor Heurístico Offline
-    const fastProviders = [
-      { provider: 'groq', model: 'openai/gpt-oss-120b' },
-      { provider: 'groq', model: 'qwen/qwen3.8-27b' },
-      { provider: 'gemini', model: 'gemini-3.6-flash' },
-      { provider: 'gemini', model: 'gemini-3.5-flash-lite' },
-      { provider: 'openrouter', model: 'nvidia/nemotron-3.5-super-vl:free' }
+    // Flota completa de 11 Modelos Ejecutivos de Alta Capacidad y Respaldo:
+    // 1° Groq LPU (GPT-OSS 120B / Qwen 27B) -> 2° Google Gemini (3.6 / 3.5 / Lite) -> 3° OpenRouter -> 4° Motor Local Offline
+    const executiveFleet = [
+      { provider: 'groq', model: 'openai/gpt-oss-120b', name: 'Groq GPT-OSS 120B' },
+      { provider: 'groq', model: 'qwen/qwen3.8-27b', name: 'Groq Qwen 3.8 27B' },
+      { provider: 'groq', model: 'openai/gpt-oss-20b', name: 'Groq GPT-OSS 20B' },
+      { provider: 'gemini', model: 'gemini-3.6-flash', name: 'Gemini 3.6 Flash' },
+      { provider: 'gemini', model: 'gemini-3.5-flash', name: 'Gemini 3.5 Flash' },
+      { provider: 'gemini', model: 'gemini-3.5-flash-lite', name: 'Gemini 3.5 Flash Lite' },
+      { provider: 'gemini', model: 'gemini-3.1-flash-lite', name: 'Gemini 3.1 Flash Lite' },
+      { provider: 'gemini', model: 'gemini-flash-lite-latest', name: 'Gemini Flash Lite Latest' },
+      { provider: 'gemini', model: 'gemini-3-flash-preview', name: 'Gemini 3 Flash Preview' },
+      { provider: 'openrouter', model: 'nvidia/nemotron-3.5-super-vl:free', name: 'Nemotron 3.5 Super VL' },
+      { provider: 'openrouter', model: 'recursive/flint-v1.0:free', name: 'Flint v1.0 Free' }
     ];
 
-    for (const p of fastProviders) {
+    for (const p of executiveFleet) {
       try {
         if (p.provider === 'groq') {
           rawResponse = await aiService.callGroq(prompt, systemPrompt, p.model);
