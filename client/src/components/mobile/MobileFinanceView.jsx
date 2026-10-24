@@ -108,121 +108,123 @@ export default function MobileFinanceView() {
   });
 
   return (
-    <div className="space-y-4 animate-fade-in pb-16 select-none">
-      {/* 1. Header Ejecutivo de Finanzas */}
-      <div className="flex items-center justify-between gap-3">
-        <div className="min-w-0">
-          <div className="flex items-center gap-2">
-            <div className="w-7 h-7 rounded-lg bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center shrink-0">
-              <Wallet className="w-4 h-4 text-emerald-400" />
+    <div className="space-y-3 animate-fade-in pb-16 select-none">
+      {/* 1. Panel Ejecutivo Consolidado (Estilo Private Banking / Stripe) */}
+      <div className="p-4 rounded-2xl bg-gradient-to-b from-slate-900/90 to-slate-950/95 border border-white/[0.08] shadow-lg space-y-3">
+        {/* Fila Superior: Liquidez Principal + Acciones */}
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <div className="flex items-center gap-1.5">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                Liquidez Consolidada
+              </span>
             </div>
-            <h2 className="text-base sm:text-lg font-extrabold text-white tracking-tight">Finanzas & Liquidez</h2>
+            <div className="flex items-baseline gap-1 mt-0.5">
+              <span className="text-2xl sm:text-3xl font-black font-mono tracking-tight text-white">
+                ${Number(financeData.balance || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+              </span>
+              <span className="text-[10px] font-bold text-slate-400 uppercase">USD</span>
+            </div>
           </div>
-          <p className="text-xs text-slate-400 mt-0.5 truncate">Control de cuentas y comprobantes</p>
+
+          <div className="flex items-center gap-1.5 shrink-0">
+            <button
+              type="button"
+              onClick={fetchFinance}
+              className="p-2 rounded-xl bg-slate-800/80 hover:bg-slate-800 text-slate-400 hover:text-white transition-all active:scale-95 border border-white/[0.06]"
+              title="Actualizar"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowAddSheet(true)}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs shadow-md shadow-emerald-500/20 active:scale-95 transition-all whitespace-nowrap"
+            >
+              <Plus className="w-3.5 h-3.5 stroke-[3]" />
+              <span>Movimiento</span>
+            </button>
+          </div>
         </div>
-        <div className="flex items-center gap-2 shrink-0">
-          <button
-            type="button"
-            onClick={fetchFinance}
-            className="p-2 rounded-xl bg-slate-900 border border-white/[0.08] text-slate-400 hover:text-white active:scale-95 transition-all shadow-sm"
-            title="Actualizar"
-          >
-            <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-          </button>
-          <button
-            type="button"
-            onClick={() => setShowAddSheet(true)}
-            className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 text-white font-bold text-xs shadow-md shadow-emerald-600/25 active:scale-95 transition-all whitespace-nowrap"
-          >
-            <Plus className="w-4 h-4" />
-            <span>+ Movimiento</span>
-          </button>
+
+        {/* Fila Inferior: Métricas Compactas de Flujo (Línea Mínima, Cero Cajas Pesadas) */}
+        <div className="grid grid-cols-2 gap-2 pt-2.5 border-t border-white/[0.06]">
+          <div className="flex items-center gap-2">
+            <div className="w-6 h-6 rounded-md bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400 shrink-0">
+              <ArrowDownRight className="w-3.5 h-3.5" />
+            </div>
+            <div className="min-w-0">
+              <span className="text-[9px] text-slate-400 uppercase font-semibold block leading-tight">Ingresos</span>
+              <span className="text-xs sm:text-sm font-bold font-mono text-emerald-400 truncate block">
+                +${Number(financeData.monthIncome || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+              </span>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 border-l border-white/[0.06] pl-3">
+            <div className="w-6 h-6 rounded-md bg-rose-500/10 border border-rose-500/20 flex items-center justify-center text-rose-400 shrink-0">
+              <ArrowUpRight className="w-3.5 h-3.5" />
+            </div>
+            <div className="min-w-0">
+              <span className="text-[9px] text-slate-400 uppercase font-semibold block leading-tight">Egresos</span>
+              <span className="text-xs sm:text-sm font-bold font-mono text-slate-200 truncate block">
+                -${Number(financeData.monthExpense || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+              </span>
+            </div>
+          </div>
         </div>
       </div>
 
-      {/* 2. Cuentas e Instrumentos (Directiva y Sobria) */}
-      <div className="space-y-2">
-        <div className="flex items-center justify-between px-1">
-          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-            Cuentas Activas
+      {/* 2. Cuentas e Instrumentos (Lista Directiva Compacta de Alta Densidad) */}
+      <div className="bg-slate-900/70 border border-white/[0.07] rounded-2xl overflow-hidden divide-y divide-white/[0.05] shadow-sm">
+        <div className="px-3.5 py-2 bg-white/[0.02] flex items-center justify-between">
+          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+            Cuentas e Instrumentos
           </span>
           <span className="text-[10px] font-mono text-slate-500">
             {financeData.accounts?.length || 0} registradas
           </span>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-          {financeData.accounts?.map((acc) => {
-            const isNegative = Number(acc.balance) < 0;
-            const currencySymbol = acc.currency === 'CRC' ? '₡' : '$';
+        {financeData.accounts?.map((acc) => {
+          const isNegative = Number(acc.balance) < 0;
+          const currencySymbol = acc.currency === 'CRC' ? '₡' : '$';
 
-            return (
-              <div
-                key={acc.id}
-                className="p-3.5 rounded-2xl bg-slate-900/90 border border-white/[0.08] shadow-sm flex flex-col justify-between transition-all"
-              >
-                <div className="flex items-center justify-between gap-2">
-                  <div className="flex items-center gap-2.5 min-w-0">
-                    <div
-                      className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0 border border-white/[0.1]"
-                      style={{ backgroundColor: `${acc.color || '#4f46e5'}25`, color: acc.color || '#818cf8' }}
-                    >
-                      {acc.type === 'efectivo' ? <Banknote className="w-4 h-4" /> : <CreditCard className="w-4 h-4" />}
-                    </div>
-                    <span className="text-xs font-bold text-slate-200 leading-snug break-words">
-                      {acc.name}
-                    </span>
-                  </div>
-                  <span className="text-[9px] font-mono font-semibold uppercase px-2 py-0.5 rounded-md bg-white/[0.04] text-slate-400 border border-white/[0.06] shrink-0">
-                    {acc.currency || 'USD'}
-                  </span>
+          return (
+            <div
+              key={acc.id}
+              className="px-3.5 py-2.5 flex items-center justify-between hover:bg-white/[0.02] transition-colors"
+            >
+              <div className="flex items-center gap-2.5 min-w-0">
+                <div
+                  className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0 border border-white/[0.08]"
+                  style={{ backgroundColor: `${acc.color || '#4f46e5'}20`, color: acc.color || '#818cf8' }}
+                >
+                  {acc.type === 'efectivo' ? <Banknote className="w-3.5 h-3.5" /> : <CreditCard className="w-3.5 h-3.5" />}
                 </div>
-
-                <div className="mt-3 pt-2 border-t border-white/[0.05] flex items-baseline justify-between">
-                  <span className="text-[10px] text-slate-400 font-medium uppercase tracking-wider">Saldo</span>
-                  <div className="flex items-baseline gap-1">
-                    <span className={`text-base sm:text-lg font-black font-mono tracking-tight ${isNegative ? 'text-rose-400' : 'text-slate-100'}`}>
-                      {currencySymbol}{Number(acc.balance || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                    </span>
-                  </div>
-                </div>
+                <span className="text-xs font-semibold text-slate-200 truncate">
+                  {acc.name}
+                </span>
+                <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-white/[0.04] text-slate-400 border border-white/[0.06] shrink-0">
+                  {acc.currency || 'USD'}
+                </span>
               </div>
-            );
-          })}
-        </div>
+
+              <div className="text-right shrink-0 ml-2">
+                <span className={`text-xs sm:text-sm font-mono font-bold ${isNegative ? 'text-rose-400' : 'text-slate-100'}`}>
+                  {currencySymbol}{Number(acc.balance || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </span>
+              </div>
+            </div>
+          );
+        })}
       </div>
 
-      {/* 3. Indicadores de Flujo Mensual */}
-      <div className="grid grid-cols-2 gap-2.5">
-        <div className="p-3.5 rounded-2xl bg-slate-900/80 backdrop-blur-xl border border-white/[0.08] shadow-sm flex items-center justify-between">
-          <div>
-            <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider block">Ingresos</span>
-            <span className="text-sm sm:text-base font-extrabold text-emerald-400 font-mono mt-0.5 block">
-              +${Number(financeData.monthIncome || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
-            </span>
-          </div>
-          <div className="w-7 h-7 rounded-lg bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center shrink-0">
-            <TrendingUp className="w-4 h-4 text-emerald-400" />
-          </div>
-        </div>
-
-        <div className="p-3.5 rounded-2xl bg-slate-900/80 backdrop-blur-xl border border-white/[0.08] shadow-sm flex items-center justify-between">
-          <div>
-            <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider block">Egresos</span>
-            <span className="text-sm sm:text-base font-extrabold text-slate-200 font-mono mt-0.5 block">
-              -${Number(financeData.monthExpense || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
-            </span>
-          </div>
-          <div className="w-7 h-7 rounded-lg bg-rose-500/15 border border-rose-500/30 flex items-center justify-center shrink-0">
-            <TrendingDown className="w-4 h-4 text-rose-400" />
-          </div>
-        </div>
-      </div>
-
-      {/* 4. Historial de Transacciones (Feed Táctil de Alta Legibilidad) */}
-      <div className="p-4 sm:p-5 rounded-2xl bg-slate-900/85 backdrop-blur-xl border border-white/[0.08] shadow-lg space-y-3">
+      {/* 3. Historial de Transacciones (Feed Táctil Compacto y Nítido) */}
+      <div className="p-3.5 sm:p-4 rounded-2xl bg-slate-900/80 backdrop-blur-xl border border-white/[0.07] shadow-sm space-y-2.5">
         <div className="flex items-center justify-between">
-          <span className="text-xs font-bold text-slate-200 uppercase tracking-wider">
+          <span className="text-[11px] font-bold text-slate-300 uppercase tracking-wider">
             Movimientos ({filteredTransactions.length})
           </span>
 
@@ -260,36 +262,36 @@ export default function MobileFinanceView() {
               return (
                 <div
                   key={tx.id}
-                  className="p-3.5 rounded-2xl bg-slate-950/80 hover:bg-slate-950 border border-white/[0.05] flex items-center justify-between gap-3 transition-all"
+                  className="p-2.5 sm:p-3 rounded-xl bg-slate-950/70 hover:bg-slate-950 border border-white/[0.05] flex items-center justify-between gap-2.5 transition-all"
                 >
-                  <div className="flex items-center gap-3 min-w-0">
-                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 border ${
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <div className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 border ${
                       isIncome
                         ? 'bg-emerald-500/15 border-emerald-500/30 text-emerald-400'
                         : 'bg-rose-500/15 border-rose-500/30 text-rose-400'
                     }`}>
-                      {isIncome ? <ArrowDownRight className="w-5 h-5" /> : <ArrowUpRight className="w-5 h-5" />}
+                      {isIncome ? <ArrowDownRight className="w-3.5 h-3.5" /> : <ArrowUpRight className="w-3.5 h-3.5" />}
                     </div>
                     <div className="min-w-0 flex-1">
-                      <h4 className="text-xs font-bold text-slate-100 line-clamp-2 leading-snug break-words">
+                      <h4 className="text-xs font-semibold text-slate-100 truncate">
                         {tx.note || tx.category || 'Movimiento'}
                       </h4>
                       <p className="text-[10px] text-slate-400 flex items-center gap-1 mt-0.5">
                         <span>{tx.category}</span>
                         <span>•</span>
-                        <span>{new Date(tx.date || Date.now()).toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })}</span>
+                        <span>{new Date(tx.date || Date.now()).toLocaleDateString('es-CR', { day: 'numeric', month: 'short' })}</span>
                       </p>
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-3 shrink-0">
-                    <span className={`text-sm font-black font-mono ${isIncome ? 'text-emerald-400' : 'text-slate-100'}`}>
+                  <div className="flex items-center gap-2.5 shrink-0">
+                    <span className={`text-xs sm:text-sm font-black font-mono ${isIncome ? 'text-emerald-400' : 'text-slate-100'}`}>
                       {isIncome ? '+' : '-'}${Number(tx.amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
                     </span>
                     <button
                       type="button"
                       onClick={() => handleDeleteTx(tx.id)}
-                      className="text-slate-600 hover:text-rose-400 p-1.5 rounded-lg active:scale-95 transition-all"
+                      className="text-slate-600 hover:text-rose-400 p-1 rounded-md active:scale-95 transition-all"
                       title="Eliminar registro"
                     >
                       <Trash2 className="w-3.5 h-3.5" />
