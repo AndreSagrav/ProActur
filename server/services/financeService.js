@@ -130,6 +130,9 @@ class FinanceService {
           amount: newTx.amount,
           date: newTx.date
         });
+        if (targetAccount) {
+          await supabase.from('finance_accounts').update({ balance: targetAccount.balance }).eq('id', targetAccount.id);
+        }
       } catch (_) {}
     }
 
@@ -150,6 +153,17 @@ class FinanceService {
       }
     }
     this.writeLocal(data);
+
+    const supabase = getSupabaseClient();
+    if (supabase) {
+      try {
+        await supabase.from('finance_transactions').delete().eq('id', id);
+        if (targetAccount) {
+          await supabase.from('finance_accounts').update({ balance: targetAccount.balance }).eq('id', targetAccount.id);
+        }
+      } catch (_) {}
+    }
+
     return true;
   }
 }

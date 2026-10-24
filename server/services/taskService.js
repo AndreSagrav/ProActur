@@ -47,7 +47,10 @@ class TaskService {
     if (supabase) {
       try {
         const { data, error } = await supabase.from('tasks').select('*').order('created_at', { ascending: false });
-        if (!error && data && data.length > 0) return data;
+        if (!error && data) {
+          this.writeLocal(data);
+          return data;
+        }
       } catch (_) {}
     }
     return this.readLocal();
