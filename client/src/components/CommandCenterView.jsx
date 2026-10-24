@@ -140,30 +140,30 @@ export default function CommandCenterView({
             </p>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2.5 shrink-0">
+          <div className="grid grid-cols-3 sm:flex sm:flex-wrap items-center gap-2 w-full md:w-auto shrink-0">
             <button
               type="button"
               onClick={onStartRecording}
-              className="flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 hover:to-rose-500 text-white font-bold text-xs shadow-lg shadow-red-600/30 transition-all active:scale-95 cursor-pointer"
+              className="flex items-center justify-center gap-1.5 px-3 sm:px-4 py-2.5 rounded-2xl bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 hover:to-rose-500 text-white font-bold text-xs shadow-lg shadow-red-600/30 transition-all active:scale-95 cursor-pointer text-center"
             >
-              <Mic className="w-4 h-4" />
-              <span>Grabar Reunión</span>
+              <Mic className="w-4 h-4 shrink-0" />
+              <span className="truncate">Grabar</span>
             </button>
             <button
               type="button"
               onClick={onNewNote}
-              className="flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-amber-200 font-bold text-xs transition-all active:scale-95 cursor-pointer"
+              className="flex items-center justify-center gap-1.5 px-3 sm:px-4 py-2.5 rounded-2xl bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-amber-200 font-bold text-xs transition-all active:scale-95 cursor-pointer text-center"
             >
-              <Plus className="w-4 h-4 text-amber-400" />
-              <span>Nueva Nota</span>
+              <Plus className="w-4 h-4 text-amber-400 shrink-0" />
+              <span className="truncate">Nota</span>
             </button>
             <button
               type="button"
               onClick={onOpenAssistant}
-              className="flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 font-bold text-xs transition-all active:scale-95 cursor-pointer"
+              className="flex items-center justify-center gap-1.5 px-3 sm:px-4 py-2.5 rounded-2xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 font-bold text-xs transition-all active:scale-95 cursor-pointer text-center"
             >
-              <Brain className="w-4 h-4 text-indigo-400" />
-              <span>Consultar IA</span>
+              <Brain className="w-4 h-4 text-indigo-400 shrink-0" />
+              <span className="truncate">Consultar</span>
             </button>
           </div>
         </div>

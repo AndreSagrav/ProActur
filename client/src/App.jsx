@@ -295,7 +295,7 @@ const handleNewNote = (linkedMeeting = null) => {
   ];
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 text-white flex flex-col pb-20 lg:pb-6">
+    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 text-white flex flex-col pb-40 md:pb-8">
       {/* Header Responsivo */}
       <header className="border-b border-slate-800/80 bg-slate-950/95 backdrop-blur-2xl sticky top-0 z-40 shadow-xl">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 space-y-3">
@@ -787,80 +787,74 @@ const handleNewNote = (linkedMeeting = null) => {
       {/* =================================================================== */}
       {/* BARRA DE NAVEGACION INFERIOR PARA MOVILES Y TABLETS (< md)          */}
       {/* =================================================================== */}
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-slate-950/95 backdrop-blur-2xl border-t border-slate-800/80 px-2 pt-1.5 pb-4 safe-bottom shadow-2xl">
-        <div className="grid grid-cols-4 items-center">
-          {/* 1. Reuniones */}
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-slate-950/95 backdrop-blur-2xl border-t border-slate-800/80 px-1 pt-1.5 pb-3 safe-bottom shadow-2xl">
+        <div className="grid grid-cols-5 items-center">
+          {/* 1. Centro de Mando */}
+          <button
+            onClick={() => setActiveTab('command-center')}
+            className={`flex flex-col items-center justify-center py-1 px-1 rounded-xl transition-all ${
+              activeTab === 'command-center' ? 'text-amber-400 font-bold' : 'text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            <div className={`p-1.5 rounded-xl transition-all ${activeTab === 'command-center' ? 'bg-amber-500/20 text-amber-400 shadow-sm' : ''}`}>
+              <LayoutDashboard className="w-5 h-5" />
+            </div>
+            <span className="text-[10px] mt-0.5">Mando</span>
+          </button>
+
+          {/* 2. Reuniones */}
           <button
             onClick={() => {
               setActiveTab('meetings');
               setShowMobileDetail(false);
             }}
-            className={`flex flex-col items-center justify-center py-1.5 px-2 rounded-xl transition-all ${
-              activeTab === 'meetings'
-                ? 'text-indigo-400 font-semibold'
-                : 'text-slate-400 hover:text-slate-200'
+            className={`flex flex-col items-center justify-center py-1 px-1 rounded-xl transition-all ${
+              activeTab === 'meetings' ? 'text-indigo-400 font-bold' : 'text-slate-400 hover:text-slate-200'
             }`}
           >
             <div className={`p-1.5 rounded-xl transition-all ${activeTab === 'meetings' ? 'bg-indigo-600/20 text-indigo-400 shadow-sm' : ''}`}>
               <FileText className="w-5 h-5" />
             </div>
-            <span className="text-[10px] mt-0.5 font-medium">Reuniones</span>
+            <span className="text-[10px] mt-0.5">Reuniones</span>
           </button>
 
-          {/* 2. Libreta Canvas */}
+          {/* 3. Finanzas */}
           <button
-            onClick={() => {
-              setActiveTab('notebook');
-            }}
-            className={`flex flex-col items-center justify-center py-1.5 px-2 rounded-xl transition-all ${
-              activeTab === 'notebook'
-                ? 'text-indigo-400 font-semibold'
-                : 'text-slate-400 hover:text-slate-200'
+            onClick={() => setActiveTab('finance')}
+            className={`flex flex-col items-center justify-center py-1 px-1 rounded-xl transition-all ${
+              activeTab === 'finance' ? 'text-emerald-400 font-bold' : 'text-slate-400 hover:text-slate-200'
             }`}
           >
-            <div className={`p-1.5 rounded-xl transition-all ${activeTab === 'notebook' ? 'bg-indigo-600/20 text-indigo-400 shadow-sm' : ''}`}>
-              <BookOpen className="w-5 h-5" />
+            <div className={`p-1.5 rounded-xl transition-all ${activeTab === 'finance' ? 'bg-emerald-500/20 text-emerald-400 shadow-sm' : ''}`}>
+              <Wallet className="w-5 h-5" />
             </div>
-            <span className="text-[10px] mt-0.5 font-medium">Libreta</span>
+            <span className="text-[10px] mt-0.5">Finanzas</span>
           </button>
 
-          {/* 3. Agenda */}
+          {/* 4. Agenda */}
           <button
-            onClick={() => {
-              setActiveTab('calendar');
-            }}
-            className={`flex flex-col items-center justify-center py-1.5 px-2 rounded-xl transition-all ${
-              activeTab === 'calendar'
-                ? 'text-indigo-400 font-semibold'
-                : 'text-slate-400 hover:text-slate-200'
+            onClick={() => setActiveTab('calendar')}
+            className={`flex flex-col items-center justify-center py-1 px-1 rounded-xl transition-all ${
+              activeTab === 'calendar' ? 'text-amber-400 font-bold' : 'text-slate-400 hover:text-slate-200'
             }`}
           >
-            <div className={`p-1.5 rounded-xl transition-all ${activeTab === 'calendar' ? 'bg-indigo-600/20 text-indigo-400 shadow-sm' : ''}`}>
+            <div className={`p-1.5 rounded-xl transition-all ${activeTab === 'calendar' ? 'bg-amber-500/20 text-amber-400 shadow-sm' : ''}`}>
               <Calendar className="w-5 h-5" />
             </div>
-            <span className="text-[10px] mt-0.5 font-medium">Agenda</span>
+            <span className="text-[10px] mt-0.5">Agenda</span>
           </button>
 
-          {/* 4. Chat con IA (Único, con badge reactivo) */}
+          {/* 5. Libreta */}
           <button
-            onClick={() => {
-              setActiveTab('chat');
-            }}
-            className={`flex flex-col items-center justify-center py-1.5 px-2 rounded-xl transition-all ${
-              activeTab === 'chat'
-                ? 'text-indigo-400 font-semibold'
-                : 'text-slate-400 hover:text-slate-200'
+            onClick={() => setActiveTab('notebook')}
+            className={`flex flex-col items-center justify-center py-1 px-1 rounded-xl transition-all ${
+              activeTab === 'notebook' ? 'text-purple-400 font-bold' : 'text-slate-400 hover:text-slate-200'
             }`}
           >
-            <div className={`p-1.5 rounded-xl relative transition-all ${activeTab === 'chat' ? 'bg-indigo-600/20 text-indigo-400 shadow-sm' : ''}`}>
-              <Brain className="w-5 h-5" />
-              {meetings.length > 0 && (
-                <span className="absolute -top-0.5 -right-0.5 w-4 h-4 bg-indigo-600 text-[9px] text-white rounded-full flex items-center justify-center font-bold border border-slate-950 shadow-sm">
-                  {meetings.length}
-                </span>
-              )}
+            <div className={`p-1.5 rounded-xl transition-all ${activeTab === 'notebook' ? 'bg-purple-500/20 text-purple-400 shadow-sm' : ''}`}>
+              <BookOpen className="w-5 h-5" />
             </div>
-            <span className="text-[10px] mt-0.5 font-medium">Chat IA</span>
+            <span className="text-[10px] mt-0.5">Libreta</span>
           </button>
         </div>
       </nav>

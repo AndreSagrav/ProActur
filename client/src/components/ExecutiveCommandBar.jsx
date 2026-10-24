@@ -126,7 +126,7 @@ export default function ExecutiveCommandBar({
   return (
     <>
       {/* 1. Barra Flotante Principal */}
-      <div className="fixed bottom-4 sm:bottom-6 left-1/2 -translate-x-1/2 z-40 w-full max-w-2xl px-3 pointer-events-auto">
+      <div className="fixed bottom-20 md:bottom-6 left-1/2 -translate-x-1/2 z-40 w-full max-w-2xl px-3 pointer-events-auto">
         {/* Banner de Feedback Rápido */}
         {quickToast && (
           <div className="mb-2 p-3 rounded-2xl bg-slate-900/95 border border-slate-700/80 shadow-2xl backdrop-blur-2xl flex items-center justify-between gap-3 text-xs animate-fade-in">
