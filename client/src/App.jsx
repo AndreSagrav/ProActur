@@ -20,10 +20,14 @@ import ExecutiveNotebook from './components/ExecutiveNotebook';
 import CommandCenterView from './components/CommandCenterView';
 import FinanceView from './components/FinanceView';
 import ExecutiveCommandBar from './components/ExecutiveCommandBar';
+import { useDeviceType } from './hooks/useDeviceType';
+import MobileCommandCenter from './components/mobile/MobileCommandCenter';
+import MobileFinanceView from './components/mobile/MobileFinanceView';
 
 const API = import.meta.env.VITE_API_URL || '';
 
 export default function App() {
+  const { isMobile, isTablet, isDesktop } = useDeviceType();
   const { theme, setTheme, THEMES, fontSize, setFontSize } = useTheme();
   const [meetings, setMeetings] = useState([]);
   const [selectedMeetingId, setSelectedMeetingId] = useState(null);
@@ -465,20 +469,37 @@ const handleNewNote = (linkedMeeting = null) => {
         {/* PESTAÑA: CENTRO DE MANDO (ENFOQUE A - ASISTENTE INTEGRAL)           */}
         {/* =================================================================== */}
         {activeTab === 'command-center' && (
-          <CommandCenterView
-            meetings={meetings}
-            onNavigate={(dest) => {
-              if (dest === 'meetings') setActiveTab('meetings');
-              if (dest === 'tasks') setActiveTab('command-center');
-              if (dest === 'finance') setActiveTab('finance');
-              if (dest === 'chat') setActiveTab('chat');
-              if (dest === 'notebook') setActiveTab('notebook');
-              if (dest === 'calendar') setActiveTab('calendar');
-            }}
-            onStartRecording={() => setActiveTab('meetings')}
-            onNewNote={() => setShowNotebookOverlay(true)}
-            onOpenAssistant={() => setIsSecondBrainOpen(true)}
-          />
+          isMobile ? (
+            <MobileCommandCenter
+              meetings={meetings}
+              onNavigate={(dest) => {
+                if (dest === 'meetings') setActiveTab('meetings');
+                if (dest === 'tasks') setActiveTab('command-center');
+                if (dest === 'finance') setActiveTab('finance');
+                if (dest === 'chat') setActiveTab('chat');
+                if (dest === 'notebook') setActiveTab('notebook');
+                if (dest === 'calendar') setActiveTab('calendar');
+              }}
+              onStartRecording={() => setActiveTab('meetings')}
+              onNewNote={() => setShowNotebookOverlay(true)}
+              onOpenAssistant={() => setIsSecondBrainOpen(true)}
+            />
+          ) : (
+            <CommandCenterView
+              meetings={meetings}
+              onNavigate={(dest) => {
+                if (dest === 'meetings') setActiveTab('meetings');
+                if (dest === 'tasks') setActiveTab('command-center');
+                if (dest === 'finance') setActiveTab('finance');
+                if (dest === 'chat') setActiveTab('chat');
+                if (dest === 'notebook') setActiveTab('notebook');
+                if (dest === 'calendar') setActiveTab('calendar');
+              }}
+              onStartRecording={() => setActiveTab('meetings')}
+              onNewNote={() => setShowNotebookOverlay(true)}
+              onOpenAssistant={() => setIsSecondBrainOpen(true)}
+            />
+          )
         )}
 
         {/* =================================================================== */}
@@ -723,7 +744,7 @@ const handleNewNote = (linkedMeeting = null) => {
         {/* =================================================================== */}
         {activeTab === 'finance' && (
           <div className="w-full">
-            <FinanceView />
+            {isMobile ? <MobileFinanceView /> : <FinanceView />}
           </div>
         )}
 

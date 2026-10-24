@@ -1,6 +1,6 @@
 {
   "appId": "com.proactur.app",
-  "appName": "ProActur",
+  "appName": "ProActur AI",
   "webDir": "dist",
   "server": {
     "url": "https://pro-actur.vercel.app",

@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">ProActur AI</string>
+    <string name="title_activity_main">ProActur AI</string>
+    <string name="package_name">com.proactur.app</string>
+    <string name="custom_url_scheme">com.proactur.app</string>
+</resources>

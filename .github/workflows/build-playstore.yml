@@ -1,0 +1,68 @@
+name: Build & Sign Android (Google Play AAB & APK)
+
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  build-android:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Java 17 (Zulu)
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'zulu'
+          java-version: '17'
+
+      - name: Set up Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install Root & Client Dependencies
+        run: |
+          npm install
+          cd client && npm install
+
+      - name: Build Web Client Bundle
+        run: |
+          cd client && npm run build
+
+      - name: Sync Capacitor Android
+        run: |
+          cd client
+          npx cap sync android
+
+      - name: Make Gradle Wrapper Executable
+        run: |
+          chmod +x client/android/gradlew
+
+      - name: Build Signed Release AAB (Google Play Store)
+        run: |
+          cd client/android
+          ./gradlew bundleRelease
+
+      - name: Build Signed Release APK (Direct Install)
+        run: |
+          cd client/android
+          ./gradlew assembleRelease
+
+      - name: Upload Signed Google Play AAB Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ProActur-GooglePlay-AAB
+          path: client/android/app/build/outputs/bundle/release/app-release.aab
+          if-no-files-found: warn
+
+      - name: Upload Signed Release APK Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ProActur-Release-APK
+          path: client/android/app/build/outputs/apk/release/app-release.apk
+          if-no-files-found: warn
