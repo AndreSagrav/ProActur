@@ -275,12 +275,16 @@ export default function ExecutiveNotebook({
       return;
     }
 
-    // 4. Filtro de superficie/área de contacto táctil (descarta palma o costado de mano)
+    // 4. Filtro riguroso de palma / superficie táctil:
+    // Si es touch, verificar que no sea la palma descansando (área grande o presión atípica)
     if (e.pointerType === 'touch') {
-      if ((e.width && e.width > 20) || (e.height && e.height > 20)) return;
-      if (typeof e.radiusX === 'number' && (e.radiusX > 15 || e.radiusY > 15)) return;
-      // Si el lápiz se usó recientemente (< 5 segundos), cualquier toque táctil es la mano
-      if (Date.now() - lastPenTime.current < 5000) return;
+      const contactWidth = e.width || 0;
+      const contactHeight = e.height || 0;
+      // Una yema de dedo típica en pantalla mide 8-15px. La palma/costado mide > 18px
+      if (contactWidth > 18 || contactHeight > 18) return;
+      if (typeof e.radiusX === 'number' && (e.radiusX > 12 || e.radiusY > 12)) return;
+      // Si el lápiz se usó recientemente (< 8 segundos), cualquier touch es rechazo garantizado
+      if (Date.now() - lastPenTime.current < 8000) return;
     }
 
     // 5. Bloqueo estricto de puntero único: no permitir solapamiento de trazos simultáneos
@@ -338,7 +342,9 @@ export default function ExecutiveNotebook({
 
     // Filtro de área de palma en movimiento
     if (e.pointerType === 'touch') {
-      if ((e.width && e.width > 20) || (e.height && e.height > 20)) return;
+      const contactWidth = e.width || 0;
+      const contactHeight = e.height || 0;
+      if (contactWidth > 18 || contactHeight > 18) return;
     }
 
     e.preventDefault();
@@ -357,10 +363,10 @@ export default function ExecutiveNotebook({
       const lastPt = pts[pts.length - 1];
 
       // FILTRO ANTI-RAYONES / ANTI-SALTO TELEPÓRTICO:
-      // En caligrafía humana natural, dos puntos consecutivos en ~10ms no pueden distar > 75px.
-      // Si la distancia es > 75px, es una interferencia de palma/hardware touch y se ignora el salto.
+      // En caligrafía humana natural, dos puntos consecutivos en ~10ms no pueden distar > 50px.
+      // Si la distancia es > 50px, es una interferencia de palma/hardware touch y se descarta el salto.
       const dist = Math.hypot(p.x - lastPt.x, p.y - lastPt.y);
-      if (dist > 75) {
+      if (dist > 50) {
         continue;
       }
 
@@ -653,6 +659,17 @@ ${text}`
   return (
     <div className="nb-fullscreen-overlay">
       <div className="nb-ambient-bg" />
+
+      {/* Botón flotante de salida de emergencia SIEMPRE VISIBLE en esquina superior derecha */}
+      <button
+        type="button"
+        onClick={onClose}
+        className="fixed top-3 right-4 z-[100000] flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-slate-900/90 hover:bg-rose-950/90 border border-slate-700/80 hover:border-rose-500/80 text-slate-300 hover:text-rose-200 text-xs font-semibold shadow-2xl backdrop-blur-md transition-all active:scale-95 cursor-pointer"
+        title="Cerrar libreta y volver al inicio (Esc)"
+      >
+        <X className="w-3.5 h-3.5 text-rose-400" />
+        <span className="hidden sm:inline">Cerrar</span>
+      </button>
 
       {/* =============================================================== */}
       {/* BARRA DE HERRAMIENTAS ABATIBLE (Collapsible Floating Island)    */}

@@ -1,8 +1,8 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';;
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   Sparkles, Brain, Settings, Palette, Plus, Search, Calendar, Share2, CheckCircle2,
   Clock, CheckSquare, ChevronRight, Radio, FileText, BookOpen, PenTool,
-  ArrowLeft, Activity, ShieldCheck, GitMerge, Loader2, X
+  ArrowLeft, Activity, ShieldCheck, GitMerge, Loader2, X, LayoutDashboard, Wallet
 } from 'lucide-react';
 
 import AudioRecorder from './components/AudioRecorder';
@@ -17,6 +17,7 @@ import EventModal from './components/EventModal';
 import NotebookList from './components/NotebookList';
 import NoteEditor from './components/NoteEditor';
 import ExecutiveNotebook from './components/ExecutiveNotebook';
+import CommandCenterView from './components/CommandCenterView';
 
 const API = import.meta.env.VITE_API_URL || '';
 
@@ -37,8 +38,8 @@ export default function App() {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isThemeOpen, setIsThemeOpen] = useState(false);
 
-  // Tabs: 'meetings' | 'calendar' | 'notebook'
-  const [activeTab, setActiveTab] = useState('meetings');
+  // Tabs: 'command-center' | 'meetings' | 'calendar' | 'notebook' | 'chat'
+  const [activeTab, setActiveTab] = useState('command-center');
 
   // En movil, controla si mostramos la lista o el detalle de reunion
   const [showMobileDetail, setShowMobileDetail] = useState(false);
@@ -47,6 +48,11 @@ export default function App() {
   const [eventModalOpen, setEventModalOpen] = useState(false);
   const [editingEvent, setEditingEvent] = useState(null);
   const [eventInitialDate, setEventInitialDate] = useState(null);
+
+  // Barra de Comandos del Asistente (Centro de Mando)
+  const [commandInput, setCommandInput] = useState('');
+  const [commandFeedback, setCommandFeedback] = useState('');
+  const [isCommandLoading, setIsCommandLoading] = useState(false);
 
   // Estado de Grabación Persistente en 2do Plano (Zero-Interrupción)
   const recorderRef = useRef(null);
@@ -268,6 +274,64 @@ const handleNewNote = (linkedMeeting = null) => {
     setIsEditingNote(true);
   };
 
+  const handleAssistantCommand = async (e) => {
+    if (e) e.preventDefault();
+    if (!commandInput.trim() || isCommandLoading) return;
+    const cmd = commandInput.trim();
+    setCommandInput('');
+    setIsCommandLoading(true);
+    setCommandFeedback('Analizando orden con IA...');
+
+    try {
+      // Detección directa de gasto/ingreso o consulta
+      const lower = cmd.toLowerCase();
+      const amountMatch = lower.match(/\$?\s*(\d+(?:[.,]\d+)?)/);
+      const isExpense = lower.includes('gast') || lower.includes('pagu') || lower.includes('compr');
+      const isIncome = lower.includes('ingres') || lower.includes('cobr') || lower.includes('gan');
+
+      if ((isExpense || isIncome) && amountMatch) {
+        const amount = parseFloat(amountMatch[1].replace(',', '.'));
+        let category = 'Varios';
+        if (lower.includes('gasolina') || lower.includes('uber') || lower.includes('taxi')) category = 'Gasolina';
+        else if (lower.includes('comida') || lower.includes('almuerz') || lower.includes('cena')) category = 'Almuerzo';
+        else if (lower.includes('super') || lower.includes('despensa')) category = 'Supermercado';
+        else if (lower.includes('honorario') || lower.includes('cliente') || lower.includes('sueldo')) category = 'Honorarios';
+
+        const res = await fetch(`${API}/api/finance/transactions`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            amount,
+            type: isIncome ? 'ingreso' : 'gasto',
+            category,
+            note: cmd
+          })
+        });
+        if (res.ok) {
+          setCommandFeedback(`✓ Registrado: ${isIncome ? 'Ingreso' : 'Gasto'} de $${amount} (${category})`);
+          setTimeout(() => setCommandFeedback(''), 4000);
+          setIsCommandLoading(false);
+          return;
+        }
+      }
+
+      // Si es una consulta o tarea general, usar el Segundo Cerebro
+      const brainRes = await fetch(`${API}/api/second-brain/ask`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ question: cmd })
+      });
+      const data = await brainRes.json();
+      setCommandFeedback(`🤖 ${data.answer?.slice(0, 110) || 'Orden procesada'}...`);
+      setTimeout(() => setCommandFeedback(''), 6000);
+    } catch (err) {
+      setCommandFeedback('Error procesando orden: ' + err.message);
+      setTimeout(() => setCommandFeedback(''), 4000);
+    } finally {
+      setIsCommandLoading(false);
+    }
+  };
+
   const selectedMeeting = meetings.find(m => m.id === selectedMeetingId);
 
   const filteredMeetings = meetings.filter(m => {
@@ -281,6 +345,7 @@ const handleNewNote = (linkedMeeting = null) => {
   });
 
   const TABS = [
+    { key: 'command-center', label: 'Centro de Mando', icon: LayoutDashboard },
     { key: 'meetings', label: 'Reuniones', icon: FileText },
     { key: 'chat', label: 'Chat con IA', icon: Brain },
     { key: 'notebook', label: 'Cuaderno Ejecutivo', icon: BookOpen },
@@ -354,9 +419,9 @@ const handleNewNote = (linkedMeeting = null) => {
           </div>
 
           {/* Fila Inferior: Navegacion Principal Holgada + Selector de Temas Visible */}
-          <div className="hidden md:flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 pt-2 border-t border-slate-800/80">
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 pt-2 border-t border-slate-800/80">
             {/* Pestañas de Navegacion con Espacio Vertical y Sin Compresion */}
-            <div className="flex items-center bg-slate-900 border border-slate-800 rounded-2xl p-1.5 shadow-inner gap-1 overflow-x-auto">
+            <div className="flex items-center bg-slate-900 border border-slate-800 rounded-2xl p-1.5 shadow-inner gap-1 overflow-x-auto scrollbar-none">
               {TABS.map(tab => {
                 const Icon = tab.icon;
                 const isActive = activeTab === tab.key;
@@ -453,6 +518,24 @@ const handleNewNote = (linkedMeeting = null) => {
             </div>
           </div>
         )}
+
+        {/* =================================================================== */}
+        {/* PESTAÑA: CENTRO DE MANDO (ENFOQUE A - ASISTENTE INTEGRAL)           */}
+        {/* =================================================================== */}
+        {activeTab === 'command-center' && (
+          <CommandCenterView
+            meetings={meetings}
+            onNavigate={(dest) => {
+              if (dest === 'meetings') setActiveTab('meetings');
+              if (dest === 'tasks') setActiveTab('meetings');
+              if (dest === 'finance') setActiveTab('chat');
+            }}
+            onStartRecording={() => setActiveTab('meetings')}
+            onNewNote={() => setShowNotebookOverlay(true)}
+            onOpenAssistant={() => setIsSecondBrainOpen(true)}
+          />
+        )}
+
         {/* =================================================================== */}
         {/* PESTAÑA: REUNIONES                                                  */}
         {/* =================================================================== */}
@@ -959,6 +1042,41 @@ const handleNewNote = (linkedMeeting = null) => {
           </div>
         </div>
       )}
+
+      {/* =================================================================== */}
+      {/* BARRA DE COMANDO FIJA DEL ASISTENTE (Ctrl+K / Escribir o Dictar)     */}
+      {/* =================================================================== */}
+      <div className="fixed bottom-3 left-1/2 -translate-x-1/2 z-40 w-full max-w-xl px-4 pointer-events-auto">
+        <form 
+          onSubmit={handleAssistantCommand}
+          className="relative flex items-center bg-slate-900/95 border border-slate-700/80 rounded-2xl p-1.5 shadow-2xl backdrop-blur-2xl transition-all focus-within:border-amber-500/80 focus-within:ring-2 focus-within:ring-amber-500/20"
+        >
+          <div className="pl-3 pr-2 flex items-center pointer-events-none text-amber-400">
+            <Sparkles className="w-4 h-4 animate-pulse" />
+          </div>
+          <input
+            type="text"
+            value={commandInput}
+            onChange={e => setCommandInput(e.target.value)}
+            placeholder='Pide algo al asistente: "Gasté 350 en gasolina", "Quién tiene tareas pendientes?"...'
+            className="w-full bg-transparent text-xs sm:text-sm text-slate-100 placeholder-slate-400 outline-none pr-2"
+          />
+          <button
+            type="submit"
+            disabled={!commandInput.trim() || isCommandLoading}
+            className="px-3.5 py-2 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-bold text-xs shrink-0 shadow-md transition-all active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+          >
+            {isCommandLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : 'Ejecutar'}
+          </button>
+        </form>
+
+        {/* Feedback flotante del Asistente */}
+        {commandFeedback && (
+          <div className="mt-1.5 px-3 py-1.5 rounded-xl bg-slate-950/90 border border-slate-700/80 text-[11px] text-amber-300 font-medium shadow-lg animate-fade-in text-center truncate">
+            {commandFeedback}
+          </div>
+        )}
+      </div>
 
     </div>
   );

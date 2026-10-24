@@ -23,6 +23,41 @@ const isMobileDevice = () => {
     || (window.innerWidth <= 768);
 };
 
+// Genera un archivo WAV RIFF PCM 16-bit mono estándar a partir de muestras float (-1.0 a 1.0)
+function encodePcmToWav(samples, sampleRate = 16000) {
+  const buffer = new ArrayBuffer(44 + samples.length * 2);
+  const view = new DataView(buffer);
+
+  // RIFF header
+  view.setUint32(0, 0x52494646, false); // "RIFF"
+  view.setUint32(4, 36 + samples.length * 2, true);
+  view.setUint32(8, 0x57415645, false); // "WAVE"
+
+  // fmt sub-chunk
+  view.setUint32(12, 0x666d7420, false); // "fmt "
+  view.setUint32(16, 16, true); // SubChunk1Size (16 for PCM)
+  view.setUint16(20, 1, true); // AudioFormat (1 = PCM)
+  view.setUint16(22, 1, true); // NumChannels (1 = Mono)
+  view.setUint32(24, sampleRate, true); // SampleRate
+  view.setUint32(28, sampleRate * 2, true); // ByteRate
+  view.setUint16(32, 2, true); // BlockAlign
+  view.setUint16(34, 16, true); // BitsPerSample
+
+  // data sub-chunk
+  view.setUint32(36, 0x64617461, false); // "data"
+  view.setUint32(40, samples.length * 2, true);
+
+  // Muestras PCM 16-bit con clamping
+  let offset = 44;
+  for (let i = 0; i < samples.length; i++) {
+    const s = Math.max(-1, Math.min(1, samples[i]));
+    view.setInt16(offset, s < 0 ? s * 0x8000 : s * 0x7FFF, true);
+    offset += 2;
+  }
+
+  return buffer;
+}
+
 export default function AudioRecorder({ onMeetingProcessed, onRecordingStatusChange, externalNotebookNotes, recorderRef, onOpenNotebook }) {
   const [activeTab, setActiveTab] = useState('record'); // 'record' | 'upload' | 'text'
   const [isRecording, setIsRecording] = useState(false);
@@ -72,6 +107,10 @@ export default function AudioRecorder({ onMeetingProcessed, onRecordingStatusCha
   const timerRef = useRef(null);
   const recognitionRef = useRef(null);
   const liveAnalysisTimerRef = useRef(null);
+  const silenceOscRef = useRef(null);
+  const scriptNodeRef = useRef(null);
+  const pcmBufferRef = useRef([]);
+  const pcmSampleCountRef = useRef(0);
 
   // Referencias mutables para evitar stale closures
   const stateRef = useRef({
@@ -214,6 +253,63 @@ export default function AudioRecorder({ onMeetingProcessed, onRecordingStatusCha
       const source = audioCtx.createMediaStreamSource(stream);
       source.connect(analyser);
 
+      // 1. Mantener AudioContext y subprocesos activos en segundo plano (pestañas minimizadas)
+      try {
+        if (!silenceOscRef.current) {
+          const osc = audioCtx.createOscillator();
+          const silentGain = audioCtx.createGain();
+          silentGain.gain.value = 0.00001; // Inaudible pero activo en el subsistema de audio
+          osc.connect(silentGain);
+          silentGain.connect(audioCtx.destination);
+          osc.start();
+          silenceOscRef.current = osc;
+        }
+      } catch (oscErr) {
+        console.warn('[AudioContext] Keep-alive osc error:', oscErr);
+      }
+
+      // 2. Buffer circular de audio PCM directo a 16kHz para transcripción Whisper/Gemini sin corrupción WebM
+      try {
+        if (!scriptNodeRef.current) {
+          const scriptNode = audioCtx.createScriptProcessor(4096, 1, 1);
+          const targetRate = 16000;
+          const sourceRate = audioCtx.sampleRate || 44100;
+          const downsampleRatio = sourceRate / targetRate;
+
+          pcmBufferRef.current = [];
+          pcmSampleCountRef.current = 0;
+          // Máximo 15 segundos a 16kHz = 240,000 muestras
+          const maxSamples = 16000 * 15;
+
+          scriptNode.onaudioprocess = (audioEvent) => {
+            if (!isRecordingRef.current) return;
+            const inputData = audioEvent.inputBuffer.getChannelData(0);
+            const newLength = Math.floor(inputData.length / downsampleRatio);
+            const downsampled = new Float32Array(newLength);
+            for (let i = 0; i < newLength; i++) {
+              downsampled[i] = inputData[Math.floor(i * downsampleRatio)];
+            }
+
+            pcmBufferRef.current.push(downsampled);
+            pcmSampleCountRef.current += newLength;
+
+            while (pcmSampleCountRef.current > maxSamples && pcmBufferRef.current.length > 1) {
+              const removed = pcmBufferRef.current.shift();
+              pcmSampleCountRef.current -= removed.length;
+            }
+          };
+
+          source.connect(scriptNode);
+          const zeroGain = audioCtx.createGain();
+          zeroGain.gain.value = 0;
+          scriptNode.connect(zeroGain);
+          zeroGain.connect(audioCtx.destination);
+          scriptNodeRef.current = scriptNode;
+        }
+      } catch (pcmErr) {
+        console.warn('[AudioContext] PCM ScriptProcessor error:', pcmErr);
+      }
+
       const timeData = new Uint8Array(analyser.fftSize);
       const freqData = new Uint8Array(analyser.frequencyBinCount);
 
@@ -264,7 +360,7 @@ export default function AudioRecorder({ onMeetingProcessed, onRecordingStatusCha
     }
   };
 
-  // Reconocimiento de voz continuo en segundo plano
+  // Reconocimiento de voz continuo y autorenovable (evita límite 5 min de Chromium)
   const initSpeechRecognition = () => {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SpeechRecognition) {
@@ -272,52 +368,63 @@ export default function AudioRecorder({ onMeetingProcessed, onRecordingStatusCha
       return null;
     }
 
-    try {
-      const recognition = new SpeechRecognition();
-      recognition.continuous = true;
-      recognition.interimResults = true;
-      recognition.lang = 'es-ES';
+    const startRecognitionInstance = () => {
+      if (!isRecordingRef.current) return null;
+      try {
+        const recognition = new SpeechRecognition();
+        recognition.continuous = true;
+        recognition.interimResults = true;
+        recognition.lang = 'es-ES';
 
-      recognition.onresult = (event) => {
-        let interim = '';
-        let finalChunk = '';
+        recognition.onresult = (event) => {
+          let interim = '';
+          let finalChunk = '';
 
-        for (let i = event.resultIndex; i < event.results.length; ++i) {
-          const trans = event.results[i][0].transcript;
-          if (event.results[i].isFinal) {
-            finalChunk += ' ' + trans;
-          } else {
-            interim += ' ' + trans;
-          }
-        }
-
-        if (finalChunk.trim()) {
-          setLiveTranscript(prev => (prev + ' ' + finalChunk.trim()).trim());
-        }
-        setLiveInterim(interim.trim());
-      };
-
-      recognition.onerror = (e) => {
-        if (stateRef.current.isRecording && e.error !== 'not-allowed') {
-          setTimeout(() => {
-            if (stateRef.current.isRecording) {
-              try { recognition.start(); } catch (_) {}
+          for (let i = event.resultIndex; i < event.results.length; ++i) {
+            const trans = event.results[i][0].transcript;
+            if (event.results[i].isFinal) {
+              finalChunk += ' ' + trans;
+            } else {
+              interim += ' ' + trans;
             }
-          }, 400);
-        }
-      };
+          }
 
-      recognition.onend = () => {
-        if (stateRef.current.isRecording) {
-          try { recognition.start(); } catch (_) {}
-        }
-      };
+          if (finalChunk.trim()) {
+            setLiveTranscript(prev => (prev + ' ' + finalChunk.trim()).trim());
+          }
+          setLiveInterim(interim.trim());
+        };
 
-      recognition.start();
-      return recognition;
-    } catch (err) {
-      return null;
-    }
+        recognition.onerror = (e) => {
+          if (isRecordingRef.current && e.error !== 'not-allowed') {
+            setTimeout(() => {
+              if (isRecordingRef.current) {
+                recognitionRef.current = startRecognitionInstance();
+              }
+            }, 300);
+          }
+        };
+
+        recognition.onend = () => {
+          // Re-instanciar automáticamente cuando Chromium finalice la sesión (ej. límite 5 min o silencio)
+          if (isRecordingRef.current) {
+            setTimeout(() => {
+              if (isRecordingRef.current) {
+                recognitionRef.current = startRecognitionInstance();
+              }
+            }, 250);
+          }
+        };
+
+        recognition.start();
+        return recognition;
+      } catch (err) {
+        console.warn('[SpeechRecognition Start Err]', err);
+        return null;
+      }
+    };
+
+    return startRecognitionInstance();
   };
 
   // Analisis incremental continuo con Gemini enviando audio y notas en vivo
@@ -347,8 +454,8 @@ export default function AudioRecorder({ onMeetingProcessed, onRecordingStatusCha
     setLiveStatusMessage('⚡ Analizando con IA...');
 
     const controller = new AbortController();
-    // MOBILE FIX: 20s en móvil (red lenta + Whisper + Gemini), 8s en desktop
-    const timeoutMs = isMobileDevice() ? 20000 : 8000;
+    // 18s timeout para permitir transcripción Whisper + inferencia LLM sin abortos prematuros
+    const timeoutMs = 18000;
     const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
     try {
@@ -359,31 +466,45 @@ export default function AudioRecorder({ onMeetingProcessed, onRecordingStatusCha
         userNotes: userNotesText || ''
       };
 
-      // Empaquetar audio reciente para envío al servidor (Whisper / Gemini multimodal)
-      if (hasAudio) {
+      // Empaquetar audio reciente en WAV 16kHz limpio para Whisper / Gemini multimodal
+      if (pcmBufferRef.current && pcmBufferRef.current.length > 0 && pcmSampleCountRef.current > 8000) {
+        try {
+          const totalSamples = pcmSampleCountRef.current;
+          const flatSamples = new Float32Array(totalSamples);
+          let offset = 0;
+          for (const chunk of pcmBufferRef.current) {
+            flatSamples.set(chunk, offset);
+            offset += chunk.length;
+          }
+          const wavBuffer = encodePcmToWav(flatSamples, 16000);
+          const bytes = new Uint8Array(wavBuffer);
+          let binary = '';
+          const chunkSize = 8192;
+          for (let i = 0; i < bytes.length; i += chunkSize) {
+            binary += String.fromCharCode.apply(null, bytes.subarray(i, i + chunkSize));
+          }
+          payload.audioBase64 = btoa(binary);
+          payload.audioMimeType = 'audio/wav';
+        } catch (packErr) {
+          console.warn('[PCM WAV Packing Warn]:', packErr.message);
+        }
+      } else if (hasAudio) {
         try {
           const recordedMime = mediaRecorderRef.current?.mimeType || 'audio/webm';
-          // Tomar los últimos chunks disponibles manteniendo encabezados válidos
-          const totalChunks = audioChunksRef.current.length;
-          const chunksToSend = totalChunks <= 25
-            ? audioChunksRef.current
-            : [audioChunksRef.current[0], ...audioChunksRef.current.slice(-20)];
-          
-          const audioBlob = new Blob(chunksToSend, { type: recordedMime });
+          const audioBlob = new Blob(audioChunksRef.current, { type: recordedMime });
           if (audioBlob.size > 500) {
             const arrayBuf = await audioBlob.arrayBuffer();
             const bytes = new Uint8Array(arrayBuf);
             let binary = '';
             const chunkSize = 8192;
             for (let i = 0; i < bytes.length; i += chunkSize) {
-              const sub = bytes.subarray(i, i + chunkSize);
-              binary += String.fromCharCode.apply(null, sub);
+              binary += String.fromCharCode.apply(null, bytes.subarray(i, i + chunkSize));
             }
             payload.audioBase64 = btoa(binary);
             payload.audioMimeType = recordedMime;
           }
         } catch (packErr) {
-          console.warn('[Audio Packing Warn]:', packErr.message);
+          console.warn('[Audio WebM Packing Warn]:', packErr.message);
         }
       }
 
@@ -586,6 +707,16 @@ export default function AudioRecorder({ onMeetingProcessed, onRecordingStatusCha
       if (timerRef.current) clearInterval(timerRef.current);
       if (liveAnalysisTimerRef.current) clearInterval(liveAnalysisTimerRef.current);
       if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
+      if (silenceOscRef.current) {
+        try { silenceOscRef.current.stop(); silenceOscRef.current.disconnect(); } catch (_) {}
+        silenceOscRef.current = null;
+      }
+      if (scriptNodeRef.current) {
+        try { scriptNodeRef.current.disconnect(); } catch (_) {}
+        scriptNodeRef.current = null;
+      }
+      pcmBufferRef.current = [];
+      pcmSampleCountRef.current = 0;
       if (audioContextRef.current) {
         try { audioContextRef.current.close(); } catch (_) {}
       }
@@ -628,16 +759,47 @@ export default function AudioRecorder({ onMeetingProcessed, onRecordingStatusCha
       }
 
       // 2. Procesar audio acumulado completo con Gemini
-      setTimeout(async () => {
-        if (audioChunksRef.current.length > 0) {
-          const blob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
-          await processAudioMeeting(blob);
-          await clearEmergencyRecording();
-          setHasRecoverableAudio(false);
-        } else {
+      const processRecordedBlob = async () => {
+        try {
+          const recordedMime = mediaRecorderRef.current?.mimeType || 'audio/webm';
+          let finalBlob = null;
+          if (audioChunksRef.current && audioChunksRef.current.length > 0) {
+            finalBlob = new Blob(audioChunksRef.current, { type: recordedMime });
+          } else {
+            // Intentar recuperar de IndexedDB si el buffer en memoria estuviese vacío
+            const emergency = await recoverUnfinalizedAudio().catch(() => null);
+            if (emergency && emergency.blob) {
+              finalBlob = emergency.blob;
+            }
+          }
+
+          if (finalBlob && finalBlob.size > 200) {
+            await processAudioMeeting(finalBlob, 'reunion_grabada.webm');
+            await clearEmergencyRecording();
+            setHasRecoverableAudio(false);
+          } else {
+            setLoading(false);
+            setError('No se capturó audio en la sesión. Verifica los permisos de tu micrófono.');
+          }
+        } catch (procErr) {
+          console.error('[Audio Finalize Process Error]:', procErr);
+          setError('Error procesando audio final: ' + procErr.message);
           setLoading(false);
         }
-      }, 500);
+      };
+
+      // Si el grabador aún no ha disparado onstop, esperar al evento con timeout de seguridad
+      if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+        const recorder = mediaRecorderRef.current;
+        const originalOnStop = recorder.onstop;
+        recorder.onstop = (e) => {
+          if (typeof originalOnStop === 'function') originalOnStop(e);
+          processRecordedBlob();
+        };
+        try { recorder.stop(); } catch (_) {}
+      } else {
+        setTimeout(processRecordedBlob, 100);
+      }
 
     } catch (err) {
       console.error('[Finalize Meeting Error]', err);

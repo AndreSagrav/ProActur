@@ -1,4 +1,4 @@
-﻿const config = require('../config');
+const config = require('../config');
 
 class AIService {
   constructor() {
@@ -16,28 +16,34 @@ class AIService {
    * 4. Meta Llama 3.3 70B Instruct: Estándar de oro empresarial para seguimiento estricto de instrucciones.
    * 5. Google Gemini Flash: Multimodal nativo para audio y texto.
    */
-    /**
-   * FAMILIA COMPLETA DE MODELOS GEMINI CON CUOTAS INDEPENDIENTES:
-   * Cada modelo cuenta con su propio bucket de cuota en Google AI Studio.
-   */
   getGeminiModels() {
     return [
-      'gemini-3.7-flash',
-      'gemini-3.5-flash',
-      'gemini-3.8-flash',
       'gemini-3.6-flash',
+      'gemini-3.5-flash',
       'gemini-3.5-flash-lite',
-      'gemini-3.1-flash-lite'
+      'gemini-3.1-flash-lite',
+      'gemini-flash-lite-latest',
+      'gemini-3-flash-preview',
+      'gemini-3.8-flash'
     ];
   }
 
   getExecutiveModels() {
     return [
-      { provider: 'groq', model: config.GROQ_CHAT_MODEL || 'openai/gpt-oss-120b', name: 'Groq GPT-OSS 120B' },
-      { provider: 'openrouter', model: 'qwen/qwen-2.5-72b-instruct', name: 'Qwen 2.5 72B Instruct' },
-      { provider: 'openrouter', model: this.openRouterModel || 'deepseek/deepseek-chat', name: 'DeepSeek V3' },
-      { provider: 'openrouter', model: 'meta-llama/llama-3.3-70b-instruct', name: 'Llama 3.3 70B' },
-      { provider: 'gemini', model: this.geminiModel, name: 'Gemini Flash' }
+      // 1. Google Gemini (Multicuota con modelos verificados y capacidad multimodal)
+      { provider: 'gemini', model: 'gemini-3.6-flash', name: 'Gemini 3.6 Flash' },
+      { provider: 'gemini', model: 'gemini-3.5-flash', name: 'Gemini 3.5 Flash' },
+      { provider: 'gemini', model: 'gemini-3.5-flash-lite', name: 'Gemini 3.5 Flash Lite' },
+      { provider: 'gemini', model: 'gemini-3.1-flash-lite', name: 'Gemini 3.1 Flash Lite' },
+      { provider: 'gemini', model: 'gemini-flash-lite-latest', name: 'Gemini Flash Lite Latest' },
+      { provider: 'gemini', model: 'gemini-3-flash-preview', name: 'Gemini 3 Flash Preview' },
+      // 2. Groq LPU (Ultra-rápido, infraestructura independiente de Google)
+      { provider: 'groq', model: 'openai/gpt-oss-120b', name: 'Groq GPT-OSS 120B' },
+      { provider: 'groq', model: 'qwen/qwen3.8-27b', name: 'Groq Qwen 3.8 27B' },
+      { provider: 'groq', model: 'openai/gpt-oss-20b', name: 'Groq GPT-OSS 20B' },
+      // 3. OpenRouter Free Tier (Red de seguridad 100% gratuita con soporte de visión)
+      { provider: 'openrouter', model: 'nvidia/nemotron-3.5-super-vl:free', name: 'Nemotron 3.5 Super VL (Free)' },
+      { provider: 'openrouter', model: 'recursive/flint-v1.0:free', name: 'Flint v1.0 (Free)' }
     ];
   }
 
@@ -341,6 +347,8 @@ async analyzeLiveWithGroq(prompt, specificModel = null) {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 9000);
 
+    const modelToUse = specificModel || config.GROQ_CHAT_MODEL || 'openai/gpt-oss-120b';
+
     try {
       const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
         method: 'POST',
@@ -349,7 +357,7 @@ async analyzeLiveWithGroq(prompt, specificModel = null) {
           'Authorization': `Bearer ${key}`
         },
         body: JSON.stringify({
-          model: config.GROQ_CHAT_MODEL || 'openai/gpt-oss-120b',
+          model: modelToUse,
           messages: [
             { role: 'system', content: 'Eres un copiloto ejecutivo en tiempo real de clase mundial. Responde estrictamente con JSON valido sin markdown.' },
             { role: 'user', content: prompt }
@@ -382,6 +390,8 @@ async analyzeLiveWithGroq(prompt, specificModel = null) {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 9000);
 
+    const modelToUse = specificModel || this.openRouterModel || 'nvidia/nemotron-3.5-super-vl:free';
+
     try {
       const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
         method: 'POST',
@@ -390,7 +400,7 @@ async analyzeLiveWithGroq(prompt, specificModel = null) {
           'Authorization': `Bearer ${key}`
         },
         body: JSON.stringify({
-          model: this.openRouterModel,
+          model: modelToUse,
           messages: [
             { role: 'system', content: 'Eres un copiloto ejecutivo en tiempo real. Responde únicamente en JSON válido.' },
             { role: 'user', content: prompt }
@@ -528,7 +538,7 @@ async analyzeLiveWithGroq(prompt, specificModel = null) {
         } else if (provider === 'openrouter' && config.OPENROUTER_API_KEY) {
           result = await this.analyzeLiveWithOpenRouter(prompt, model);
         } else if (provider === 'gemini' && config.GEMINI_API_KEY) {
-          result = await this.analyzeLiveWithGemini(prompt, audioBuffer, mimeType, activeTranscript);
+          result = await this.analyzeLiveWithGemini(prompt, audioBuffer, mimeType, activeTranscript, model);
         }
 
         if (result && result.summary) {
@@ -552,54 +562,65 @@ async analyzeLiveWithGroq(prompt, specificModel = null) {
     const key = config.GEMINI_API_KEY;
     if (!key) throw new Error('GEMINI_API_KEY no configurada');
 
-    const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${this.geminiModel}:generateContent`;
     const prompt = this.buildMeetingPrompt(meetingTitle, rawText);
-    const parts = [];
+    const geminiModels = this.getGeminiModels();
+    let lastError = null;
 
-    if (audioBuffer) {
-      parts.push({
-        inlineData: {
-          mimeType: mimeType || 'audio/webm',
-          data: audioBuffer.toString('base64')
-        }
-      });
-    }
-    parts.push({ text: prompt });
+    for (const modelName of geminiModels) {
+      const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent`;
+      const parts = [];
 
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), this.timeoutMs);
-
-    try {
-      const response = await fetch(endpoint, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-goog-api-key': key
-        },
-        body: JSON.stringify({
-          contents: [{ parts }],
-          generationConfig: {
-            temperature: 0.2,
-            responseMimeType: 'application/json'
+      if (audioBuffer) {
+        parts.push({
+          inlineData: {
+            mimeType: mimeType || 'audio/webm',
+            data: audioBuffer.toString('base64')
           }
-        }),
-        signal: controller.signal
-      });
-
-      clearTimeout(timer);
-
-      if (!response.ok) {
-        const errText = await response.text();
-        throw new Error(`Error Gemini (${response.status}): ${errText}`);
+        });
       }
+      parts.push({ text: prompt });
 
-      const data = await response.json();
-      const raw = data.candidates?.[0]?.content?.parts?.[0]?.text;
-      return this.cleanJsonResponse(raw);
-    } catch (err) {
-      clearTimeout(timer);
-      throw err;
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 25000);
+
+      try {
+        const response = await fetch(endpoint, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-goog-api-key': key
+          },
+          body: JSON.stringify({
+            contents: [{ parts }],
+            generationConfig: {
+              temperature: 0.2,
+              responseMimeType: 'application/json'
+            }
+          }),
+          signal: controller.signal
+        });
+
+        clearTimeout(timer);
+
+        if (!response.ok) {
+          const errText = await response.text();
+          console.warn(`[Gemini Finalize] ${modelName} falló (${response.status}), probando siguiente...`);
+          lastError = new Error(`Error Gemini ${modelName} (${response.status}): ${errText}`);
+          continue;
+        }
+
+        const data = await response.json();
+        const raw = data.candidates?.[0]?.content?.parts?.[0]?.text;
+        const parsed = this.cleanJsonResponse(raw);
+        if (parsed) return parsed;
+      } catch (err) {
+        clearTimeout(timer);
+        lastError = err;
+        console.warn(`[Gemini Finalize] Error ${modelName}: ${err.message}`);
+      }
     }
+
+    throw lastError || new Error('Ningún modelo Gemini pudo procesar la reunión.');
   }
 
   // --- 2. LLAMADA CON OPENROUTER (Texto / Notas) ---
@@ -608,43 +629,53 @@ async analyzeLiveWithGroq(prompt, specificModel = null) {
     if (!key) throw new Error('OPENROUTER_API_KEY no configurada');
 
     const prompt = this.buildMeetingPrompt(meetingTitle, rawText);
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), this.timeoutMs);
+    const models = ['nvidia/nemotron-3.5-super-vl:free', 'recursive/flint-v1.0:free'];
+    let lastError = null;
 
-    try {
-      const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${key}`,
-          'HTTP-Referer': 'https://vercel.app',
-          'X-Title': 'ProActur AI'
-        },
-        body: JSON.stringify({
-          model: this.openRouterModel,
-          messages: [
-            { role: 'system', content: 'Eres un asistente ejecutivo experto en estructurar minutas de reunión en formato JSON estricto.' },
-            { role: 'user', content: prompt }
-          ],
-          temperature: 0.2,
-          response_format: { type: 'json_object' }
-        }),
-        signal: controller.signal
-      });
+    for (const modelName of models) {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 20000);
 
-      clearTimeout(timer);
-      if (!response.ok) {
-        const err = await response.text();
-        throw new Error(`Error OpenRouter (${response.status}): ${err}`);
+      try {
+        const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${key}`,
+            'HTTP-Referer': 'https://proactur.local',
+            'X-Title': 'ProActur AI'
+          },
+          body: JSON.stringify({
+            model: modelName,
+            messages: [
+              { role: 'system', content: 'Eres un asistente ejecutivo experto en estructurar minutas de reunión en formato JSON estricto.' },
+              { role: 'user', content: prompt }
+            ],
+            temperature: 0.2
+          }),
+          signal: controller.signal
+        });
+
+        clearTimeout(timer);
+        if (!response.ok) {
+          const err = await response.text();
+          console.warn(`[OpenRouter Finalize] ${modelName} falló (${response.status}), probando siguiente...`);
+          lastError = new Error(`Error OpenRouter ${modelName} (${response.status}): ${err}`);
+          continue;
+        }
+
+        const data = await response.json();
+        const raw = data.choices?.[0]?.message?.content;
+        const parsed = this.cleanJsonResponse(raw);
+        if (parsed) return parsed;
+      } catch (err) {
+        clearTimeout(timer);
+        lastError = err;
+        console.warn(`[OpenRouter Finalize] Error ${modelName}: ${err.message}`);
       }
-
-      const data = await response.json();
-      const raw = data.choices?.[0]?.message?.content;
-      return this.cleanJsonResponse(raw);
-    } catch (err) {
-      clearTimeout(timer);
-      throw err;
     }
+
+    throw lastError || new Error('Ningún modelo OpenRouter pudo procesar la reunión.');
   }
 
   // --- 3. LLAMADA CON GROQ (Inferencia Rápida) ---
@@ -653,41 +684,52 @@ async analyzeLiveWithGroq(prompt, specificModel = null) {
     if (!key) throw new Error('GROQ_API_KEY no configurada');
 
     const prompt = this.buildMeetingPrompt(meetingTitle, rawText);
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), this.timeoutMs);
+    const models = ['openai/gpt-oss-120b', 'qwen/qwen3.8-27b', 'openai/gpt-oss-20b'];
+    let lastError = null;
 
-    try {
-      const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${key}`
-        },
-        body: JSON.stringify({
-          model: this.groqModel,
-          messages: [
-            { role: 'system', content: 'Eres un asistente ejecutivo que responde estrictamente en JSON.' },
-            { role: 'user', content: prompt }
-          ],
-          temperature: 0.2,
-          response_format: { type: 'json_object' }
-        }),
-        signal: controller.signal
-      });
+    for (const modelName of models) {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 20000);
 
-      clearTimeout(timer);
-      if (!response.ok) {
-        const err = await response.text();
-        throw new Error(`Error Groq (${response.status}): ${err}`);
+      try {
+        const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${key}`
+          },
+          body: JSON.stringify({
+            model: modelName,
+            messages: [
+              { role: 'system', content: 'Eres un asistente ejecutivo que responde estrictamente en JSON.' },
+              { role: 'user', content: prompt }
+            ],
+            temperature: 0.2,
+            response_format: { type: 'json_object' }
+          }),
+          signal: controller.signal
+        });
+
+        clearTimeout(timer);
+        if (!response.ok) {
+          const err = await response.text();
+          console.warn(`[Groq Finalize] ${modelName} falló (${response.status}), probando siguiente...`);
+          lastError = new Error(`Error Groq ${modelName} (${response.status}): ${err}`);
+          continue;
+        }
+
+        const data = await response.json();
+        const raw = data.choices?.[0]?.message?.content;
+        const parsed = this.cleanJsonResponse(raw);
+        if (parsed) return parsed;
+      } catch (err) {
+        clearTimeout(timer);
+        lastError = err;
+        console.warn(`[Groq Finalize] Error ${modelName}: ${err.message}`);
       }
-
-      const data = await response.json();
-      const raw = data.choices?.[0]?.message?.content;
-      return this.cleanJsonResponse(raw);
-    } catch (err) {
-      clearTimeout(timer);
-      throw err;
     }
+
+    throw lastError || new Error('Ningún modelo Groq pudo procesar la reunión.');
   }
 
   /**

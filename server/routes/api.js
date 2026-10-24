@@ -1,4 +1,4 @@
-﻿const express = require('express');
+const express = require('express');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
@@ -9,6 +9,7 @@ const storageService = require('../services/storageService');
 const { checkSupabaseStatus, keepAliveSupabase } = require('../services/supabaseClient');
 const eventService = require('../services/eventService');
 const noteService = require('../services/noteService');
+const financeService = require('../services/financeService');
 
 const router = express.Router();
 
@@ -85,6 +86,25 @@ router.get('/meetings', async (req, res) => {
       hasGeminiKey: Boolean(process.env.GEMINI_API_KEY),
       warning: err.message
     });
+  }
+});
+
+// Listado de modelos ejecutivos de IA disponibles (100% gratuitos y verificados)
+router.get('/meetings/executive-models', (req, res) => {
+  try {
+    const models = aiService.getExecutiveModels();
+    res.json({ models, activeModel: aiService.geminiModel });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.get('/meetings/models', (req, res) => {
+  try {
+    const models = aiService.getGeminiModels();
+    res.json({ models, activeModel: aiService.geminiModel });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
 });
 
@@ -671,6 +691,42 @@ router.post('/meetings/:id/ask', async (req, res) => {
     });
   } catch (err) {
     console.error('[Meeting Ask Error]:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ==========================================
+// FINANZAS & CUENTAS (MÓDULO CENTRO DE MANDO)
+// ==========================================
+
+router.get('/finance/summary', async (req, res) => {
+  try {
+    const { month, year } = req.query;
+    const summary = await financeService.getSummary(month, year);
+    res.json(summary);
+  } catch (err) {
+    console.error('[Finance Summary Error]:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post('/finance/transactions', async (req, res) => {
+  try {
+    const { accountId, type, category, note, amount, date } = req.body;
+    if (!amount || isNaN(amount)) {
+      return res.status(400).json({ error: 'Monto válido requerido' });
+    }
+    const created = await financeService.addTransaction({
+      accountId,
+      type,
+      category,
+      note,
+      amount,
+      date
+    });
+    res.json(created);
+  } catch (err) {
+    console.error('[Finance Add Transaction Error]:', err);
     res.status(500).json({ error: err.message });
   }
 });
