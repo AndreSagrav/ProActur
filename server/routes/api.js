@@ -11,6 +11,7 @@ const eventService = require('../services/eventService');
 const noteService = require('../services/noteService');
 const financeService = require('../services/financeService');
 const taskService = require('../services/taskService');
+const assistantService = require('../services/assistantService');
 
 const router = express.Router();
 
@@ -817,6 +818,23 @@ router.delete('/tasks/:id', async (req, res) => {
     await taskService.deleteTask(req.params.id);
     res.json({ success: true });
   } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ==========================================
+// ASISTENTE EJECUTIVO OMNICANAL (VOZ & TEXTO)
+// ==========================================
+router.post('/assistant/command', async (req, res) => {
+  try {
+    const { command } = req.body;
+    if (!command || !command.trim()) {
+      return res.status(400).json({ error: 'Instrucción requerida' });
+    }
+    const result = await assistantService.processCommand(command);
+    res.json(result);
+  } catch (err) {
+    console.error('[Assistant Command Error]:', err);
     res.status(500).json({ error: err.message });
   }
 });

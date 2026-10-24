@@ -19,6 +19,7 @@ import NoteEditor from './components/NoteEditor';
 import ExecutiveNotebook from './components/ExecutiveNotebook';
 import CommandCenterView from './components/CommandCenterView';
 import FinanceView from './components/FinanceView';
+import ExecutiveCommandBar from './components/ExecutiveCommandBar';
 
 const API = import.meta.env.VITE_API_URL || '';
 
@@ -994,6 +995,24 @@ const handleNewNote = (linkedMeeting = null) => {
           </div>
         </div>
       )}
+
+      {/* Barra de Mando y Dictado por Voz del Asistente Ejecutivo */}
+      <ExecutiveCommandBar
+        onStartRecording={() => {
+          setActiveTab('meetings');
+          setShowMobileDetail(false);
+          setTimeout(() => {
+            recorderRef.current?.startRecording?.();
+          }, 400);
+        }}
+        onNavigate={(dest) => {
+          setActiveTab(dest);
+          if (dest === 'meetings') setShowMobileDetail(false);
+        }}
+        onRefreshData={() => {
+          fetchMeetings();
+        }}
+      />
 
     </div>
   );

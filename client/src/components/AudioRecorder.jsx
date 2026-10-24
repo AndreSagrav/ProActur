@@ -142,6 +142,7 @@ export default function AudioRecorder({ onMeetingProcessed, onRecordingStatusCha
   useEffect(() => {
     if (recorderRef) {
       recorderRef.current = {
+        startRecording: startRecording,
         stopAndFinalize: stopAndFinalizeRecording,
         triggerAnalysis: triggerLiveAnalysis
       };
