@@ -10,6 +10,7 @@ const { checkSupabaseStatus, keepAliveSupabase } = require('../services/supabase
 const eventService = require('../services/eventService');
 const noteService = require('../services/noteService');
 const financeService = require('../services/financeService');
+const taskService = require('../services/taskService');
 
 const router = express.Router();
 
@@ -727,6 +728,57 @@ router.post('/finance/transactions', async (req, res) => {
     res.json(created);
   } catch (err) {
     console.error('[Finance Add Transaction Error]:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ==========================================
+// TAREAS & ACUERDOS (MÓDULO CENTRO DE MANDO)
+// ==========================================
+
+router.get('/tasks', async (req, res) => {
+  try {
+    const tasks = await taskService.getAllTasks();
+    res.json(tasks);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post('/tasks', async (req, res) => {
+  try {
+    const { title, priority, dueDate, source, meetingId } = req.body;
+    if (!title || !title.trim()) {
+      return res.status(400).json({ error: 'Título requerido' });
+    }
+    const created = await taskService.createTask({
+      title: title.trim(),
+      priority,
+      dueDate,
+      source,
+      meetingId
+    });
+    res.json(created);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.patch('/tasks/:id/toggle', async (req, res) => {
+  try {
+    const updated = await taskService.toggleTaskStatus(req.params.id);
+    if (!updated) return res.status(404).json({ error: 'Tarea no encontrada' });
+    res.json(updated);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.delete('/tasks/:id', async (req, res) => {
+  try {
+    await taskService.deleteTask(req.params.id);
+    res.json({ success: true });
+  } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });

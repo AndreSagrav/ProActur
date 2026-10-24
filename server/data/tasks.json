@@ -1,0 +1,32 @@
+[
+  {
+    "id": "task_1",
+    "title": "Revisar entregable de seguridad con Carlos",
+    "priority": "high",
+    "dueDate": "2026-10-25T19:30:52.781Z",
+    "status": "pending",
+    "source": "meeting",
+    "meetingId": null,
+    "createdAt": "2026-10-24T19:30:52.781Z"
+  },
+  {
+    "id": "task_2",
+    "title": "Pagar servicio de internet y servidores",
+    "priority": "medium",
+    "dueDate": "2026-10-27T19:30:52.781Z",
+    "status": "pending",
+    "source": "manual",
+    "meetingId": null,
+    "createdAt": "2026-10-24T19:30:52.781Z"
+  },
+  {
+    "id": "task_3",
+    "title": "Enviar propuesta ejecutiva por correo",
+    "priority": "high",
+    "dueDate": "2026-10-24T19:30:52.781Z",
+    "status": "pending",
+    "source": "manual",
+    "meetingId": null,
+    "createdAt": "2026-10-24T19:30:52.781Z"
+  }
+]

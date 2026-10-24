@@ -315,6 +315,52 @@ const handleNewNote = (linkedMeeting = null) => {
         }
       }
 
+      // Detección de creación de Tarea rápida ("recordar...", "tarea:...", "pendiente:...")
+      if (lower.startsWith('recuerda') || lower.startsWith('recordar') || lower.startsWith('tarea') || lower.startsWith('pendiente')) {
+        const cleanTitle = cmd.replace(/^(recuerda(me)?|recordar|tarea:?|pendiente:?)\s*/i, '');
+        if (cleanTitle) {
+          const taskRes = await fetch(`${API}/api/tasks`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              title: cleanTitle,
+              priority: lower.includes('urgent') || lower.includes('prioridad') ? 'high' : 'medium'
+            })
+          });
+          if (taskRes.ok) {
+            setCommandFeedback(`✓ Tarea agendada: "${cleanTitle}"`);
+            setTimeout(() => setCommandFeedback(''), 4000);
+            setIsCommandLoading(false);
+            return;
+          }
+        }
+      }
+
+      // Detección de evento de calendario ("agendar...", "junta...", "cita...")
+      if (lower.startsWith('agenda') || lower.startsWith('agendar') || lower.startsWith('cita') || lower.startsWith('junta')) {
+        const cleanTitle = cmd.replace(/^(agenda(r)?|cita|junta)\s*/i, '');
+        if (cleanTitle) {
+          const tomorrow = new Date();
+          tomorrow.setDate(tomorrow.getDate() + 1);
+          tomorrow.setHours(10, 0, 0, 0);
+          const eventRes = await fetch(`${API}/api/events`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              title: cleanTitle,
+              startTime: tomorrow.toISOString(),
+              color: '#f59e0b'
+            })
+          });
+          if (eventRes.ok) {
+            setCommandFeedback(`✓ Evento guardado en tu Agenda: "${cleanTitle}"`);
+            setTimeout(() => setCommandFeedback(''), 4000);
+            setIsCommandLoading(false);
+            return;
+          }
+        }
+      }
+
       // Si es una consulta o tarea general, usar el Segundo Cerebro
       const brainRes = await fetch(`${API}/api/second-brain/ask`, {
         method: 'POST',
