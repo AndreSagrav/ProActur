@@ -86,14 +86,22 @@ Estructura JSON requerida según acción:
     const prompt = `Instrucción del usuario: "${cmd}"`;
 
     let rawResponse = null;
-    const providers = aiService.getExecutiveModels();
+    // Cadena de Fallback dedicada y ultra-rápida para el Asistente:
+    // 1° Groq (0.5s de respuesta inmediata) -> 2° Gemini Flash -> 3° OpenRouter -> 4° Motor Heurístico Offline
+    const fastProviders = [
+      { provider: 'groq', model: 'openai/gpt-oss-120b' },
+      { provider: 'groq', model: 'qwen/qwen3.8-27b' },
+      { provider: 'gemini', model: 'gemini-3.6-flash' },
+      { provider: 'gemini', model: 'gemini-3.5-flash-lite' },
+      { provider: 'openrouter', model: 'nvidia/nemotron-3.5-super-vl:free' }
+    ];
 
-    for (const p of providers) {
+    for (const p of fastProviders) {
       try {
-        if (p.provider === 'gemini') {
-          rawResponse = await aiService.callGeminiText(prompt, systemPrompt, p.model);
-        } else if (p.provider === 'groq') {
+        if (p.provider === 'groq') {
           rawResponse = await aiService.callGroq(prompt, systemPrompt, p.model);
+        } else if (p.provider === 'gemini') {
+          rawResponse = await aiService.callGeminiText(prompt, systemPrompt, p.model);
         } else if (p.provider === 'openrouter') {
           rawResponse = await aiService.callOpenRouter(prompt, systemPrompt, p.model);
         }
