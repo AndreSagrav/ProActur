@@ -1,15 +1,28 @@
 import React, { useState, useEffect } from 'react';
 import {
   Wallet, TrendingUp, TrendingDown, Plus, Trash2,
-  CreditCard, Banknote, Landmark, Filter, RefreshCw
+  CreditCard, Banknote, Landmark, Filter, RefreshCw,
+  ArrowUpRight, ArrowDownRight, Tag, Calendar, CheckCircle2
 } from 'lucide-react';
 import BottomSheet from './BottomSheet';
 
 const API = import.meta.env.VITE_API_URL || '';
 
 const CATEGORIES = {
-  gasto: ['Gasolina y Transporte', 'Alimentación y Reuniones', 'Servicios y Software', 'Equipamiento', 'Honorarios y Nómina', 'Varios'],
-  ingreso: ['Honorarios Profesionales', 'Cobro de Clientes', 'Rendimientos', 'Otros Ingresos']
+  gasto: [
+    'Gasolina y Transporte',
+    'Alimentación y Reuniones',
+    'Servicios y Software',
+    'Equipamiento',
+    'Honorarios y Nómina',
+    'Varios'
+  ],
+  ingreso: [
+    'Honorarios Profesionales',
+    'Cobro de Clientes',
+    'Rendimientos',
+    'Otros Ingresos'
+  ]
 };
 
 export default function MobileFinanceView() {
@@ -94,97 +107,147 @@ export default function MobileFinanceView() {
     return true;
   });
 
-  const budgetUsage = Math.min(100, Math.round((financeData.monthExpense / (financeData.budgetLimit || 1)) * 100));
-
   return (
-    <div className="space-y-4 animate-fade-in pb-12">
-      {/* 1. Header Financiero */}
+    <div className="space-y-4 animate-fade-in pb-16 select-none">
+      {/* 1. Header Ejecutivo de Finanzas */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-lg font-black text-white">Finanzas & Cuentas</h2>
-          <p className="text-xs text-slate-400">Control de flujo y tarjetas</p>
+          <div className="flex items-center gap-2">
+            <div className="w-6 h-6 rounded-lg bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center">
+              <Wallet className="w-3.5 h-3.5 text-emerald-400" />
+            </div>
+            <h2 className="text-base font-extrabold text-white tracking-tight">Finanzas & Liquidez</h2>
+          </div>
+          <p className="text-xs text-slate-400 mt-0.5">Control de cuentas, tarjetas y comprobantes</p>
         </div>
         <div className="flex items-center gap-2">
           <button
             type="button"
             onClick={fetchFinance}
-            className="p-2 rounded-xl bg-slate-900 border border-slate-800 text-slate-400 active:scale-95"
+            className="p-2 rounded-xl bg-slate-900 border border-white/[0.08] text-slate-400 hover:text-white active:scale-95 transition-all shadow-sm"
           >
             <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
           </button>
           <button
             type="button"
             onClick={() => setShowAddSheet(true)}
-            className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow-md active:scale-95"
+            className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 text-white font-bold text-xs shadow-md shadow-emerald-600/25 active:scale-95 transition-all"
           >
             <Plus className="w-4 h-4" />
-            <span>Movimiento</span>
+            <span>+ Movimiento</span>
           </button>
         </div>
       </div>
 
-      {/* 2. Carrusel Horizontal Táctil de Cuentas (Swipeable Cards) */}
-      <div className="space-y-1.5">
-        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Cuentas Registradas (Deslizar)</span>
-        <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-none snap-x snap-mandatory">
-          {financeData.accounts?.map(acc => (
-            <div
-              key={acc.id}
-              className="min-w-[240px] p-4 rounded-2xl bg-slate-900 border border-slate-800/90 shadow-lg snap-start flex flex-col justify-between h-28"
-            >
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-bold text-slate-200 truncate">{acc.name}</span>
-                <span className="text-[10px] font-mono text-slate-400 uppercase">{acc.type}</span>
-              </div>
-              <div>
-                <span className="text-[10px] text-slate-500">Saldo</span>
-                <div className={`text-xl font-black ${acc.balance < 0 ? 'text-rose-400' : 'text-emerald-400'}`}>
-                  ${Number(acc.balance || 0).toLocaleString('es-MX', { minimumFractionDigits: 2 })} <span className="text-xs text-slate-500 font-normal">MXN</span>
+      {/* 2. Carrusel de Tarjetas y Cuentas (Apple Wallet / Elite Style) */}
+      <div className="space-y-2">
+        <div className="flex items-center justify-between px-1">
+          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+            Billetera Directiva (Deslizar)
+          </span>
+          <span className="text-[10px] font-mono text-slate-500">
+            {financeData.accounts?.length || 0} cuentas
+          </span>
+        </div>
+
+        <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-none snap-x snap-mandatory -mx-1 px-1">
+          {financeData.accounts?.map((acc, idx) => {
+            const isNegative = Number(acc.balance) < 0;
+            const gradients = [
+              'from-slate-900 via-indigo-950/80 to-slate-950 border-indigo-500/30',
+              'from-slate-900 via-emerald-950/80 to-slate-950 border-emerald-500/30',
+              'from-slate-900 via-purple-950/80 to-slate-950 border-purple-500/30'
+            ];
+            const cardGrad = gradients[idx % gradients.length];
+
+            return (
+              <div
+                key={acc.id}
+                className={`min-w-[270px] sm:min-w-[300px] p-5 rounded-3xl bg-gradient-to-br ${cardGrad} border shadow-[0_12px_30px_rgba(0,0,0,0.5)] snap-start flex flex-col justify-between h-36 relative overflow-hidden`}
+              >
+                {/* Chip Metálico Simulado */}
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <div className="w-8 h-6 rounded-md bg-gradient-to-br from-amber-400/80 to-yellow-600/60 border border-yellow-300/40 shadow-inner flex items-center justify-center">
+                      <div className="w-4 h-3 border border-yellow-800/40 rounded-sm" />
+                    </div>
+                    <span className="text-xs font-bold text-slate-200 truncate">{acc.name}</span>
+                  </div>
+                  <span className="text-[9px] font-mono font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-slate-950/60 text-slate-300 border border-white/[0.08]">
+                    {acc.type}
+                  </span>
+                </div>
+
+                {/* Saldo de la Cuenta */}
+                <div>
+                  <span className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider">
+                    Saldo Disponible
+                  </span>
+                  <div className="flex items-baseline gap-1.5 mt-0.5">
+                    <span className={`text-2xl font-black font-mono tracking-tight ${isNegative ? 'text-rose-400' : 'text-emerald-400'}`}>
+                      ${Number(acc.balance || 0).toLocaleString('es-MX', { minimumFractionDigits: 2 })}
+                    </span>
+                    <span className="text-[11px] font-bold text-slate-500">MXN</span>
+                  </div>
                 </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </div>
 
-      {/* 3. Indicadores de Ingreso / Egreso */}
+      {/* 3. Indicadores de Flujo Mensual */}
       <div className="grid grid-cols-2 gap-3">
-        <div className="p-3.5 rounded-2xl bg-slate-900/90 border border-slate-800 space-y-1">
+        <div className="p-4 rounded-3xl bg-slate-900/80 backdrop-blur-xl border border-white/[0.08] shadow-sm space-y-1">
           <div className="flex items-center justify-between text-slate-400">
-            <span className="text-[10px] uppercase font-bold">Ingresos</span>
-            <TrendingUp className="w-3.5 h-3.5 text-emerald-400" />
+            <span className="text-[10px] uppercase font-bold tracking-wider">Ingresos del Mes</span>
+            <div className="w-6 h-6 rounded-lg bg-emerald-500/15 flex items-center justify-center">
+              <TrendingUp className="w-3.5 h-3.5 text-emerald-400" />
+            </div>
           </div>
-          <div className="text-base font-black text-emerald-400">
-            +${financeData.monthIncome.toLocaleString('es-MX')}
+          <div className="text-lg font-black text-emerald-400 font-mono">
+            +${(financeData.monthIncome || 0).toLocaleString('es-MX', { minimumFractionDigits: 2 })}
           </div>
         </div>
 
-        <div className="p-3.5 rounded-2xl bg-slate-900/90 border border-slate-800 space-y-1">
+        <div className="p-4 rounded-3xl bg-slate-900/80 backdrop-blur-xl border border-white/[0.08] shadow-sm space-y-1">
           <div className="flex items-center justify-between text-slate-400">
-            <span className="text-[10px] uppercase font-bold">Egresos</span>
-            <TrendingDown className="w-3.5 h-3.5 text-rose-400" />
+            <span className="text-[10px] uppercase font-bold tracking-wider">Egresos del Mes</span>
+            <div className="w-6 h-6 rounded-lg bg-rose-500/15 flex items-center justify-center">
+              <TrendingDown className="w-3.5 h-3.5 text-rose-400" />
+            </div>
           </div>
-          <div className="text-base font-black text-slate-100">
-            -${financeData.monthExpense.toLocaleString('es-MX')}
+          <div className="text-lg font-black text-rose-400 font-mono">
+            -${(financeData.monthExpense || 0).toLocaleString('es-MX', { minimumFractionDigits: 2 })}
           </div>
         </div>
       </div>
 
-      {/* 4. Lista de Transacciones Táctil */}
-      <div className="space-y-3 pt-1">
+      {/* 4. Historial de Transacciones (Feed Táctil de Alta Legibilidad) */}
+      <div className="p-5 rounded-3xl bg-slate-900/85 backdrop-blur-xl border border-white/[0.08] shadow-lg space-y-3.5">
         <div className="flex items-center justify-between">
-          <span className="text-xs font-bold text-slate-300 uppercase tracking-wider">Historial de Movimientos</span>
-          <div className="flex items-center gap-1 bg-slate-900 p-1 rounded-xl border border-slate-800">
-            {['all', 'gasto', 'ingreso'].map(t => (
+          <span className="text-xs font-bold text-slate-200 uppercase tracking-wider">
+            Movimientos ({filteredTransactions.length})
+          </span>
+
+          {/* Filtro de Tipo */}
+          <div className="flex items-center gap-1 bg-slate-950 p-1 rounded-xl border border-white/[0.08]">
+            {[
+              { id: 'all', label: 'Todos' },
+              { id: 'gasto', label: 'Gastos' },
+              { id: 'ingreso', label: 'Ingresos' }
+            ].map(t => (
               <button
-                key={t}
+                key={t.id}
                 type="button"
-                onClick={() => setFilterType(t)}
-                className={`px-2 py-0.5 rounded-lg text-[10px] font-bold capitalize transition-all ${
-                  filterType === t ? 'bg-slate-800 text-white' : 'text-slate-400'
+                onClick={() => setFilterType(t.id)}
+                className={`px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase transition-all ${
+                  filterType === t.id
+                    ? 'bg-slate-800 text-white shadow-sm'
+                    : 'text-slate-400 hover:text-slate-200'
                 }`}
               >
-                {t === 'all' ? 'Todos' : t === 'gasto' ? 'Gastos' : 'Ingresos'}
+                {t.label}
               </button>
             ))}
           </div>
@@ -192,136 +255,168 @@ export default function MobileFinanceView() {
 
         <div className="space-y-2">
           {filteredTransactions.length === 0 ? (
-            <p className="text-xs text-slate-500 py-6 text-center">No hay movimientos registrados</p>
+            <div className="py-8 text-center text-xs text-slate-500">
+              No hay movimientos registrados en este filtro.
+            </div>
           ) : (
-            filteredTransactions.map(tx => (
-              <div
-                key={tx.id}
-                className="p-3.5 rounded-2xl bg-slate-900/90 border border-slate-800/80 flex items-center justify-between gap-3 shadow-sm active:bg-slate-800/50 transition-colors"
-              >
-                <div className="flex items-center gap-3 min-w-0">
-                  <div
-                    className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${
-                      tx.type === 'ingreso'
-                        ? 'bg-emerald-500/20 text-emerald-400'
-                        : 'bg-slate-800 text-slate-300'
-                    }`}
-                  >
-                    {tx.type === 'ingreso' ? <TrendingUp className="w-4 h-4" /> : <TrendingDown className="w-4 h-4" />}
+            filteredTransactions.map(tx => {
+              const isIncome = tx.type === 'ingreso';
+              return (
+                <div
+                  key={tx.id}
+                  className="p-3.5 rounded-2xl bg-slate-950/80 hover:bg-slate-950 border border-white/[0.05] flex items-center justify-between gap-3 transition-all"
+                >
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 border ${
+                      isIncome
+                        ? 'bg-emerald-500/15 border-emerald-500/30 text-emerald-400'
+                        : 'bg-rose-500/15 border-rose-500/30 text-rose-400'
+                    }`}>
+                      {isIncome ? <ArrowDownRight className="w-5 h-5" /> : <ArrowUpRight className="w-5 h-5" />}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <h4 className="text-xs font-bold text-slate-100 line-clamp-2 leading-snug break-words">
+                        {tx.note || tx.category || 'Movimiento'}
+                      </h4>
+                      <p className="text-[10px] text-slate-400 flex items-center gap-1 mt-0.5">
+                        <span>{tx.category}</span>
+                        <span>•</span>
+                        <span>{new Date(tx.date || Date.now()).toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })}</span>
+                      </p>
+                    </div>
                   </div>
-                  <div className="min-w-0">
-                    <h4 className="text-xs font-bold text-slate-200 truncate">{tx.category}</h4>
-                    <p className="text-[11px] text-slate-400 truncate">{tx.note || 'Sin nota'} · {new Date(tx.date || Date.now()).toLocaleDateString('es-ES')}</p>
-                  </div>
-                </div>
 
-                <div className="flex items-center gap-2.5 shrink-0">
-                  <span className={`text-sm font-mono font-bold ${tx.type === 'ingreso' ? 'text-emerald-400' : 'text-slate-100'}`}>
-                    {tx.type === 'ingreso' ? '+' : '-'}${Number(tx.amount).toLocaleString('es-MX', { minimumFractionDigits: 2 })}
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => handleDeleteTx(tx.id)}
-                    className="p-1 rounded-lg text-slate-500 hover:text-rose-400"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </button>
+                  <div className="flex items-center gap-3 shrink-0">
+                    <span className={`text-sm font-black font-mono ${isIncome ? 'text-emerald-400' : 'text-slate-100'}`}>
+                      {isIncome ? '+' : '-'}${Number(tx.amount || 0).toLocaleString('es-MX', { minimumFractionDigits: 2 })}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => handleDeleteTx(tx.id)}
+                      className="text-slate-600 hover:text-rose-400 p-1.5 rounded-lg active:scale-95 transition-all"
+                      title="Eliminar registro"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
                 </div>
-              </div>
-            ))
+              );
+            })
           )}
         </div>
       </div>
 
-      {/* Bottom Sheet: Registrar Movimiento */}
+      {/* Bottom Sheet: Registrar Movimiento / Factura */}
       <BottomSheet
         isOpen={showAddSheet}
         onClose={() => setShowAddSheet(false)}
-        title="Registrar Movimiento"
-        subtitle="Ingreso o egreso contable sincronizado en Supabase"
+        title="Registrar Movimiento Financiero"
+        subtitle="Se afectará el saldo de su cuenta y se respaldará en Supabase"
       >
         <form onSubmit={handleCreateTx} className="space-y-4">
-          <div className="grid grid-cols-2 gap-2 bg-slate-950 p-1 rounded-xl border border-slate-800">
+          {/* Selector Gasto / Ingreso */}
+          <div className="grid grid-cols-2 gap-2 p-1 bg-slate-900 rounded-2xl border border-slate-800">
             <button
               type="button"
-              onClick={() => setNewTx(prev => ({ ...prev, type: 'gasto', category: CATEGORIES.gasto[0] }))}
-              className={`py-2 rounded-xl text-xs font-bold transition-all ${
-                newTx.type === 'gasto' ? 'bg-rose-600 text-white shadow-md' : 'text-slate-400'
+              onClick={() => setNewTx(p => ({ ...p, type: 'gasto', category: CATEGORIES.gasto[0] }))}
+              className={`py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all ${
+                newTx.type === 'gasto'
+                  ? 'bg-rose-500 text-white shadow-md shadow-rose-500/25'
+                  : 'text-slate-400 hover:text-white'
               }`}
             >
               Egreso / Gasto
             </button>
             <button
               type="button"
-              onClick={() => setNewTx(prev => ({ ...prev, type: 'ingreso', category: CATEGORIES.ingreso[0] }))}
-              className={`py-2 rounded-xl text-xs font-bold transition-all ${
-                newTx.type === 'ingreso' ? 'bg-emerald-600 text-white shadow-md' : 'text-slate-400'
+              onClick={() => setNewTx(p => ({ ...p, type: 'ingreso', category: CATEGORIES.ingreso[0] }))}
+              className={`py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all ${
+                newTx.type === 'ingreso'
+                  ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/25'
+                  : 'text-slate-400 hover:text-white'
               }`}
             >
               Ingreso / Cobro
             </button>
           </div>
 
+          {/* Importe Monetario */}
           <div>
-            <label className="block text-xs font-semibold text-slate-300 mb-1">Monto (MXN)</label>
-            <input
-              type="number"
-              step="0.01"
-              required
-              value={newTx.amount}
-              onChange={e => setNewTx(prev => ({ ...prev, amount: e.target.value }))}
-              placeholder="0.00"
-              className="w-full bg-slate-950 border border-slate-800 rounded-2xl px-4 py-3 text-lg font-mono text-white placeholder-slate-600 focus:outline-none focus:border-emerald-500"
-            />
+            <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-2">
+              Importe ($ MXN)
+            </label>
+            <div className="relative">
+              <span className="absolute left-4 top-3.5 text-lg font-bold text-slate-500">$</span>
+              <input
+                type="number"
+                step="0.01"
+                inputMode="decimal"
+                value={newTx.amount}
+                onChange={(e) => setNewTx(p => ({ ...p, amount: e.target.value }))}
+                placeholder="0.00"
+                autoFocus
+                className="w-full bg-slate-900 border border-slate-800 rounded-2xl pl-9 pr-4 py-3.5 text-xl font-bold font-mono text-white placeholder-slate-600 focus:outline-none focus:border-emerald-500 transition-colors shadow-inner"
+              />
+            </div>
           </div>
 
+          {/* Cuenta Bancaria */}
           <div>
-            <label className="block text-xs font-semibold text-slate-300 mb-1">Cuenta</label>
+            <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-2">
+              Cuenta de Cargo / Abono
+            </label>
             <select
               value={newTx.accountId}
-              onChange={e => setNewTx(prev => ({ ...prev, accountId: e.target.value }))}
-              className="w-full bg-slate-950 border border-slate-800 rounded-2xl px-4 py-3 text-xs text-white focus:outline-none focus:border-emerald-500"
+              onChange={(e) => setNewTx(p => ({ ...p, accountId: e.target.value }))}
+              className="w-full bg-slate-900 border border-slate-800 rounded-2xl px-4 py-3 text-sm text-slate-100 focus:outline-none focus:border-emerald-500"
             >
-              {financeData.accounts?.map(a => (
-                <option key={a.id} value={a.id}>
-                  {a.name} ({a.type})
+              {financeData.accounts?.map(acc => (
+                <option key={acc.id} value={acc.id}>
+                  {acc.name} (${Number(acc.balance || 0).toLocaleString('es-MX')} MXN)
                 </option>
               ))}
             </select>
           </div>
 
+          {/* Categoría */}
           <div>
-            <label className="block text-xs font-semibold text-slate-300 mb-1">Categoría</label>
+            <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-2">
+              Categoría
+            </label>
             <select
               value={newTx.category}
-              onChange={e => setNewTx(prev => ({ ...prev, category: e.target.value }))}
-              className="w-full bg-slate-950 border border-slate-800 rounded-2xl px-4 py-3 text-xs text-white focus:outline-none focus:border-emerald-500"
+              onChange={(e) => setNewTx(p => ({ ...p, category: e.target.value }))}
+              className="w-full bg-slate-900 border border-slate-800 rounded-2xl px-4 py-3 text-sm text-slate-100 focus:outline-none focus:border-emerald-500"
             >
-              {CATEGORIES[newTx.type].map(c => (
-                <option key={c} value={c}>
-                  {c}
-                </option>
+              {(CATEGORIES[newTx.type] || []).map(cat => (
+                <option key={cat} value={cat}>{cat}</option>
               ))}
             </select>
           </div>
 
+          {/* Concepto / Nota / Factura */}
           <div>
-            <label className="block text-xs font-semibold text-slate-300 mb-1">Concepto / Referencia</label>
+            <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-2">
+              Concepto / Voucher / Factura
+            </label>
             <input
               type="text"
               value={newTx.note}
-              onChange={e => setNewTx(prev => ({ ...prev, note: e.target.value }))}
-              placeholder="Descripción del movimiento..."
-              className="w-full bg-slate-950 border border-slate-800 rounded-2xl px-4 py-3 text-xs text-white placeholder-slate-600 focus:outline-none focus:border-emerald-500"
+              onChange={(e) => setNewTx(p => ({ ...p, note: e.target.value }))}
+              placeholder="Ej. Factura #A-901 de Gasolina Shell"
+              className="w-full bg-slate-900 border border-slate-800 rounded-2xl px-4 py-3 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-emerald-500 shadow-inner"
             />
           </div>
 
-          <button
-            type="submit"
-            className="w-full py-3.5 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-sm shadow-lg shadow-emerald-600/30 transition-all active:scale-95"
-          >
-            Guardar Movimiento
-          </button>
+          <div className="pt-2">
+            <button
+              type="submit"
+              disabled={!newTx.amount || parseFloat(newTx.amount) <= 0}
+              className="w-full py-3.5 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 disabled:opacity-40 text-white font-bold text-sm shadow-lg shadow-emerald-600/25 transition-all active:scale-[0.98]"
+            >
+              Guardar Movimiento
+            </button>
+          </div>
         </form>
       </BottomSheet>
     </div>

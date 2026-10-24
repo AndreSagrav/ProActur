@@ -43,7 +43,7 @@ export default function BottomSheet({ isOpen, onClose, title, subtitle, children
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex flex-col justify-end bg-black/80 backdrop-blur-sm animate-fade-in">
+    <div className="fixed inset-0 z-50 flex flex-col justify-end bg-black/75 backdrop-blur-md animate-fade-in">
       {/* Fondo clicable para cerrar */}
       <div className="flex-1" onClick={onClose} />
 
@@ -53,11 +53,11 @@ export default function BottomSheet({ isOpen, onClose, title, subtitle, children
         onTouchStart={handleTouchStart}
         onTouchMove={handleTouchMove}
         onTouchEnd={handleTouchEnd}
-        className="w-full bg-slate-900 border-t border-slate-800 rounded-t-3xl shadow-2xl max-h-[88vh] flex flex-col transition-transform duration-200 safe-bottom"
+        className="w-full bg-slate-950/95 backdrop-blur-3xl border-t border-white/[0.12] rounded-t-[32px] shadow-[0_-20px_60px_rgba(0,0,0,0.85)] max-h-[88vh] flex flex-col transition-transform duration-200 safe-bottom"
       >
         {/* Barra superior de arrastre (Grab Handle) */}
         <div className="pt-3 pb-2 flex justify-center cursor-grab active:cursor-grabbing">
-          <div className="w-12 h-1.5 bg-slate-700 rounded-full" />
+          <div className="w-12 h-1.5 bg-slate-600/80 rounded-full" />
         </div>
 
         {/* Encabezado */}

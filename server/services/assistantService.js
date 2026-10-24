@@ -57,7 +57,7 @@ Fecha/Hora actual: ${today}.
 
 Opciones de "action":
 1. "CREATE_EVENT": Si la orden es agendar, programar una junta, cita, evento o reunión con fecha/hora.
-2. "RECORD_FINANCE": Si la orden indica un gasto, pago, compra, ingreso o cobro monetario.
+2. "RECORD_FINANCE": Si la orden indica un gasto, pago, compra, ingreso, cobro monetario, factura electrónica, comprobante fiscal, ticket o voucher bancario.
 3. "CREATE_TASK": Si la orden indica recordar algo, crear un pendiente, tarea o compromiso sin horario específico.
 4. "START_RECORDING": Si pide grabar o registrar una reunión o audio.
 5. "ANSWER": Si es una pregunta, consulta sobre reuniones pasadas, tareas o finanzas.

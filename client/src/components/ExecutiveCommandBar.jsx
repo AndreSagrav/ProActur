@@ -1,7 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react';
 import {
   Sparkles, Mic, MicOff, Send, Loader2, CheckCircle2,
-  Calendar, Wallet, CheckSquare, Brain, Radio, X, ArrowUpRight
+  Calendar, Wallet, CheckSquare, Brain, Radio, X, ArrowUpRight,
+  ChevronDown
 } from 'lucide-react';
 
 const API = import.meta.env.VITE_API_URL || '';
@@ -14,6 +15,7 @@ export default function ExecutiveCommandBar({
   const [commandText, setCommandText] = useState('');
   const [isListening, setIsListening] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [isMinimized, setIsMinimized] = useState(false);
   const [resultModal, setResultModal] = useState(null); // { action, message, data }
   const [quickToast, setQuickToast] = useState(null);
 
@@ -125,8 +127,22 @@ export default function ExecutiveCommandBar({
 
   return (
     <>
-      {/* 1. Barra Flotante Principal */}
-      <div className="fixed bottom-20 md:bottom-6 left-1/2 -translate-x-1/2 z-40 w-full max-w-2xl px-3 pointer-events-auto">
+      {/* 1. Modo Minimizado en Móvil (Píldora Discreta que No Cubre Contenido) */}
+      {isMinimized && (
+        <div className="fixed bottom-20 right-4 z-40 md:hidden animate-fade-in">
+          <button
+            type="button"
+            onClick={() => setIsMinimized(false)}
+            className="flex items-center gap-2 px-3.5 py-2.5 rounded-full bg-slate-950/95 border border-white/[0.15] text-amber-300 font-bold text-xs shadow-[0_10px_25px_rgba(0,0,0,0.6)] backdrop-blur-2xl active:scale-95 transition-all"
+          >
+            <Sparkles className="w-3.5 h-3.5 text-amber-400 animate-pulse" />
+            <span>Asistente IA</span>
+          </button>
+        </div>
+      )}
+
+      {/* 2. Barra Flotante Principal */}
+      <div className={`${isMinimized ? 'hidden md:block' : 'block'} fixed bottom-20 md:bottom-6 left-1/2 -translate-x-1/2 z-40 w-full max-w-xl px-3 pointer-events-auto transition-all`}>
         {/* Banner de Feedback Rápido */}
         {quickToast && (
           <div className="mb-2 p-3 rounded-2xl bg-slate-900/95 border border-slate-700/80 shadow-2xl backdrop-blur-2xl flex items-center justify-between gap-3 text-xs animate-fade-in">
@@ -180,10 +196,10 @@ export default function ExecutiveCommandBar({
 
         <form
           onSubmit={handleSubmit}
-          className={`relative flex items-center bg-slate-950/90 border rounded-2xl p-1.5 shadow-2xl backdrop-blur-2xl transition-all ${
+          className={`relative flex items-center bg-slate-950/90 border rounded-2xl p-1.5 shadow-[0_20px_50px_rgba(0,0,0,0.75)] backdrop-blur-3xl ring-1 transition-all ${
             isListening
-              ? 'border-red-500/80 ring-2 ring-red-500/30 bg-slate-950'
-              : 'border-slate-700/80 focus-within:border-indigo-500/80 focus-within:ring-2 focus-within:ring-indigo-500/20'
+              ? 'border-red-500/80 ring-red-500/40 bg-slate-950'
+              : 'border-white/[0.12] ring-white/[0.04] focus-within:border-indigo-500/80 focus-within:ring-indigo-500/25'
           }`}
         >
           {/* Botón de Dictado por Voz */}
@@ -200,7 +216,7 @@ export default function ExecutiveCommandBar({
             {isListening ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
           </button>
 
-          {/* Campo de Texto */}
+          {/* Campo de Texto con placeholder conciso para evitar textos cortados */}
           <input
             ref={inputRef}
             type="text"
@@ -209,11 +225,21 @@ export default function ExecutiveCommandBar({
             disabled={isLoading}
             placeholder={
               isListening
-                ? 'Escuchando instrucción por voz...'
-                : 'Instrucción o consulta ejecutiva (agendar, finanzas, tareas, consulta)...'
+                ? 'Escuchando voz...'
+                : 'Instrucción o consulta con IA...'
             }
             className="w-full bg-transparent text-xs sm:text-sm text-slate-100 placeholder-slate-400 outline-none px-2.5"
           />
+
+          {/* Botón Minimizar en Móvil */}
+          <button
+            type="button"
+            onClick={() => setIsMinimized(true)}
+            className="p-1.5 rounded-lg text-slate-500 hover:text-slate-300 md:hidden shrink-0"
+            title="Minimizar barra"
+          >
+            <ChevronDown className="w-4 h-4" />
+          </button>
 
           {/* Botón Ejecutar */}
           <button

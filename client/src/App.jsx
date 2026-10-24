@@ -364,8 +364,8 @@ const handleNewNote = (linkedMeeting = null) => {
             </div>
           </div>
 
-          {/* Fila Inferior: Navegacion Principal Holgada + Selector de Temas Visible */}
-          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 pt-2 border-t border-slate-800/80">
+          {/* Fila Inferior: Navegacion Principal Desktop + Selector de Temas Visible (Oculto en móvil) */}
+          <div className="hidden md:flex flex-row items-center justify-between gap-3 pt-2 border-t border-slate-800/80">
             {/* Pestañas de Navegacion con Espacio Vertical y Sin Compresion */}
             <div className="flex items-center bg-slate-900 border border-slate-800 rounded-2xl p-1.5 shadow-inner gap-1 overflow-x-auto scrollbar-none">
               {TABS.map(tab => {
@@ -392,7 +392,7 @@ const handleNewNote = (linkedMeeting = null) => {
             </div>
 
             {/* Selector de Temas Holgado con Etiquetas de Color y Escalador de Fuente */}
-            <div className="flex items-center justify-between sm:justify-end gap-2 bg-slate-900 border border-slate-800 rounded-2xl px-3 py-1.5 shadow-inner">
+            <div className="flex items-center justify-end gap-2 bg-slate-900 border border-slate-800 rounded-2xl px-3 py-1.5 shadow-inner">
               <span className="text-xs text-slate-400 font-bold whitespace-nowrap">Temas:</span>
               <div className="flex items-center gap-1.5">
                 {THEMES && Object.values(THEMES).map(t => (
@@ -411,13 +411,14 @@ const handleNewNote = (linkedMeeting = null) => {
                     <span>{t.icon}</span>
                   </button>
                 ))}
-              </div></div>
+              </div>
+            </div>
           </div>
         </div>
       </header>
 
-      {/* Contenedor Principal Adaptativo */}
-      <main className="max-w-7xl mx-auto px-3 sm:px-6 py-4 sm:py-6 flex-1 w-full relative">
+      {/* Contenedor Principal Adaptativo con Margen Inferior Holgado (Sin Solapamientos) */}
+      <main className="max-w-7xl mx-auto px-3 sm:px-6 py-4 sm:py-6 pb-44 md:pb-32 flex-1 w-full relative">
         {/* PÍLDORA DINÁMICA FLOTANTE (DYNAMIC ISLAND): Grabación e IA activas en 2do plano */}
         {recordingState.isRecording && activeTab !== 'meetings' && (
           <div className="sticky top-2 z-50 max-w-xl mx-auto px-2 mb-4 animate-fade-in">
@@ -806,21 +807,22 @@ const handleNewNote = (linkedMeeting = null) => {
       </main>
 
       {/* =================================================================== */}
-      {/* BARRA DE NAVEGACION INFERIOR PARA MOVILES Y TABLETS (< md)          */}
+      {/* BARRA DE NAVEGACION FLOTANTE ULTRA-PREMIUM (< md)                   */}
       {/* =================================================================== */}
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-slate-950/95 backdrop-blur-2xl border-t border-slate-800/80 px-1 pt-1.5 pb-3 safe-bottom shadow-2xl">
-        <div className="grid grid-cols-5 items-center">
+      <nav className="md:hidden fixed bottom-3 left-3 right-3 max-w-md mx-auto z-50 bg-slate-950/90 backdrop-blur-3xl border border-white/[0.12] rounded-3xl p-1.5 shadow-[0_20px_50px_rgba(0,0,0,0.75)] ring-1 ring-white/[0.05]">
+        <div className="grid grid-cols-5 items-center gap-1">
           {/* 1. Centro de Mando */}
           <button
             onClick={() => setActiveTab('command-center')}
-            className={`flex flex-col items-center justify-center py-1 px-1 rounded-xl transition-all ${
-              activeTab === 'command-center' ? 'text-amber-400 font-bold' : 'text-slate-400 hover:text-slate-200'
+            className={`flex flex-col items-center justify-center py-2 px-1 rounded-2xl transition-all duration-200 active:scale-95 ${
+              activeTab === 'command-center'
+                ? 'bg-white/[0.08] text-amber-300 font-bold shadow-inner'
+                : 'text-slate-400 hover:text-slate-200'
             }`}
           >
-            <div className={`p-1.5 rounded-xl transition-all ${activeTab === 'command-center' ? 'bg-amber-500/20 text-amber-400 shadow-sm' : ''}`}>
-              <LayoutDashboard className="w-5 h-5" />
-            </div>
-            <span className="text-[10px] mt-0.5">Mando</span>
+            <LayoutDashboard className={`w-5 h-5 transition-transform ${activeTab === 'command-center' ? 'scale-110 text-amber-400' : ''}`} />
+            <span className="text-[10px] mt-1 font-semibold tracking-tight">Mando</span>
+            {activeTab === 'command-center' && <span className="w-1 h-1 rounded-full bg-amber-400 mt-0.5 shadow-sm shadow-amber-400" />}
           </button>
 
           {/* 2. Reuniones */}
@@ -829,53 +831,57 @@ const handleNewNote = (linkedMeeting = null) => {
               setActiveTab('meetings');
               setShowMobileDetail(false);
             }}
-            className={`flex flex-col items-center justify-center py-1 px-1 rounded-xl transition-all ${
-              activeTab === 'meetings' ? 'text-indigo-400 font-bold' : 'text-slate-400 hover:text-slate-200'
+            className={`flex flex-col items-center justify-center py-2 px-1 rounded-2xl transition-all duration-200 active:scale-95 ${
+              activeTab === 'meetings'
+                ? 'bg-white/[0.08] text-indigo-300 font-bold shadow-inner'
+                : 'text-slate-400 hover:text-slate-200'
             }`}
           >
-            <div className={`p-1.5 rounded-xl transition-all ${activeTab === 'meetings' ? 'bg-indigo-600/20 text-indigo-400 shadow-sm' : ''}`}>
-              <FileText className="w-5 h-5" />
-            </div>
-            <span className="text-[10px] mt-0.5">Reuniones</span>
+            <FileText className={`w-5 h-5 transition-transform ${activeTab === 'meetings' ? 'scale-110 text-indigo-400' : ''}`} />
+            <span className="text-[10px] mt-1 font-semibold tracking-tight">Reuniones</span>
+            {activeTab === 'meetings' && <span className="w-1 h-1 rounded-full bg-indigo-400 mt-0.5 shadow-sm shadow-indigo-400" />}
           </button>
 
           {/* 3. Finanzas */}
           <button
             onClick={() => setActiveTab('finance')}
-            className={`flex flex-col items-center justify-center py-1 px-1 rounded-xl transition-all ${
-              activeTab === 'finance' ? 'text-emerald-400 font-bold' : 'text-slate-400 hover:text-slate-200'
+            className={`flex flex-col items-center justify-center py-2 px-1 rounded-2xl transition-all duration-200 active:scale-95 ${
+              activeTab === 'finance'
+                ? 'bg-white/[0.08] text-emerald-300 font-bold shadow-inner'
+                : 'text-slate-400 hover:text-slate-200'
             }`}
           >
-            <div className={`p-1.5 rounded-xl transition-all ${activeTab === 'finance' ? 'bg-emerald-500/20 text-emerald-400 shadow-sm' : ''}`}>
-              <Wallet className="w-5 h-5" />
-            </div>
-            <span className="text-[10px] mt-0.5">Finanzas</span>
+            <Wallet className={`w-5 h-5 transition-transform ${activeTab === 'finance' ? 'scale-110 text-emerald-400' : ''}`} />
+            <span className="text-[10px] mt-1 font-semibold tracking-tight">Finanzas</span>
+            {activeTab === 'finance' && <span className="w-1 h-1 rounded-full bg-emerald-400 mt-0.5 shadow-sm shadow-emerald-400" />}
           </button>
 
           {/* 4. Agenda */}
           <button
             onClick={() => setActiveTab('calendar')}
-            className={`flex flex-col items-center justify-center py-1 px-1 rounded-xl transition-all ${
-              activeTab === 'calendar' ? 'text-amber-400 font-bold' : 'text-slate-400 hover:text-slate-200'
+            className={`flex flex-col items-center justify-center py-2 px-1 rounded-2xl transition-all duration-200 active:scale-95 ${
+              activeTab === 'calendar'
+                ? 'bg-white/[0.08] text-amber-300 font-bold shadow-inner'
+                : 'text-slate-400 hover:text-slate-200'
             }`}
           >
-            <div className={`p-1.5 rounded-xl transition-all ${activeTab === 'calendar' ? 'bg-amber-500/20 text-amber-400 shadow-sm' : ''}`}>
-              <Calendar className="w-5 h-5" />
-            </div>
-            <span className="text-[10px] mt-0.5">Agenda</span>
+            <Calendar className={`w-5 h-5 transition-transform ${activeTab === 'calendar' ? 'scale-110 text-amber-400' : ''}`} />
+            <span className="text-[10px] mt-1 font-semibold tracking-tight">Agenda</span>
+            {activeTab === 'calendar' && <span className="w-1 h-1 rounded-full bg-amber-400 mt-0.5 shadow-sm shadow-amber-400" />}
           </button>
 
           {/* 5. Libreta */}
           <button
             onClick={() => setActiveTab('notebook')}
-            className={`flex flex-col items-center justify-center py-1 px-1 rounded-xl transition-all ${
-              activeTab === 'notebook' ? 'text-purple-400 font-bold' : 'text-slate-400 hover:text-slate-200'
+            className={`flex flex-col items-center justify-center py-2 px-1 rounded-2xl transition-all duration-200 active:scale-95 ${
+              activeTab === 'notebook'
+                ? 'bg-white/[0.08] text-purple-300 font-bold shadow-inner'
+                : 'text-slate-400 hover:text-slate-200'
             }`}
           >
-            <div className={`p-1.5 rounded-xl transition-all ${activeTab === 'notebook' ? 'bg-purple-500/20 text-purple-400 shadow-sm' : ''}`}>
-              <BookOpen className="w-5 h-5" />
-            </div>
-            <span className="text-[10px] mt-0.5">Libreta</span>
+            <BookOpen className={`w-5 h-5 transition-transform ${activeTab === 'notebook' ? 'scale-110 text-purple-400' : ''}`} />
+            <span className="text-[10px] mt-1 font-semibold tracking-tight">Libreta</span>
+            {activeTab === 'notebook' && <span className="w-1 h-1 rounded-full bg-purple-400 mt-0.5 shadow-sm shadow-purple-400" />}
           </button>
         </div>
       </nav>

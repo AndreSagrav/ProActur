@@ -4,7 +4,7 @@
       "id": "acc_main",
       "name": "Cuenta Principal",
       "type": "debito",
-      "balance": 14250,
+      "balance": 13800,
       "currency": "MXN",
       "color": "#10b981"
     },
@@ -26,6 +26,15 @@
     }
   ],
   "transactions": [
+    {
+      "id": "tx_1792880165615",
+      "accountId": "acc_main",
+      "type": "gasto",
+      "category": "Gasolina y Transporte",
+      "note": "Registrar gasto de 450 en gasolina para auto de oficina",
+      "amount": 450,
+      "date": "2026-10-24T22:16:05.615Z"
+    },
     {
       "id": "tx_1",
       "accountId": "acc_main",
