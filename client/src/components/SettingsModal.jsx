@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, CheckCircle2, AlertCircle, Loader2, Sparkles, Cpu, Layers, Activity, RefreshCw, ShieldCheck, Database, HardDrive, Keyboard } from 'lucide-react';
+import { X, CheckCircle2, AlertCircle, Loader2, Sparkles, Cpu, Layers, Activity, RefreshCw, ShieldCheck, Database, HardDrive, Keyboard, Smartphone, Download } from 'lucide-react';
 
 export default function SettingsModal({
   isOpen,
@@ -137,6 +137,32 @@ export default function SettingsModal({
               <li>• <strong className="text-slate-200">Temas y Daltonismo</strong>: Barra de temas visibles en el encabezado con paleta Okabe-Ito, Tritanopia y Alto Contraste.</li>
               <li>• <strong className="text-slate-200">Segundo Cerebro</strong>: Búsqueda y conexión entre notas y transcripciones sin depender de apps externas.</li>
             </ul>
+          </div>
+
+          {/* Card: Instalador Android (APK) */}
+          <div className="bg-slate-950/60 border border-slate-800 rounded-xl p-4 sm:p-5 space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2 text-indigo-400 font-semibold text-xs sm:text-sm">
+                <Smartphone className="w-4 h-4" />
+                <span>Aplicación Android Nativa (.APK)</span>
+              </div>
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
+                Instalador
+              </span>
+            </div>
+            <p className="text-xs text-slate-400 leading-relaxed">
+              Paquete APK compilado y firmado para instalación directa en teléfonos y tabletas Android.
+            </p>
+            <div className="pt-1">
+              <a
+                href="/ProActur.apk"
+                download="ProActur.apk"
+                className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold bg-indigo-600 hover:bg-indigo-500 text-white shadow-md transition-all active:scale-95"
+              >
+                <Download className="w-3.5 h-3.5" />
+                <span>Descargar ProActur.apk (3.3 MB)</span>
+              </a>
+            </div>
           </div>
         </div>
 

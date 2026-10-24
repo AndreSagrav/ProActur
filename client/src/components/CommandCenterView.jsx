@@ -211,7 +211,7 @@ export default function CommandCenterView({
               <div>
                 <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Saldo Total Disponible</span>
                 <div className="text-2xl sm:text-3xl font-black text-white mt-0.5">
-                  ${financeSummary.balance.toLocaleString('es-MX', { minimumFractionDigits: 2 })} <span className="text-xs text-slate-500 font-normal">MXN</span>
+                  ${Number(financeSummary.balance || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })} <span className="text-xs text-slate-400 font-normal">USD</span>
                 </div>
               </div>
               <div className="text-right">
@@ -396,7 +396,7 @@ export default function CommandCenterView({
               </div>
 
               <div>
-                <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Monto ($ MXN)</label>
+                <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Monto ($ USD)</label>
                 <input
                   type="number"
                   step="any"

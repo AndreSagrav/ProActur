@@ -2,72 +2,27 @@
   "accounts": [
     {
       "id": "acc_main",
-      "name": "Cuenta Principal",
+      "name": "Cuenta Operativa (USD)",
       "type": "debito",
-      "balance": 13800,
-      "currency": "MXN",
+      "balance": 0.00,
+      "currency": "USD",
       "color": "#10b981"
     },
     {
-      "id": "acc_cash",
-      "name": "Efectivo",
-      "type": "efectivo",
-      "balance": 1800,
-      "currency": "MXN",
-      "color": "#f59e0b"
-    },
-    {
-      "id": "acc_card",
-      "name": "Tarjeta Crédito",
-      "type": "credito",
-      "balance": -3200,
-      "currency": "MXN",
+      "id": "acc_crc",
+      "name": "Cuenta Local (CRC)",
+      "type": "debito",
+      "balance": 0.00,
+      "currency": "CRC",
       "color": "#6366f1"
     }
   ],
-  "transactions": [
-    {
-      "id": "tx_1792880165615",
-      "accountId": "acc_main",
-      "type": "gasto",
-      "category": "Gasolina y Transporte",
-      "note": "Registrar gasto de 450 en gasolina para auto de oficina",
-      "amount": 450,
-      "date": "2026-10-24T22:16:05.615Z"
-    },
-    {
-      "id": "tx_1",
-      "accountId": "acc_main",
-      "type": "gasto",
-      "category": "Gasolina",
-      "note": "Auto oficina",
-      "amount": 450,
-      "date": "2026-10-24T19:15:51.576Z"
-    },
-    {
-      "id": "tx_2",
-      "accountId": "acc_main",
-      "type": "gasto",
-      "category": "Almuerzo",
-      "note": "Reunión de socios",
-      "amount": 320,
-      "date": "2026-10-23T19:15:51.577Z"
-    },
-    {
-      "id": "tx_3",
-      "accountId": "acc_main",
-      "type": "ingreso",
-      "category": "Honorarios",
-      "note": "Pago cliente ProActur",
-      "amount": 12000,
-      "date": "2026-10-22T19:15:51.577Z"
-    }
-  ],
+  "transactions": [],
   "budgets": [
     {
       "id": "b_general",
-      "category": "General Mensual",
-      "monthlyLimit": 20000
+      "category": "Presupuesto Mensual",
+      "monthlyLimit": 0.00
     }
   ]
 }

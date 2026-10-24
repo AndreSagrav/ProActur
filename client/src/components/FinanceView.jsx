@@ -171,7 +171,7 @@ export default function FinanceView() {
             <Wallet className="w-4 h-4 text-emerald-400" />
           </div>
           <div className="text-2xl font-black text-white">
-            ${financeData.balance.toLocaleString('es-MX', { minimumFractionDigits: 2 })} <span className="text-xs text-slate-500 font-normal">MXN</span>
+            ${Number(financeData.balance || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })} <span className="text-xs text-slate-400 font-normal">USD</span>
           </div>
           <p className="text-[11px] text-slate-500 font-medium">Consolidado en todas las cuentas activas</p>
         </div>
@@ -183,7 +183,7 @@ export default function FinanceView() {
             <TrendingUp className="w-4 h-4 text-emerald-400" />
           </div>
           <div className="text-2xl font-black text-emerald-400">
-            +${financeData.monthIncome.toLocaleString('es-MX', { minimumFractionDigits: 2 })} <span className="text-xs text-slate-500 font-normal">MXN</span>
+            +${Number(financeData.monthIncome || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })} <span className="text-xs text-slate-400 font-normal">USD</span>
           </div>
           <p className="text-[11px] text-slate-500 font-medium">Honorarios y cobranza registrada</p>
         </div>
@@ -195,7 +195,7 @@ export default function FinanceView() {
             <TrendingDown className="w-4 h-4 text-rose-400" />
           </div>
           <div className="text-2xl font-black text-slate-100">
-            -${financeData.monthExpense.toLocaleString('es-MX', { minimumFractionDigits: 2 })} <span className="text-xs text-slate-500 font-normal">MXN</span>
+            -${Number(financeData.monthExpense || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })} <span className="text-xs text-slate-400 font-normal">USD</span>
           </div>
           <p className="text-[11px] text-slate-500 font-medium">Operación y viáticos ejecutados</p>
         </div>
@@ -248,7 +248,7 @@ export default function FinanceView() {
                   <div>
                     <h4 className="text-xs font-bold text-slate-200">{acc.name}</h4>
                     <span className="text-[10px] text-slate-500 uppercase tracking-wider font-semibold">
-                      {acc.type} · {acc.currency || 'MXN'}
+                      {acc.type} · {acc.currency || 'USD'}
                     </span>
                   </div>
                 </div>
@@ -446,7 +446,7 @@ export default function FinanceView() {
 
               {/* Monto */}
               <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1">Monto (MXN)</label>
+                <label className="block text-xs font-semibold text-slate-300 mb-1">Monto ($ USD / ₡ CRC)</label>
                 <input
                   type="number"
                   step="0.01"

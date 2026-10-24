@@ -158,7 +158,7 @@ Estructura JSON requerida según acción:
 
       return {
         action: 'RECORD_FINANCE',
-        message: `Registro financiero asentado: ${isIncome ? 'Ingreso' : 'Egreso'} de $${amount.toLocaleString('es-MX', { minimumFractionDigits: 2 })} MXN (${tx.category}).`,
+        message: `Registro financiero asentado: ${isIncome ? 'Ingreso' : 'Egreso'} de $${amount.toLocaleString('en-US', { minimumFractionDigits: 2 })} USD (${tx.category}).`,
         data: tx
       };
     }
@@ -215,7 +215,7 @@ Estructura JSON requerida según acción:
 
       return {
         action: 'RECORD_FINANCE',
-        message: `Registro financiero asentado: ${isIncome ? 'Ingreso' : 'Egreso'} de $${amount.toLocaleString('es-MX', { minimumFractionDigits: 2 })} MXN.`,
+        message: `Registro financiero asentado: ${isIncome ? 'Ingreso' : 'Egreso'} de $${amount.toLocaleString('en-US', { minimumFractionDigits: 2 })} USD.`,
         data: tx
       };
     }

@@ -185,9 +185,9 @@ export default function MobileFinanceView() {
                   </span>
                   <div className="flex items-baseline gap-1.5 mt-0.5">
                     <span className={`text-2xl font-black font-mono tracking-tight ${isNegative ? 'text-rose-400' : 'text-emerald-400'}`}>
-                      ${Number(acc.balance || 0).toLocaleString('es-MX', { minimumFractionDigits: 2 })}
+                      {acc.currency === 'CRC' ? '₡' : '$'}{Number(acc.balance || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
                     </span>
-                    <span className="text-[11px] font-bold text-slate-500">MXN</span>
+                    <span className="text-[11px] font-bold text-slate-400">{acc.currency || 'USD'}</span>
                   </div>
                 </div>
               </div>
@@ -343,7 +343,7 @@ export default function MobileFinanceView() {
           {/* Importe Monetario */}
           <div>
             <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-2">
-              Importe ($ MXN)
+              Importe ($ USD / ₡ CRC)
             </label>
             <div className="relative">
               <span className="absolute left-4 top-3.5 text-lg font-bold text-slate-500">$</span>
@@ -372,7 +372,7 @@ export default function MobileFinanceView() {
             >
               {financeData.accounts?.map(acc => (
                 <option key={acc.id} value={acc.id}>
-                  {acc.name} (${Number(acc.balance || 0).toLocaleString('es-MX')} MXN)
+                  {acc.name} ({acc.currency === 'CRC' ? '₡' : '$'}{Number(acc.balance || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })} {acc.currency || 'USD'})
                 </option>
               ))}
             </select>

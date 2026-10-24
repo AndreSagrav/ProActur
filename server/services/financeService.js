@@ -8,17 +8,12 @@ const DATA_FILE = process.env.VERCEL
 
 const INITIAL_FINANCES = {
   accounts: [
-    { id: 'acc_main', name: 'Cuenta Principal', type: 'debito', balance: 14250.00, currency: 'MXN', color: '#10b981' },
-    { id: 'acc_cash', name: 'Efectivo', type: 'efectivo', balance: 1800.00, currency: 'MXN', color: '#f59e0b' },
-    { id: 'acc_card', name: 'Tarjeta Crédito', type: 'credito', balance: -3200.00, currency: 'MXN', color: '#6366f1' }
+    { id: 'acc_main', name: 'Cuenta Operativa (USD)', type: 'debito', balance: 0.00, currency: 'USD', color: '#10b981' },
+    { id: 'acc_crc', name: 'Cuenta Local (CRC)', type: 'debito', balance: 0.00, currency: 'CRC', color: '#6366f1' }
   ],
-  transactions: [
-    { id: 'tx_1', accountId: 'acc_main', type: 'gasto', category: 'Gasolina', note: 'Auto oficina', amount: 450, date: new Date().toISOString() },
-    { id: 'tx_2', accountId: 'acc_main', type: 'gasto', category: 'Almuerzo', note: 'Reunión de socios', amount: 320, date: new Date(Date.now() - 86400000).toISOString() },
-    { id: 'tx_3', accountId: 'acc_main', type: 'ingreso', category: 'Honorarios', note: 'Pago cliente ProActur', amount: 12000, date: new Date(Date.now() - 172800000).toISOString() }
-  ],
+  transactions: [],
   budgets: [
-    { id: 'b_general', category: 'General Mensual', monthlyLimit: 20000.00 }
+    { id: 'b_general', category: 'Presupuesto Mensual', monthlyLimit: 0.00 }
   ]
 };
 
@@ -79,7 +74,7 @@ class FinanceService {
 
     const monthExpense = expenses.reduce((acc, t) => acc + (Number(t.amount) || 0), 0);
     const monthIncome = incomes.reduce((acc, t) => acc + (Number(t.amount) || 0), 0);
-    const budgetLimit = data.budgets[0]?.monthlyLimit || 20000;
+    const budgetLimit = data.budgets[0]?.monthlyLimit || 0;
 
     return {
       balance: totalBalance,
