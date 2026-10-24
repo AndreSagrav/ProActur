@@ -27,7 +27,7 @@ import MobileFinanceView from './components/mobile/MobileFinanceView';
 const API = import.meta.env.VITE_API_URL || '';
 
 export default function App() {
-  const { isMobile, isTablet, isDesktop } = useDeviceType();
+  const { isMobile, isTablet, isDesktop, isCompact } = useDeviceType();
   const { theme, setTheme, THEMES, fontSize, setFontSize } = useTheme();
   const [meetings, setMeetings] = useState([]);
   const [selectedMeetingId, setSelectedMeetingId] = useState(null);
@@ -364,8 +364,8 @@ const handleNewNote = (linkedMeeting = null) => {
             </div>
           </div>
 
-          {/* Fila Inferior: Navegacion Principal Desktop + Selector de Temas Visible (Oculto en móvil) */}
-          <div className="hidden md:flex flex-row items-center justify-between gap-3 pt-2 border-t border-slate-800/80">
+          {/* Fila Inferior: Navegacion Principal Desktop + Selector de Temas Visible (Oculto en móvil y tablet) */}
+          <div className="hidden lg:flex flex-row items-center justify-between gap-3 pt-2 border-t border-slate-800/80">
             {/* Pestañas de Navegacion con Espacio Vertical y Sin Compresion */}
             <div className="flex items-center bg-slate-900 border border-slate-800 rounded-2xl p-1.5 shadow-inner gap-1 overflow-x-auto scrollbar-none">
               {TABS.map(tab => {
@@ -418,7 +418,7 @@ const handleNewNote = (linkedMeeting = null) => {
       </header>
 
       {/* Contenedor Principal Adaptativo con Margen Inferior Holgado (Sin Solapamientos) */}
-      <main className="max-w-7xl mx-auto px-3 sm:px-6 py-4 sm:py-6 pb-44 md:pb-32 flex-1 w-full relative">
+      <main className="max-w-7xl mx-auto px-3 sm:px-6 py-4 sm:py-6 pb-44 lg:pb-16 flex-1 w-full relative">
         {/* PÍLDORA DINÁMICA FLOTANTE (DYNAMIC ISLAND): Grabación e IA activas en 2do plano */}
         {recordingState.isRecording && activeTab !== 'meetings' && (
           <div className="sticky top-2 z-50 max-w-xl mx-auto px-2 mb-4 animate-fade-in">
@@ -470,7 +470,7 @@ const handleNewNote = (linkedMeeting = null) => {
         {/* PESTAÑA: CENTRO DE MANDO (ENFOQUE A - ASISTENTE INTEGRAL)           */}
         {/* =================================================================== */}
         {activeTab === 'command-center' && (
-          isMobile ? (
+          isCompact ? (
             <MobileCommandCenter
               meetings={meetings}
               onNavigate={(dest) => {
@@ -745,7 +745,7 @@ const handleNewNote = (linkedMeeting = null) => {
         {/* =================================================================== */}
         {activeTab === 'finance' && (
           <div className="w-full">
-            {isMobile ? <MobileFinanceView /> : <FinanceView />}
+            {isCompact ? <MobileFinanceView /> : <FinanceView />}
           </div>
         )}
 
@@ -807,9 +807,9 @@ const handleNewNote = (linkedMeeting = null) => {
       </main>
 
       {/* =================================================================== */}
-      {/* BARRA DE NAVEGACION FLOTANTE ULTRA-PREMIUM (< md)                   */}
+      {/* BARRA DE NAVEGACION FLOTANTE ULTRA-PREMIUM (< lg: móvil y tablet) */}
       {/* =================================================================== */}
-      <nav className="md:hidden fixed bottom-3 left-3 right-3 max-w-md mx-auto z-50 bg-slate-950/90 backdrop-blur-3xl border border-white/[0.12] rounded-3xl p-1.5 shadow-[0_20px_50px_rgba(0,0,0,0.75)] ring-1 ring-white/[0.05]">
+      <nav className="lg:hidden fixed bottom-3 left-3 right-3 max-w-lg mx-auto z-50 bg-slate-950/90 backdrop-blur-3xl border border-white/[0.12] rounded-3xl p-1.5 shadow-[0_20px_50px_rgba(0,0,0,0.75)] ring-1 ring-white/[0.05]">
         <div className="grid grid-cols-5 items-center gap-1">
           {/* 1. Centro de Mando */}
           <button

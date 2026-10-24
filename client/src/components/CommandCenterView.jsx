@@ -217,7 +217,7 @@ export default function CommandCenterView({
               <div className="text-right">
                 <span className="text-[11px] text-slate-400">Presupuesto Mes</span>
                 <div className="text-xs font-bold text-slate-200 mt-1">
-                  ${financeSummary.monthExpense.toLocaleString('es-MX')} / ${financeSummary.budgetLimit.toLocaleString('es-MX')}
+                  ${Number(financeSummary.monthExpense || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })} / ${Number(financeSummary.budgetLimit || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
                 </div>
                 <div className="w-28 bg-slate-800 h-2 rounded-full overflow-hidden mt-1.5 ml-auto">
                   <div 
@@ -246,7 +246,7 @@ export default function CommandCenterView({
                       </div>
                     </div>
                     <div className={`text-xs font-bold ${tx.type === 'income' ? 'text-emerald-400' : 'text-slate-200'}`}>
-                      {tx.type === 'income' ? '+' : '-'}${tx.amount.toLocaleString('es-MX')}
+                      {tx.type === 'income' ? '+' : '-'}${Number(tx.amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
                     </div>
                   </div>
                 ))}
@@ -309,7 +309,7 @@ export default function CommandCenterView({
                             {t.title}
                           </p>
                           <span className="text-[10px] text-slate-400 font-medium">
-                            {t.dueDate ? new Date(t.dueDate).toLocaleDateString('es-MX', { month: 'short', day: 'numeric' }) : 'Sin fecha'}
+                            {t.dueDate ? new Date(t.dueDate).toLocaleDateString('es-CR', { month: 'short', day: 'numeric' }) : 'Sin fecha'}
                           </span>
                         </div>
                       </div>
@@ -341,7 +341,7 @@ export default function CommandCenterView({
                   <div className="flex items-center justify-between gap-2">
                     <h4 className="text-xs font-black text-white truncate">{latestMeeting.title}</h4>
                     <span className="text-[10px] text-slate-400 shrink-0">
-                      {new Date(latestMeeting.createdAt).toLocaleDateString('es-MX')}
+                      {new Date(latestMeeting.createdAt).toLocaleDateString('es-CR')}
                     </span>
                   </div>
                   <p className="text-[11px] text-slate-300 line-clamp-2">

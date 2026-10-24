@@ -110,28 +110,29 @@ export default function MobileFinanceView() {
   return (
     <div className="space-y-4 animate-fade-in pb-16 select-none">
       {/* 1. Header Ejecutivo de Finanzas */}
-      <div className="flex items-center justify-between">
-        <div>
+      <div className="flex items-center justify-between gap-3">
+        <div className="min-w-0">
           <div className="flex items-center gap-2">
-            <div className="w-6 h-6 rounded-lg bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center">
-              <Wallet className="w-3.5 h-3.5 text-emerald-400" />
+            <div className="w-7 h-7 rounded-lg bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center shrink-0">
+              <Wallet className="w-4 h-4 text-emerald-400" />
             </div>
-            <h2 className="text-base font-extrabold text-white tracking-tight">Finanzas & Liquidez</h2>
+            <h2 className="text-base sm:text-lg font-extrabold text-white tracking-tight">Finanzas & Liquidez</h2>
           </div>
-          <p className="text-xs text-slate-400 mt-0.5">Control de cuentas, tarjetas y comprobantes</p>
+          <p className="text-xs text-slate-400 mt-0.5 truncate">Control de cuentas y comprobantes</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 shrink-0">
           <button
             type="button"
             onClick={fetchFinance}
             className="p-2 rounded-xl bg-slate-900 border border-white/[0.08] text-slate-400 hover:text-white active:scale-95 transition-all shadow-sm"
+            title="Actualizar"
           >
             <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
           </button>
           <button
             type="button"
             onClick={() => setShowAddSheet(true)}
-            className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 text-white font-bold text-xs shadow-md shadow-emerald-600/25 active:scale-95 transition-all"
+            className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 text-white font-bold text-xs shadow-md shadow-emerald-600/25 active:scale-95 transition-all whitespace-nowrap"
           >
             <Plus className="w-4 h-4" />
             <span>+ Movimiento</span>
@@ -139,55 +140,50 @@ export default function MobileFinanceView() {
         </div>
       </div>
 
-      {/* 2. Carrusel de Tarjetas y Cuentas (Apple Wallet / Elite Style) */}
+      {/* 2. Cuentas e Instrumentos (Directiva y Sobria) */}
       <div className="space-y-2">
         <div className="flex items-center justify-between px-1">
           <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-            Billetera Directiva (Deslizar)
+            Cuentas Activas
           </span>
           <span className="text-[10px] font-mono text-slate-500">
-            {financeData.accounts?.length || 0} cuentas
+            {financeData.accounts?.length || 0} registradas
           </span>
         </div>
 
-        <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-none snap-x snap-mandatory -mx-1 px-1">
-          {financeData.accounts?.map((acc, idx) => {
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+          {financeData.accounts?.map((acc) => {
             const isNegative = Number(acc.balance) < 0;
-            const gradients = [
-              'from-slate-900 via-indigo-950/80 to-slate-950 border-indigo-500/30',
-              'from-slate-900 via-emerald-950/80 to-slate-950 border-emerald-500/30',
-              'from-slate-900 via-purple-950/80 to-slate-950 border-purple-500/30'
-            ];
-            const cardGrad = gradients[idx % gradients.length];
+            const currencySymbol = acc.currency === 'CRC' ? '₡' : '$';
 
             return (
               <div
                 key={acc.id}
-                className={`min-w-[270px] sm:min-w-[300px] p-5 rounded-3xl bg-gradient-to-br ${cardGrad} border shadow-[0_12px_30px_rgba(0,0,0,0.5)] snap-start flex flex-col justify-between h-36 relative overflow-hidden`}
+                className="p-3.5 rounded-2xl bg-slate-900/90 border border-white/[0.08] shadow-sm flex flex-col justify-between transition-all"
               >
-                {/* Chip Metálico Simulado */}
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <div className="w-8 h-6 rounded-md bg-gradient-to-br from-amber-400/80 to-yellow-600/60 border border-yellow-300/40 shadow-inner flex items-center justify-center">
-                      <div className="w-4 h-3 border border-yellow-800/40 rounded-sm" />
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <div
+                      className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0 border border-white/[0.1]"
+                      style={{ backgroundColor: `${acc.color || '#4f46e5'}25`, color: acc.color || '#818cf8' }}
+                    >
+                      {acc.type === 'efectivo' ? <Banknote className="w-4 h-4" /> : <CreditCard className="w-4 h-4" />}
                     </div>
-                    <span className="text-xs font-bold text-slate-200 truncate">{acc.name}</span>
+                    <span className="text-xs font-bold text-slate-200 leading-snug break-words">
+                      {acc.name}
+                    </span>
                   </div>
-                  <span className="text-[9px] font-mono font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-slate-950/60 text-slate-300 border border-white/[0.08]">
-                    {acc.type}
+                  <span className="text-[9px] font-mono font-semibold uppercase px-2 py-0.5 rounded-md bg-white/[0.04] text-slate-400 border border-white/[0.06] shrink-0">
+                    {acc.currency || 'USD'}
                   </span>
                 </div>
 
-                {/* Saldo de la Cuenta */}
-                <div>
-                  <span className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider">
-                    Saldo Disponible
-                  </span>
-                  <div className="flex items-baseline gap-1.5 mt-0.5">
-                    <span className={`text-2xl font-black font-mono tracking-tight ${isNegative ? 'text-rose-400' : 'text-emerald-400'}`}>
-                      {acc.currency === 'CRC' ? '₡' : '$'}{Number(acc.balance || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                <div className="mt-3 pt-2 border-t border-white/[0.05] flex items-baseline justify-between">
+                  <span className="text-[10px] text-slate-400 font-medium uppercase tracking-wider">Saldo</span>
+                  <div className="flex items-baseline gap-1">
+                    <span className={`text-base sm:text-lg font-black font-mono tracking-tight ${isNegative ? 'text-rose-400' : 'text-slate-100'}`}>
+                      {currencySymbol}{Number(acc.balance || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </span>
-                    <span className="text-[11px] font-bold text-slate-400">{acc.currency || 'USD'}</span>
                   </div>
                 </div>
               </div>
@@ -197,34 +193,34 @@ export default function MobileFinanceView() {
       </div>
 
       {/* 3. Indicadores de Flujo Mensual */}
-      <div className="grid grid-cols-2 gap-3">
-        <div className="p-4 rounded-3xl bg-slate-900/80 backdrop-blur-xl border border-white/[0.08] shadow-sm space-y-1">
-          <div className="flex items-center justify-between text-slate-400">
-            <span className="text-[10px] uppercase font-bold tracking-wider">Ingresos del Mes</span>
-            <div className="w-6 h-6 rounded-lg bg-emerald-500/15 flex items-center justify-center">
-              <TrendingUp className="w-3.5 h-3.5 text-emerald-400" />
-            </div>
+      <div className="grid grid-cols-2 gap-2.5">
+        <div className="p-3.5 rounded-2xl bg-slate-900/80 backdrop-blur-xl border border-white/[0.08] shadow-sm flex items-center justify-between">
+          <div>
+            <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider block">Ingresos</span>
+            <span className="text-sm sm:text-base font-extrabold text-emerald-400 font-mono mt-0.5 block">
+              +${Number(financeData.monthIncome || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+            </span>
           </div>
-          <div className="text-lg font-black text-emerald-400 font-mono">
-            +${(financeData.monthIncome || 0).toLocaleString('es-MX', { minimumFractionDigits: 2 })}
+          <div className="w-7 h-7 rounded-lg bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center shrink-0">
+            <TrendingUp className="w-4 h-4 text-emerald-400" />
           </div>
         </div>
 
-        <div className="p-4 rounded-3xl bg-slate-900/80 backdrop-blur-xl border border-white/[0.08] shadow-sm space-y-1">
-          <div className="flex items-center justify-between text-slate-400">
-            <span className="text-[10px] uppercase font-bold tracking-wider">Egresos del Mes</span>
-            <div className="w-6 h-6 rounded-lg bg-rose-500/15 flex items-center justify-center">
-              <TrendingDown className="w-3.5 h-3.5 text-rose-400" />
-            </div>
+        <div className="p-3.5 rounded-2xl bg-slate-900/80 backdrop-blur-xl border border-white/[0.08] shadow-sm flex items-center justify-between">
+          <div>
+            <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider block">Egresos</span>
+            <span className="text-sm sm:text-base font-extrabold text-slate-200 font-mono mt-0.5 block">
+              -${Number(financeData.monthExpense || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+            </span>
           </div>
-          <div className="text-lg font-black text-rose-400 font-mono">
-            -${(financeData.monthExpense || 0).toLocaleString('es-MX', { minimumFractionDigits: 2 })}
+          <div className="w-7 h-7 rounded-lg bg-rose-500/15 border border-rose-500/30 flex items-center justify-center shrink-0">
+            <TrendingDown className="w-4 h-4 text-rose-400" />
           </div>
         </div>
       </div>
 
       {/* 4. Historial de Transacciones (Feed Táctil de Alta Legibilidad) */}
-      <div className="p-5 rounded-3xl bg-slate-900/85 backdrop-blur-xl border border-white/[0.08] shadow-lg space-y-3.5">
+      <div className="p-4 sm:p-5 rounded-2xl bg-slate-900/85 backdrop-blur-xl border border-white/[0.08] shadow-lg space-y-3">
         <div className="flex items-center justify-between">
           <span className="text-xs font-bold text-slate-200 uppercase tracking-wider">
             Movimientos ({filteredTransactions.length})
@@ -288,7 +284,7 @@ export default function MobileFinanceView() {
 
                   <div className="flex items-center gap-3 shrink-0">
                     <span className={`text-sm font-black font-mono ${isIncome ? 'text-emerald-400' : 'text-slate-100'}`}>
-                      {isIncome ? '+' : '-'}${Number(tx.amount || 0).toLocaleString('es-MX', { minimumFractionDigits: 2 })}
+                      {isIncome ? '+' : '-'}${Number(tx.amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
                     </span>
                     <button
                       type="button"

@@ -207,7 +207,7 @@ export default function FinanceView() {
             <span className="text-xs font-bold text-amber-400">{budgetUsage}%</span>
           </div>
           <div className="text-xl font-black text-white">
-            ${financeData.monthExpense.toLocaleString('es-MX')} / ${financeData.budgetLimit.toLocaleString('es-MX')}
+            ${Number(financeData.monthExpense || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })} / ${Number(financeData.budgetLimit || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
           </div>
           <div className="w-full bg-slate-800 h-2 rounded-full overflow-hidden mt-2">
             <div
@@ -254,7 +254,7 @@ export default function FinanceView() {
                 </div>
                 <div className="text-right">
                   <div className={`text-sm font-black ${acc.balance < 0 ? 'text-rose-400' : 'text-slate-100'}`}>
-                    ${Number(acc.balance || 0).toLocaleString('es-MX', { minimumFractionDigits: 2 })}
+                    {acc.currency === 'CRC' ? '₡' : '$'}{Number(acc.balance || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
                   </div>
                 </div>
               </div>
@@ -283,7 +283,7 @@ export default function FinanceView() {
                     <div className="flex items-center justify-between text-xs">
                       <span className="font-semibold text-slate-300">{cat}</span>
                       <span className="font-mono font-bold text-slate-100">
-                        ${amount.toLocaleString('es-MX')} ({pct}%)
+                        ${Number(amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })} ({pct}%)
                       </span>
                     </div>
                     <div className="w-full bg-slate-800 h-2 rounded-full overflow-hidden">
@@ -382,7 +382,7 @@ export default function FinanceView() {
                       tx.type === 'ingreso' ? 'text-emerald-400' : 'text-slate-100'
                     }`}
                   >
-                    {tx.type === 'ingreso' ? '+' : '-'}${Number(tx.amount).toLocaleString('es-MX', { minimumFractionDigits: 2 })}
+                    {tx.type === 'ingreso' ? '+' : '-'}${Number(tx.amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
                   </span>
                   <button
                     type="button"
