@@ -1083,6 +1083,30 @@ router.post('/assistant/chat', async (req, res) => {
     console.error('[Assistant Chat Error]:', err);
     res.status(500).json({ error: err.message });
   }
+// Transcripción de Audio en Vivo para Dobby con Groq Whisper (Compatible 100% con Móvil y PC)
+router.post('/assistant/transcribe-audio', upload.single('audio'), async (req, res) => {
+  try {
+    let audioBuffer = null;
+    let mimeType = 'audio/webm';
+
+    if (req.file && req.file.buffer) {
+      audioBuffer = req.file.buffer;
+      mimeType = req.file.mimetype || 'audio/webm';
+    } else if (req.body && req.body.audioBase64) {
+      audioBuffer = Buffer.from(req.body.audioBase64, 'base64');
+      mimeType = req.body.mimeType || 'audio/webm';
+    }
+
+    if (!audioBuffer) {
+      return res.status(400).json({ error: 'Audio requerido para transcripción' });
+    }
+
+    const text = await aiService.transcribeWithGroq(audioBuffer, mimeType);
+    res.json({ text: text || '' });
+  } catch (err) {
+    console.error('[Assistant Audio Transcribe Error]:', err);
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // Monitoreo EDUS (CCSS) y Bots de Citas Médicas

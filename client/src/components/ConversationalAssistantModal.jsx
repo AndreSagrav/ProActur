@@ -40,10 +40,13 @@ export default function ConversationalAssistantModal({
   const [isSolvingCaptcha, setIsSolvingCaptcha] = useState(false);
   const [isLoopActive, setIsLoopActive] = useState(false);
   const [loopInfo, setLoopInfo] = useState({ attempts: 0, service: 'ODONTOLOGIA', targetDay: 'viernes' });
+  const [isTranscribingAudio, setIsTranscribingAudio] = useState(false);
 
   const messagesEndRef = useRef(null);
   const recognitionRef = useRef(null);
   const synthRef = useRef(null);
+  const mediaRecorderRef = useRef(null);
+  const audioChunksRef = useRef([]);
 
   const checkBrowserStatus = async () => {
     try {
@@ -317,22 +320,102 @@ export default function ConversationalAssistantModal({
     } catch (_) {}
   };
 
-  const toggleListening = () => {
-    if (!recognitionRef.current) {
-      alert('El reconocimiento de voz no está disponible en este navegador. Puedes escribir directamente.');
-      return;
+  const startListening = async () => {
+    if (synthRef.current) synthRef.current.cancel();
+
+    // 1. Probar MediaRecorder (Universal en Móvil, WebView y Desktop con Groq Whisper)
+    if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        audioChunksRef.current = [];
+        
+        let mimeType = 'audio/webm';
+        if (typeof MediaRecorder !== 'undefined') {
+          if (MediaRecorder.isTypeSupported('audio/webm;codecs=opus')) mimeType = 'audio/webm;codecs=opus';
+          else if (MediaRecorder.isTypeSupported('audio/webm')) mimeType = 'audio/webm';
+          else if (MediaRecorder.isTypeSupported('audio/mp4')) mimeType = 'audio/mp4';
+          else if (MediaRecorder.isTypeSupported('audio/aac')) mimeType = 'audio/aac';
+        }
+
+        const mr = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
+        mr.ondataavailable = (e) => {
+          if (e.data && e.data.size > 0) {
+            audioChunksRef.current.push(e.data);
+          }
+        };
+
+        mr.onstop = async () => {
+          stream.getTracks().forEach(t => t.stop());
+          if (audioChunksRef.current.length === 0) {
+            setIsListening(false);
+            return;
+          }
+
+          const blob = new Blob(audioChunksRef.current, { type: mimeType });
+          setIsListening(false);
+          setIsTranscribingAudio(true);
+
+          try {
+            const formData = new FormData();
+            formData.append('audio', blob, 'dobby_voice.webm');
+            const res = await fetch(`${API}/api/assistant/transcribe-audio`, {
+              method: 'POST',
+              body: formData
+            });
+            if (res.ok) {
+              const data = await res.json();
+              if (data.text && data.text.trim()) {
+                handleSendMessage(data.text.trim());
+              }
+            }
+          } catch (tErr) {
+            console.error('[Whisper Transcribe Error]:', tErr);
+          } finally {
+            setIsTranscribingAudio(false);
+          }
+        };
+
+        mr.start(250);
+        mediaRecorderRef.current = mr;
+        setIsListening(true);
+        return;
+      } catch (err) {
+        console.warn('[MediaRecorder Error]:', err);
+      }
     }
 
-    if (isListening) {
-      try { recognitionRef.current.stop(); } catch (_) {}
-      setIsListening(false);
-    } else {
-      if (synthRef.current) synthRef.current.cancel();
+    // 2. Fallback a Web Speech Recognition
+    if (recognitionRef.current) {
       try {
         recognitionRef.current.start();
+        setIsListening(true);
       } catch (_) {
         setIsListening(false);
       }
+    } else {
+      alert('Por favor autoriza el permiso de micrófono en tu navegador o celular.');
+    }
+  };
+
+  const stopListening = () => {
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+      try {
+        mediaRecorderRef.current.stop();
+      } catch (_) {}
+    }
+    if (recognitionRef.current) {
+      try {
+        recognitionRef.current.stop();
+      } catch (_) {}
+    }
+    setIsListening(false);
+  };
+
+  const toggleListening = () => {
+    if (isListening) {
+      stopListening();
+    } else {
+      startListening();
     }
   };
 
@@ -446,7 +529,7 @@ export default function ConversationalAssistantModal({
                 </span>
               </div>
               <p className="text-[11px] text-slate-400">
-                {isSpeaking ? 'Hablando respuesta...' : isListening ? 'Escuchando tu voz...' : isThinking ? 'Procesando con IA...' : 'Diálogo continuo por voz y texto'}
+                {isSpeaking ? 'Hablando respuesta...' : isTranscribingAudio ? 'Transcribiendo audio con Whisper...' : isListening ? 'Escuchando tu voz (toca el micro rojo para enviar)...' : isThinking ? 'Procesando con IA...' : 'Diálogo continuo por voz y texto'}
               </p>
             </div>
           </div>
@@ -711,14 +794,23 @@ export default function ConversationalAssistantModal({
           <button
             type="button"
             onClick={toggleListening}
+            disabled={isTranscribingAudio || isThinking}
             className={`w-11 h-11 rounded-2xl flex items-center justify-center transition-all duration-200 active:scale-95 shrink-0 ${
-              isListening
+              isTranscribingAudio
+                ? 'bg-amber-600/30 text-amber-300 border border-amber-500/40 animate-pulse'
+                : isListening
                 ? 'bg-rose-500 text-white shadow-lg shadow-rose-500/40 animate-pulse ring-2 ring-rose-400'
                 : 'bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700'
             }`}
-            title={isListening ? 'Detener micrófono' : 'Hablar con el asistente'}
+            title={isListening ? 'Detener y transcribir' : 'Hablar con Dobby'}
           >
-            {isListening ? <MicOff className="w-5 h-5" /> : <Mic className="w-5 h-5 text-amber-400" />}
+            {isTranscribingAudio ? (
+              <Loader2 className="w-5 h-5 animate-spin text-amber-300" />
+            ) : isListening ? (
+              <MicOff className="w-5 h-5" />
+            ) : (
+              <Mic className="w-5 h-5 text-amber-400" />
+            )}
           </button>
 
           {/* Campo de Texto */}
@@ -726,7 +818,13 @@ export default function ConversationalAssistantModal({
             type="text"
             value={inputText}
             onChange={(e) => setInputText(e.target.value)}
-            placeholder={isListening ? 'Escuchando tu voz...' : 'Escribe o presiona el micro para hablar...'}
+            placeholder={
+              isTranscribingAudio
+                ? 'Transcribiendo tu voz con Whisper...'
+                : isListening
+                ? 'Escuchando... Toca el micro rojo para enviar'
+                : 'Escribe o presiona el micro para hablar...'
+            }
             className="flex-1 bg-slate-900 border border-slate-800 rounded-2xl px-4 py-2.5 text-xs sm:text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-indigo-500 transition-colors"
           />
 

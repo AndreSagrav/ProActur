@@ -103,11 +103,15 @@ export default function MobileCommandCenter({
             </span>
             <div className="flex items-baseline gap-2 mt-0.5">
               <span className="text-2xl sm:text-3xl font-extrabold font-mono tracking-tight text-white">
-                ${Number(financeSummary.balance || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                ₡{Number(financeSummary.balanceCRC ?? financeSummary.balance ?? 0).toLocaleString('es-CR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
               </span>
-              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest bg-slate-800 px-1.5 py-0.5 rounded border border-slate-700/60">
-                USD
+              <span className="text-[10px] font-bold text-emerald-400 uppercase tracking-widest bg-emerald-950/60 px-1.5 py-0.5 rounded border border-emerald-500/30">
+                CRC
               </span>
+            </div>
+            <div className="text-[11px] font-medium text-slate-400 mt-1 flex items-center gap-1.5 font-mono">
+              <span>Dólares:</span>
+              <span className="text-slate-300 font-bold">${Number(financeSummary.balanceUSD || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })} USD</span>
             </div>
           </div>
 
@@ -116,20 +120,20 @@ export default function MobileCommandCenter({
             <div className="flex items-center justify-between p-2 rounded-xl bg-slate-950/50 border border-white/[0.04]">
               <span className="text-[10px] text-slate-400 uppercase font-semibold">Ingresos:</span>
               <span className="font-mono font-bold text-emerald-400">
-                +${Number(financeSummary.monthIncome || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                +₡{Number(financeSummary.monthIncome || 0).toLocaleString('es-CR', { minimumFractionDigits: 0 })}
               </span>
             </div>
             <div className="flex items-center justify-between p-2 rounded-xl bg-slate-950/50 border border-white/[0.04]">
               <span className="text-[10px] text-slate-400 uppercase font-semibold">Egresos:</span>
               <span className="font-mono font-bold text-rose-400">
-                -${Number(financeSummary.monthExpense || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                -₡{Number(financeSummary.monthExpense || 0).toLocaleString('es-CR', { minimumFractionDigits: 0 })}
               </span>
             </div>
           </div>
         </div>
       </div>
 
-      {/* 2. Banner Asistente Ejecutivo Conversacional (Gemini Live) */}
+      {/* 2. Banner Asistente Dobby (Voz y Automatización EDUS) */}
       {onOpenAssistant && (
         <div 
           onClick={onOpenAssistant}
@@ -141,10 +145,10 @@ export default function MobileCommandCenter({
             </div>
             <div className="min-w-0">
               <div className="flex items-center gap-2">
-                <h4 className="text-xs font-bold text-white tracking-tight">Asistente Ejecutivo Humano</h4>
-                <span className="text-[9px] font-mono px-1.5 py-0.2 rounded bg-indigo-500/20 text-indigo-300 font-bold">Voz Live</span>
+                <h4 className="text-xs font-bold text-white tracking-tight">Dobby</h4>
+                <span className="text-[9px] font-mono px-1.5 py-0.2 rounded bg-indigo-500/20 text-indigo-300 font-bold">Copiloto</span>
               </div>
-              <p className="text-[11px] text-slate-400 truncate mt-0.5">Habla de forma fluida y gestiona EDUS, agenda y finanzas</p>
+              <p className="text-[11px] text-slate-400 truncate mt-0.5">Habla por voz o gestiona EDUS, agenda y finanzas</p>
             </div>
           </div>
           <button
