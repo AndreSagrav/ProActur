@@ -1295,6 +1295,131 @@ Devuelve ÚNICAMENTE un objeto JSON válido (sin markdown) con esta estructura e
     };
   }
 
+  async callGroq(prompt, systemPrompt = '', model = null) {
+    const key = config.GROQ_API_KEY;
+    if (!key) throw new Error('GROQ_API_KEY no configurada');
+
+    const targetModel = model || config.GROQ_CHAT_MODEL || 'llama-3.3-70b-versatile';
+    const messages = [];
+    if (systemPrompt) messages.push({ role: 'system', content: systemPrompt });
+    messages.push({ role: 'user', content: prompt });
+
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 15000);
+
+    try {
+      const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${key}`
+        },
+        body: JSON.stringify({
+          model: targetModel,
+          messages,
+          temperature: 0.2
+        }),
+        signal: controller.signal
+      });
+      clearTimeout(timer);
+
+      if (!res.ok) {
+        const errText = await res.text();
+        throw new Error(`Groq API error (${res.status}): ${errText}`);
+      }
+
+      const data = await res.json();
+      return data.choices?.[0]?.message?.content?.trim() || null;
+    } catch (err) {
+      clearTimeout(timer);
+      throw err;
+    }
+  }
+
+  async callGeminiText(prompt, systemPrompt = '', model = null) {
+    const key = config.GEMINI_API_KEY;
+    if (!key) throw new Error('GEMINI_API_KEY no configurada');
+
+    const targetModel = model || this.geminiModel || 'gemini-3.6-flash';
+    const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${targetModel}:generateContent`;
+
+    const contents = [];
+    const fullText = systemPrompt ? `${systemPrompt}\n\n${prompt}` : prompt;
+    contents.push({ parts: [{ text: fullText }] });
+
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 15000);
+
+    try {
+      const res = await fetch(endpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-goog-api-key': key
+        },
+        body: JSON.stringify({
+          contents,
+          generationConfig: { temperature: 0.2 }
+        }),
+        signal: controller.signal
+      });
+      clearTimeout(timer);
+
+      if (!res.ok) {
+        const errText = await res.text();
+        throw new Error(`Gemini API error (${res.status}): ${errText}`);
+      }
+
+      const data = await res.json();
+      return data.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || null;
+    } catch (err) {
+      clearTimeout(timer);
+      throw err;
+    }
+  }
+
+  async callOpenRouter(prompt, systemPrompt = '', model = null) {
+    const key = config.OPENROUTER_API_KEY;
+    if (!key) throw new Error('OPENROUTER_API_KEY no configurada');
+
+    const targetModel = model || config.OPENROUTER_MODEL || 'deepseek/deepseek-chat';
+    const messages = [];
+    if (systemPrompt) messages.push({ role: 'system', content: systemPrompt });
+    messages.push({ role: 'user', content: prompt });
+
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 18000);
+
+    try {
+      const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${key}`,
+          'HTTP-Referer': 'https://pro-actur.vercel.app',
+          'X-Title': 'ProActur AI'
+        },
+        body: JSON.stringify({
+          model: targetModel,
+          messages,
+          temperature: 0.2
+        }),
+        signal: controller.signal
+      });
+      clearTimeout(timer);
+
+      if (!res.ok) {
+        const errText = await res.text();
+        throw new Error(`OpenRouter API error (${res.status}): ${errText}`);
+      }
+
+      const data = await res.json();
+      return data.choices?.[0]?.message?.content?.trim() || null;
+    } catch (err) {
+      clearTimeout(timer);
+      throw err;
+    }
+  }
 }
 
 module.exports = new AIService();

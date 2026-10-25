@@ -414,22 +414,24 @@ class BankMailService {
   async testConnection(email, appPassword) {
     return new Promise((resolve) => {
       let resolved = false;
+      let socket = null;
       const done = (result) => {
         if (!resolved) {
           resolved = true;
-          try { socket.destroy(); } catch (_) {}
+          try { if (socket) socket.destroy(); } catch (_) {}
           resolve(result);
         }
       };
 
-      const cleanEmail = (email || '').trim();
-      const cleanPass = (appPassword || '').replace(/\s+/g, '');
+      const cfg = this.getConfig();
+      const cleanEmail = (email || cfg.email || '').trim();
+      const cleanPass = (appPassword && appPassword !== '••••••••••••••••' ? appPassword : cfg.appPassword || '').replace(/\s+/g, '');
 
       if (!cleanEmail || !cleanPass) {
         return done({ success: false, error: 'Debe ingresar el correo y la Contraseña de Aplicación de 16 caracteres de Google.' });
       }
 
-      const socket = tls.connect({
+      socket = tls.connect({
         host: 'imap.gmail.com',
         port: 993,
         servername: 'imap.gmail.com',

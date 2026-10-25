@@ -901,6 +901,95 @@ router.post('/finance/mail-sync', async (req, res) => {
   }
 });
 
+// AUDITORÍA Y DIAGNÓSTICO INTEGRAL FINANCIERO Y DE PROCESOS
+router.get('/finance/audit', async (req, res) => {
+  try {
+    const audit = {
+      timestamp: new Date().toISOString(),
+      overallStatus: 'OPERATIONAL',
+      checks: {}
+    };
+
+    // 1. Base de datos y persistencia
+    try {
+      const supaStatus = await checkSupabaseStatus();
+      const localData = financeService.readLocal();
+      audit.checks.database = {
+        status: supaStatus.connected ? 'OK' : 'FALLBACK_LOCAL_ACTIVE',
+        supabaseConnected: supaStatus.connected,
+        localFileSynced: Boolean(localData && localData.accounts),
+        totalAccounts: localData.accounts?.length || 0
+      };
+    } catch (e) {
+      audit.checks.database = { status: 'WARNING', error: e.message };
+    }
+
+    // 2. Integridad Contable y Cuentas
+    try {
+      const summary = await financeService.getSummary();
+      const liquid = (summary.accounts || []).filter(a => a.type !== 'credito');
+      const credit = (summary.accounts || []).filter(a => a.type === 'credito');
+      audit.checks.accounting = {
+        status: 'OK',
+        liquidAccountsCount: liquid.length,
+        creditCardsCount: credit.length,
+        totalLiquidBalanceCRC: summary.balance,
+        totalCreditDebtCRC: summary.creditDebt,
+        monthExpenseCRC: summary.monthExpense,
+        monthIncomeCRC: summary.monthIncome
+      };
+    } catch (e) {
+      audit.checks.accounting = { status: 'ERROR', error: e.message };
+    }
+
+    // 3. Buzón de Correo IMAP Gmail
+    try {
+      const mailConfig = bankMailService.getConfig();
+      const imapCheck = await bankMailService.testConnection();
+      audit.checks.bankMail = {
+        status: imapCheck.success ? 'OK' : 'AUTH_OR_NET_ERROR',
+        email: mailConfig.email,
+        enabled: mailConfig.enabled,
+        autoRecord: mailConfig.autoRecord,
+        syncStartDate: mailConfig.syncStartDate,
+        lastSync: mailConfig.lastSync,
+        connectionTest: imapCheck.message || imapCheck.error
+      };
+    } catch (e) {
+      audit.checks.bankMail = { status: 'ERROR', error: e.message };
+    }
+
+    // 4. Flota de Inteligencia Artificial y Asistente
+    try {
+      const providers = aiService.getAvailableProviders();
+      let groqLive = false;
+      let geminiLive = false;
+      try {
+        const groqTest = await aiService.callGroq('ping', 'di solo pong');
+        groqLive = Boolean(groqTest);
+      } catch (_) {}
+      try {
+        const geminiTest = await aiService.callGeminiText('ping', 'di solo pong');
+        geminiLive = Boolean(geminiTest);
+      } catch (_) {}
+
+      audit.checks.aiFleet = {
+        status: (groqLive || geminiLive) ? 'OK' : 'WARNING',
+        groqActive: groqLive,
+        geminiActive: geminiLive,
+        openRouterConfigured: providers.openrouter?.configured || false,
+        assistantFinancialAwareness: true
+      };
+    } catch (e) {
+      audit.checks.aiFleet = { status: 'ERROR', error: e.message };
+    }
+
+    res.json(audit);
+  } catch (err) {
+    res.status(500).json({ status: 'ERROR', error: err.message });
+  }
+});
+
 // ==========================================
 // TAREAS & ACUERDOS (MÓDULO CENTRO DE MANDO)
 // ==========================================

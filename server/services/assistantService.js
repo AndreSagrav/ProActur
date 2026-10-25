@@ -324,8 +324,56 @@ Estructura JSON requerida según acción:
     return await this.answerQuestion(cmd);
   }
 
+  async getFinanceBrief() {
+    try {
+      const fin = await financeService.getSummary();
+      if (!fin) return '';
+      const liquidAccs = (fin.accounts || []).filter(a => a.type !== 'credito');
+      const creditCards = (fin.accounts || []).filter(a => a.type === 'credito');
+      const lines = [
+        `ESTADO FINANCIERO Y CUENTAS REALES DE CÉSAR ANDRÉS (AL DÍA):`,
+        `- Saldo Líquido Disponible Total: ₡${(fin.balance || 0).toLocaleString()} CRC`,
+        `- Cuentas de Débito y Efectivo:`
+      ];
+      liquidAccs.forEach(a => {
+        lines.push(`  * ${a.name} (${a.entity}): ₡${(a.balance || 0).toLocaleString()} CRC disponibles (Inicial: ₡${(a.initialBalance || 0).toLocaleString()})`);
+      });
+      if (creditCards.length > 0) {
+        lines.push(`- Tarjetas de Crédito / Pasivos:`);
+        creditCards.forEach(c => {
+          lines.push(`  * ${c.name} (${c.entity}): Límite ₡${(c.creditLimit || 0).toLocaleString()} ($${c.creditLimitUSD || 3000}), Consumo/Deuda actual ₡${(c.balance || 0).toLocaleString()} ($${c.debtUSD || 0}), Disponible para compras ₡${(c.availableCredit || 0).toLocaleString()} ($${c.availableCreditUSD || 0}), Pago de contado $${c.cashPaymentUSD || 0}, Pago mínimo $${c.minPaymentUSD || 0}, Fecha de Corte día ${c.cutOffDay || 13}, Fecha Límite de Pago día ${c.paymentDueDay || 2}`);
+        });
+      }
+      lines.push(`- Deuda Total en Tarjetas: ₡${(fin.creditDebt || 0).toLocaleString()} CRC`);
+      lines.push(`- Gastos del Mes: ₡${(fin.monthExpense || 0).toLocaleString()} CRC`);
+      lines.push(`- Ingresos del Mes: ₡${(fin.monthIncome || 0).toLocaleString()} CRC`);
+      return lines.join('\n');
+    } catch (_) {
+      return '';
+    }
+  }
+
   async answerQuestion(question) {
     try {
+      const lower = question.toLowerCase();
+      const isFinQuery = lower.includes('saldo') || lower.includes('cuenta') || lower.includes('tarjeta') || lower.includes('debo') || lower.includes('deuda') || lower.includes('cuánto tengo') || lower.includes('cuanto tengo') || lower.includes('corte') || lower.includes('pago') || lower.includes('gasto') || lower.includes('dinero') || lower.includes('bac') || lower.includes('wink') || lower.includes('popular');
+
+      if (isFinQuery) {
+        const finBrief = await this.getFinanceBrief();
+        if (finBrief) {
+          const sysPrompt = `Eres ProActur AI, el asistente ejecutivo de máxima confianza de César Andrés. Responde a su consulta sobre sus cuentas bancarias, saldos o deudas con cifras exactas, concisas y en español natural directo de Costa Rica. Sin relleno.`;
+          try {
+            const reply = await aiService.callGroq(`Pregunta de César: "${question}"\n\n${finBrief}`, sysPrompt, 'openai/gpt-oss-120b');
+            if (reply) return { action: 'ANSWER', message: reply, data: { source: 'finances' } };
+          } catch (_) {
+            try {
+              const reply = await aiService.callGeminiText(`Pregunta de César: "${question}"\n\n${finBrief}`, sysPrompt, 'gemini-3.6-flash');
+              if (reply) return { action: 'ANSWER', message: reply, data: { source: 'finances' } };
+            } catch (_) {}
+          }
+        }
+      }
+
       const allMeetings = await storageService.getAllMeetings();
       let allNotes = [];
       try {
@@ -403,15 +451,18 @@ Estructura JSON requerida según acción:
       const allMeetings = await storageService.getAllMeetings();
       let allNotes = [];
       try { allNotes = await noteService.getAllNotes(); } catch (_) {}
+      const finBrief = await this.getFinanceBrief();
 
       const promptContext = `Historial reciente de la charla:\n` +
         (history.slice(-4).map(h => `${h.role === 'user' ? 'César' : 'Asistente'}: ${h.text}`).join('\n') || 'Ninguno') +
         `\n\nInstrucción / Pregunta actual de César: "${message}"\n` +
+        (finBrief ? `\n${finBrief}\n` : '') +
         `Reuniones registradas en el sistema: ${allMeetings.length}\n` +
         `Notas disponibles: ${allNotes.length}`;
 
       const systemPrompt = `Eres ProActur AI, el asistente ejecutivo personal de máxima confianza de César Andrés.
 Hablas en español de Costa Rica/Latinoamérica con un tono completamente natural, humano, directo, educado y resolutivo.
+Tienes acceso completo en tiempo real a sus cuentas bancarias, deudas, reuniones, notas y tareas.
 NUNCA hables como un robot ni des introducciones genéricas ni bloques de código.
 Responde en 1 o 2 oraciones concisas y útiles como un verdadero asistente personal que habla cara a cara.`;
 
@@ -421,7 +472,11 @@ Responde en 1 o 2 oraciones concisas y útiles como un verdadero asistente perso
       } catch (_) {
         try {
           aiReply = await aiService.callGeminiText(promptContext, systemPrompt, 'gemini-3.6-flash');
-        } catch (_) {}
+        } catch (_) {
+          try {
+            aiReply = await aiService.callOpenRouter(promptContext, systemPrompt, 'deepseek/deepseek-chat');
+          } catch (_) {}
+        }
       }
 
       const finalReply = aiReply || (executedAction?.message) || 'Entendido César, estoy a tu orden para agendar eventos, registrar finanzas, notas o monitorear gestiones.';
