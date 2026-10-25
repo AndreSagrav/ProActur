@@ -892,6 +892,15 @@ router.post('/finance/mail-test', async (req, res) => {
   }
 });
 
+router.post('/finance/mail-sync', async (req, res) => {
+  try {
+    const result = await bankMailService.syncInbox();
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ==========================================
 // TAREAS & ACUERDOS (MÓDULO CENTRO DE MANDO)
 // ==========================================

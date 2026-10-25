@@ -86,6 +86,7 @@ export default function FinanceView() {
   const [mailConfig, setMailConfig] = useState({ email: '', appPassword: '', enabled: false, autoRecord: true });
   const [mailLogs, setMailLogs] = useState([]);
   const [mailTesting, setMailTesting] = useState(false);
+  const [mailSyncing, setMailSyncing] = useState(false);
   const [mailStatusMsg, setMailStatusMsg] = useState(null);
 
   // Formulario Transacción
@@ -418,6 +419,31 @@ export default function FinanceView() {
       setMailStatusMsg({ type: 'error', text: 'Error de conexión con el servidor.' });
     } finally {
       setMailTesting(false);
+    }
+  };
+
+  const handleSyncMailNow = async () => {
+    setMailSyncing(true);
+    setMailStatusMsg(null);
+    try {
+      const res = await fetch(`${API}/api/finance/mail-sync`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      });
+      const data = await res.json();
+      setMailStatusMsg({
+        type: data.success ? 'success' : 'error',
+        text: data.success ? data.message : data.error
+      });
+      if (data.success) {
+        playExecutiveSound('success');
+        fetchMailData();
+        fetchFinanceData();
+      }
+    } catch (_) {
+      setMailStatusMsg({ type: 'error', text: 'Error al sincronizar con el buzón de Gmail.' });
+    } finally {
+      setMailSyncing(false);
     }
   };
 
@@ -1262,9 +1288,24 @@ export default function FinanceView() {
                 <Mail className="w-4 h-4 text-sky-400" />
                 Credenciales del Buzón
               </h3>
-              <p className="text-xs text-slate-400 leading-relaxed">
-                Configure el correo a donde llegan sus comprobantes y la Contraseña de Aplicación de Google (16 caracteres).
-              </p>
+              
+              <div className="p-3.5 rounded-2xl bg-sky-500/10 border border-sky-500/20 text-xs space-y-1.5">
+                <div className="font-semibold flex items-center gap-1.5 text-white">
+                  <ShieldCheck className="w-4 h-4 text-sky-400" />
+                  ¿Tiene Doble Factor (2FA) en Google?
+                </div>
+                <p className="text-[11px] text-slate-300 leading-relaxed">
+                  Google exige generar una <strong>Contraseña de Aplicación de 16 letras</strong> para cuentas con 2FA (no use su clave personal).
+                </p>
+                <a
+                  href="https://myaccount.google.com/apppasswords"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center gap-1 text-[11px] text-sky-400 underline hover:text-sky-300 font-semibold pt-0.5"
+                >
+                  Generar contraseña en myaccount.google.com/apppasswords ↗
+                </a>
+              </div>
 
               <form onSubmit={handleSaveMailConfig} className="space-y-4 text-xs">
                 <div>
@@ -1279,17 +1320,14 @@ export default function FinanceView() {
                 </div>
 
                 <div>
-                  <label className="text-slate-300 block mb-1.5 font-medium">Contraseña de Aplicación Google</label>
+                  <label className="text-slate-300 block mb-1.5 font-medium">Contraseña de Aplicación Google (16 caracteres)</label>
                   <input
                     type="password"
                     value={mailConfig.appPassword || ''}
                     onChange={(e) => setMailConfig(prev => ({ ...prev, appPassword: e.target.value }))}
                     placeholder="xxxx xxxx xxxx xxxx"
-                    className="w-full px-4 py-2.5 rounded-xl bg-slate-950/80 border border-white/10 text-white focus:outline-none focus:border-sky-500 font-mono"
+                    className="w-full px-4 py-2.5 rounded-xl bg-slate-950/80 border border-white/10 text-white focus:outline-none focus:border-sky-500 font-mono tracking-wider"
                   />
-                  <span className="text-[10px] text-slate-500 block mt-1">
-                    Generada en: myaccount.google.com/apppasswords
-                  </span>
                 </div>
 
                 <div className="pt-2">
@@ -1318,10 +1356,10 @@ export default function FinanceView() {
                   <button
                     type="button"
                     onClick={handleTestMailConnection}
-                    disabled={mailTesting}
+                    disabled={mailTesting || mailSyncing}
                     className="flex-1 py-2.5 rounded-xl bg-slate-800 border border-white/10 hover:bg-slate-700 text-white font-semibold transition-all"
                   >
-                    {mailTesting ? 'Conectando...' : 'Probar Conexión'}
+                    {mailTesting ? 'Verificando...' : 'Probar Conexión'}
                   </button>
                   <button
                     type="submit"
@@ -1334,7 +1372,7 @@ export default function FinanceView() {
             </div>
 
             <div className="lg:col-span-2 p-7 rounded-3xl bg-slate-900/60 backdrop-blur-md border border-white/10 space-y-4">
-              <div className="flex items-center justify-between">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div>
                   <h3 className="font-bold text-white text-base flex items-center gap-2">
                     <Zap className="w-4 h-4 text-amber-400" />
@@ -1342,15 +1380,31 @@ export default function FinanceView() {
                   </h3>
                   <p className="text-xs text-slate-400">
                     Historial de notificaciones bancarias procesadas
+                    {mailConfig.lastSync && (
+                      <span className="ml-2 text-sky-400">
+                        • Última sinc: {new Date(mailConfig.lastSync).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      </span>
+                    )}
                   </p>
                 </div>
-                <button
-                  onClick={fetchMailData}
-                  className="p-2 rounded-lg text-slate-400 hover:text-white hover:bg-white/10 transition-all"
-                  title="Refrescar"
-                >
-                  <RefreshCw className="w-4 h-4" />
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={handleSyncMailNow}
+                    disabled={mailSyncing || mailTesting}
+                    className="px-3.5 py-1.5 rounded-xl bg-sky-600/30 border border-sky-500/40 hover:bg-sky-600/50 text-white text-xs font-semibold flex items-center gap-2 transition-all shadow-sm disabled:opacity-50"
+                  >
+                    <RefreshCw className={`w-3.5 h-3.5 text-sky-400 ${mailSyncing ? 'animate-spin' : ''}`} />
+                    {mailSyncing ? 'Sincronizando...' : 'Sincronizar Ahora'}
+                  </button>
+                  <button
+                    onClick={fetchMailData}
+                    className="p-2 rounded-lg text-slate-400 hover:text-white hover:bg-white/10 transition-all"
+                    title="Refrescar auditoría"
+                  >
+                    <RefreshCw className="w-4 h-4" />
+                  </button>
+                </div>
               </div>
 
               <div className="space-y-3 max-h-[480px] overflow-y-auto pr-1">

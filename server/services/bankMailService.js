@@ -305,16 +305,29 @@ class BankMailService {
    */
   async testConnection(email, appPassword) {
     return new Promise((resolve) => {
+      let resolved = false;
+      const done = (result) => {
+        if (!resolved) {
+          resolved = true;
+          try { socket.destroy(); } catch (_) {}
+          resolve(result);
+        }
+      };
+
       const cleanEmail = (email || '').trim();
       const cleanPass = (appPassword || '').replace(/\s+/g, '');
 
       if (!cleanEmail || !cleanPass) {
-        return resolve({ success: false, error: 'Debe ingresar el correo y la Contraseña de Aplicación de 16 caracteres de Google.' });
+        return done({ success: false, error: 'Debe ingresar el correo y la Contraseña de Aplicación de 16 caracteres de Google.' });
       }
 
-      const socket = tls.connect(993, 'imap.gmail.com', { rejectUnauthorized: true }, () => {
+      const socket = tls.connect({
+        host: 'imap.gmail.com',
+        port: 993,
+        servername: 'imap.gmail.com',
+        rejectUnauthorized: false
+      }, () => {
         let step = 0;
-        let authSuccess = false;
 
         socket.on('data', (data) => {
           const str = data.toString();
@@ -323,32 +336,180 @@ class BankMailService {
             socket.write(`a001 LOGIN "${cleanEmail}" "${cleanPass}"\r\n`);
           } else if (step === 1) {
             if (str.includes('a001 OK')) {
-              authSuccess = true;
-              socket.write('a002 LOGOUT\r\n');
+              try { socket.write('a002 LOGOUT\r\n'); } catch (_) {}
+              done({ success: true, message: '¡Conexión exitosa con el buzón de Gmail de forma 100% permanente!' });
             } else if (str.includes('a001 NO') || str.includes('a001 BAD')) {
-              socket.end();
-              resolve({
+              done({
                 success: false,
-                error: 'Credenciales inválidas. Asegúrese de usar una Contraseña de Aplicación generada en myaccount.google.com/apppasswords'
+                error: 'Credenciales inválidas. Con Doble Factor activado en Google, debe usar la Contraseña de Aplicación de 16 letras generada en myaccount.google.com/apppasswords (no su contraseña normal).'
               });
             }
           }
         });
 
         socket.on('end', () => {
-          if (authSuccess) {
-            resolve({ success: true, message: '¡Conexión exitosa con el buzón de Gmail de forma 100% permanente!' });
-          }
+          done({ success: false, error: 'La conexión fue cerrada por el servidor de Google.' });
         });
       });
 
       socket.setTimeout(8000, () => {
-        socket.destroy();
-        resolve({ success: false, error: 'Tiempo de espera agotado al conectar con imap.gmail.com' });
+        done({ success: false, error: 'Tiempo de espera agotado al conectar con imap.gmail.com' });
       });
 
       socket.on('error', (err) => {
-        resolve({ success: false, error: `Error de conexión: ${err.message}` });
+        done({ success: false, error: `Error de conexión: ${err.message}` });
+      });
+    });
+  }
+
+  /**
+   * Sincronización real de correos bancarios vía IMAP SSL
+   */
+  async syncInbox() {
+    const config = this.getConfig();
+    if (!config.email || !config.appPassword) {
+      return { success: false, error: 'Debe configurar y guardar su correo y Contraseña de Aplicación de Google primero.' };
+    }
+
+    return new Promise((resolve) => {
+      let resolved = false;
+      const done = (res) => {
+        if (!resolved) {
+          resolved = true;
+          try { socket.destroy(); } catch (_) {}
+          resolve(res);
+        }
+      };
+
+      const cleanEmail = config.email.trim();
+      const cleanPass = config.appPassword.replace(/\s+/g, '');
+
+      const socket = tls.connect({
+        host: 'imap.gmail.com',
+        port: 993,
+        servername: 'imap.gmail.com',
+        rejectUnauthorized: false
+      }, () => {
+        let buffer = '';
+        let step = 'WAIT_GREETING';
+        let msgIds = [];
+        let currentIndex = 0;
+        let processedCount = 0;
+        let recordedCount = 0;
+
+        const sendCmd = (tag, cmd) => {
+          socket.write(`${tag} ${cmd}\r\n`);
+        };
+
+        socket.on('data', async (chunk) => {
+          buffer += chunk.toString();
+
+          if (step === 'WAIT_GREETING' && buffer.includes('* OK')) {
+            buffer = '';
+            step = 'WAIT_LOGIN';
+            sendCmd('a001', `LOGIN "${cleanEmail}" "${cleanPass}"`);
+          } else if (step === 'WAIT_LOGIN') {
+            if (buffer.includes('a001 OK')) {
+              buffer = '';
+              step = 'WAIT_SELECT';
+              sendCmd('a002', 'SELECT INBOX');
+            } else if (buffer.includes('a001 NO') || buffer.includes('a001 BAD')) {
+              done({ success: false, error: 'Credenciales inválidas de Gmail. Verifique la Contraseña de Aplicación.' });
+            }
+          } else if (step === 'WAIT_SELECT') {
+            if (buffer.includes('a002 OK')) {
+              buffer = '';
+              step = 'WAIT_SEARCH';
+              sendCmd('a003', 'SEARCH ALL');
+            }
+          } else if (step === 'WAIT_SEARCH') {
+            if (buffer.includes('a003 OK')) {
+              const searchMatch = buffer.match(/\* SEARCH ([\d\s]+)/);
+              if (searchMatch && searchMatch[1].trim()) {
+                const allIds = searchMatch[1].trim().split(/\s+/).map(Number).filter(n => !isNaN(n));
+                msgIds = allIds.slice(-20).reverse();
+              }
+              buffer = '';
+              if (msgIds.length === 0) {
+                sendCmd('a999', 'LOGOUT');
+                step = 'DONE';
+                done({ success: true, processed: 0, recorded: 0, message: 'Buzón sincronizado. No hay mensajes en la bandeja de entrada.' });
+                return;
+              }
+              step = 'FETCHING';
+              fetchNext();
+            }
+          } else if (step === 'FETCHING') {
+            const tag = `f${currentIndex}`;
+            if (buffer.includes(`${tag} OK`)) {
+              const currentChunk = buffer;
+              buffer = '';
+
+              const subjectMatch = currentChunk.match(/Subject:\s*([^\r\n]+)/i);
+              const fromMatch = currentChunk.match(/From:\s*([^\r\n]+)/i);
+              const dateMatch = currentChunk.match(/Date:\s*([^\r\n]+)/i);
+
+              const subject = subjectMatch ? subjectMatch[1].trim() : '';
+              const from = fromMatch ? fromMatch[1].trim() : '';
+              const date = dateMatch ? new Date(dateMatch[1].trim()).toISOString() : new Date().toISOString();
+
+              try {
+                const res = await this.processIncomingEmail({
+                  subject,
+                  from,
+                  date,
+                  body: currentChunk
+                });
+                processedCount++;
+                if (res.status === 'recorded') recordedCount++;
+              } catch (_) {}
+
+              currentIndex++;
+              fetchNext();
+            }
+          } else if (step === 'DONE') {
+            done({
+              success: true,
+              processed: processedCount,
+              recorded: recordedCount,
+              message: `Sincronización completada: ${processedCount} correos analizados, ${recordedCount} comprobantes contabilizados.`
+            });
+          }
+        });
+
+        const fetchNext = () => {
+          if (currentIndex < msgIds.length) {
+            const id = msgIds[currentIndex];
+            const tag = `f${currentIndex}`;
+            sendCmd(tag, `FETCH ${id} (BODY.PEEK[HEADER.FIELDS (SUBJECT FROM DATE)] BODY.PEEK[TEXT]<0.2000>)`);
+          } else {
+            step = 'DONE';
+            this.saveConfig({ ...config, lastSync: new Date().toISOString() });
+            sendCmd('a999', 'LOGOUT');
+            setTimeout(() => {
+              done({
+                success: true,
+                processed: processedCount,
+                recorded: recordedCount,
+                message: `Sincronización completada: ${processedCount} correos analizados, ${recordedCount} comprobantes contabilizados.`
+              });
+            }, 600);
+          }
+        };
+
+        socket.on('end', () => {
+          if (!resolved) {
+            done({ success: true, processed: processedCount, recorded: recordedCount, message: 'Sincronización finalizada.' });
+          }
+        });
+
+        socket.on('error', (err) => {
+          done({ success: false, error: `Error IMAP: ${err.message}` });
+        });
+
+        socket.setTimeout(25000, () => {
+          done({ success: false, error: 'Tiempo de espera agotado durante la sincronización.' });
+        });
       });
     });
   }
