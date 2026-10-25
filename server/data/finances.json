@@ -73,7 +73,11 @@
       "cutOffDay": null,
       "paymentDueDay": null,
       "color": "#0ea5e9",
-      "createdAt": "2026-10-25T22:51:20.319Z"
+      "createdAt": "2026-10-25T22:51:20.319Z",
+      "dueDate": "2026-12-15",
+      "yieldAmount": 8000,
+      "yieldFrequency": "quincenal",
+      "interestRate": 5.5
     },
     {
       "id": "acc_1792968137777",
@@ -121,6 +125,21 @@
       "createdAt": "2026-10-25T03:16:05.885Z"
     },
     {
+      "id": "acc_1792970137403",
+      "name": "Ahorro Navideño",
+      "entity": "BAC Credomatic",
+      "type": "objetivo",
+      "last4": "",
+      "initialBalance": 136000,
+      "balance": 136000,
+      "currency": "CRC",
+      "creditLimit": null,
+      "cutOffDay": null,
+      "paymentDueDay": null,
+      "color": "#e4032b",
+      "createdAt": "2026-10-25T23:15:37.403Z"
+    },
+    {
       "id": "acc_1792898165999",
       "name": "Wink Crédito 7017",
       "entity": "Wink",
@@ -145,21 +164,6 @@
       "rewardPoints": 110,
       "color": "#06b6d4",
       "createdAt": "2026-10-25T03:16:05.999Z"
-    },
-    {
-      "id": "acc_1792970137403",
-      "name": "Ahorro Navideño",
-      "entity": "BAC Credomatic",
-      "type": "debito",
-      "last4": "",
-      "initialBalance": 136000,
-      "balance": 136000,
-      "currency": "CRC",
-      "creditLimit": null,
-      "cutOffDay": null,
-      "paymentDueDay": null,
-      "color": "#e4032b",
-      "createdAt": "2026-10-25T23:15:37.403Z"
     }
   ],
   "loans": [],

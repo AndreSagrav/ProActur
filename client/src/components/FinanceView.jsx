@@ -110,7 +110,7 @@ export default function FinanceView() {
   const [accountForm, setAccountForm] = useState({
     name: '',
     entity: '',
-    type: 'debito', // 'debito' | 'credito' | 'efectivo'
+    type: 'debito', // 'debito' | 'credito' | 'efectivo' | 'cdp' | 'objetivo' | 'ahorro'
     last4: '',
     initialBalance: '',
     balance: '',
@@ -118,7 +118,12 @@ export default function FinanceView() {
     creditLimit: '',
     cutOffDay: '',
     paymentDueDay: '',
-    color: '#0ea5e9'
+    color: '#0ea5e9',
+    dueDate: '',
+    interestRate: '',
+    yieldAmount: '',
+    yieldFrequency: 'quincenal',
+    yieldAccountId: ''
   });
 
   // Formulario Préstamo
@@ -245,6 +250,24 @@ export default function FinanceView() {
     }
   };
 
+  const formatDueDate = (dateStr) => {
+    if (!dateStr) return null;
+    try {
+      const parts = dateStr.split('-');
+      if (parts.length === 3) {
+        const year = parseInt(parts[0], 10);
+        const month = parseInt(parts[1], 10) - 1;
+        const day = parseInt(parts[2], 10);
+        const d = new Date(year, month, day);
+        return d.toLocaleDateString('es-CR', { day: 'numeric', month: 'short', year: 'numeric' });
+      }
+      const d = new Date(dateStr);
+      return isNaN(d.getTime()) ? dateStr : d.toLocaleDateString('es-CR', { day: 'numeric', month: 'short', year: 'numeric' });
+    } catch (_) {
+      return dateStr;
+    }
+  };
+
   // Cuentas
   const handleOpenAccountModal = (acc = null, defaultType = 'debito') => {
     if (acc) {
@@ -260,13 +283,18 @@ export default function FinanceView() {
         creditLimit: acc.creditLimit || '',
         cutOffDay: acc.cutOffDay || '',
         paymentDueDay: acc.paymentDueDay || '',
-        color: acc.color || '#0ea5e9'
+        color: acc.color || '#0ea5e9',
+        dueDate: acc.dueDate || '',
+        interestRate: acc.interestRate ?? '',
+        yieldAmount: acc.yieldAmount ?? '',
+        yieldFrequency: acc.yieldFrequency || 'quincenal',
+        yieldAccountId: acc.yieldAccountId || ''
       });
     } else {
       setEditingAccount(null);
       setAccountForm({
         name: '',
-        entity: defaultType === 'credito' ? 'Wink' : '',
+        entity: defaultType === 'credito' ? 'Wink' : (defaultType === 'objetivo' || defaultType === 'cdp' ? 'BAC Credomatic' : ''),
         type: defaultType,
         last4: '',
         initialBalance: '',
@@ -275,7 +303,12 @@ export default function FinanceView() {
         creditLimit: defaultType === 'credito' ? '1344000' : '',
         cutOffDay: defaultType === 'credito' ? '13' : '',
         paymentDueDay: defaultType === 'credito' ? '2' : '',
-        color: defaultType === 'credito' ? '#06b6d4' : '#0ea5e9'
+        color: defaultType === 'credito' ? '#06b6d4' : (defaultType === 'objetivo' || defaultType === 'cdp' ? '#6366f1' : '#0ea5e9'),
+        dueDate: '',
+        interestRate: '',
+        yieldAmount: '',
+        yieldFrequency: 'quincenal',
+        yieldAccountId: ''
       });
     }
     setShowAccountModal(true);
@@ -314,6 +347,8 @@ export default function FinanceView() {
         else if (resolvedEntity.includes('BCR')) resolvedColor = '#2563eb';
       }
 
+      const isInv = ['cdp', 'objetivo', 'ahorro', 'inversion'].includes(accountForm.type);
+
       const payload = {
         ...accountForm,
         entity: resolvedEntity,
@@ -322,7 +357,12 @@ export default function FinanceView() {
         balance: balVal,
         creditLimit: accountForm.type === 'credito' ? (parseFloat(accountForm.creditLimit) || 0) : null,
         cutOffDay: accountForm.type === 'credito' && accountForm.cutOffDay ? parseInt(accountForm.cutOffDay, 10) : null,
-        paymentDueDay: accountForm.type === 'credito' && accountForm.paymentDueDay ? parseInt(accountForm.paymentDueDay, 10) : null
+        paymentDueDay: accountForm.type === 'credito' && accountForm.paymentDueDay ? parseInt(accountForm.paymentDueDay, 10) : null,
+        dueDate: isInv && accountForm.dueDate ? accountForm.dueDate : null,
+        interestRate: isInv && accountForm.interestRate !== '' ? (parseFloat(accountForm.interestRate) || 0) : null,
+        yieldAmount: isInv && accountForm.yieldAmount !== '' ? (parseFloat(accountForm.yieldAmount) || 0) : null,
+        yieldFrequency: isInv ? (accountForm.yieldFrequency || 'quincenal') : null,
+        yieldAccountId: isInv && accountForm.yieldAccountId ? accountForm.yieldAccountId : null
       };
 
       const res = await fetch(endpoint, {
@@ -354,60 +394,72 @@ export default function FinanceView() {
     }
   };
 
-  // Arrastrar y soltar cuentas directamente (Drag and Drop)
-  const handleDropAccount = async (fromIndex, toIndex) => {
-    if (fromIndex === toIndex) return;
-    const nonCredit = (financeData.accounts || []).filter(a => a.type !== 'credito');
-    if (fromIndex < 0 || fromIndex >= nonCredit.length || toIndex < 0 || toIndex >= nonCredit.length) return;
+  // Arrastrar y soltar cuentas por ID exacto (Drag and Drop robusto)
+  const handleDropAccountById = async (sourceId, targetId) => {
+    if (!sourceId || !targetId || sourceId === targetId) return;
+    const all = [...(financeData.accounts || [])];
+    const srcIdx = all.findIndex(a => a.id === sourceId);
+    const tgtIdx = all.findIndex(a => a.id === targetId);
+    if (srcIdx === -1 || tgtIdx === -1) return;
 
-    const newNonCredit = [...nonCredit];
-    const [moved] = newNonCredit.splice(fromIndex, 1);
-    newNonCredit.splice(toIndex, 0, moved);
+    const [moved] = all.splice(srcIdx, 1);
+    all.splice(tgtIdx, 0, moved);
 
-    const creditCards = (financeData.accounts || []).filter(a => a.type === 'credito');
-    const newAll = [...newNonCredit, ...creditCards];
-
-    setFinanceData(prev => ({ ...prev, accounts: newAll }));
+    setFinanceData(prev => ({ ...prev, accounts: all }));
     playExecutiveSound('click');
 
     try {
       await fetch(`${API}/api/finance/accounts/reorder`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ orderedIds: newAll.map(a => a.id) })
+        body: JSON.stringify({ orderedIds: all.map(a => a.id) })
       });
     } catch (_) {}
   };
 
-  // Mover cuenta individualmente hacia la izquierda o derecha (acomodarlas a gusto exacto)
-  const handleMoveAccount = async (index, direction) => {
-    const nonCredit = (financeData.accounts || []).filter(a => a.type !== 'credito');
-    const targetIndex = index + direction;
-    if (targetIndex < 0 || targetIndex >= nonCredit.length) return;
+  // Mover cuenta individualmente hacia la izquierda (-1) o derecha (+1) dentro de su sección
+  const handleMoveAccountById = async (accId, direction) => {
+    const all = [...(financeData.accounts || [])];
+    const item = all.find(a => a.id === accId);
+    if (!item) return;
 
-    const newNonCredit = [...nonCredit];
-    const temp = newNonCredit[index];
-    newNonCredit[index] = newNonCredit[targetIndex];
-    newNonCredit[targetIndex] = temp;
+    const isCredit = item.type === 'credito';
+    const isInvestment = ['ahorro', 'objetivo', 'cdp', 'inversion'].includes(item.type);
 
-    const creditCards = (financeData.accounts || []).filter(a => a.type === 'credito');
-    const newAll = [...newNonCredit, ...creditCards];
+    const sectionItems = all.filter(a => {
+      if (isCredit) return a.type === 'credito';
+      if (isInvestment) return ['ahorro', 'objetivo', 'cdp', 'inversion'].includes(a.type);
+      return !['credito', 'ahorro', 'objetivo', 'cdp', 'inversion'].includes(a.type);
+    });
 
-    setFinanceData(prev => ({ ...prev, accounts: newAll }));
+    const currIdx = sectionItems.findIndex(a => a.id === accId);
+    const targetIdx = currIdx + direction;
+    if (targetIdx < 0 || targetIdx >= sectionItems.length) return;
+
+    const targetItem = sectionItems[targetIdx];
+    const fullIdx1 = all.findIndex(a => a.id === item.id);
+    const fullIdx2 = all.findIndex(a => a.id === targetItem.id);
+    if (fullIdx1 === -1 || fullIdx2 === -1) return;
+
+    const temp = all[fullIdx1];
+    all[fullIdx1] = all[fullIdx2];
+    all[fullIdx2] = temp;
+
+    setFinanceData(prev => ({ ...prev, accounts: all }));
     playExecutiveSound('click');
 
     try {
       await fetch(`${API}/api/finance/accounts/reorder`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ orderedIds: newAll.map(a => a.id) })
+        body: JSON.stringify({ orderedIds: all.map(a => a.id) })
       });
     } catch (_) {}
   };
 
-  // Agrupar automáticamente todas las cuentas de la misma entidad (BAC con BAC, Wink con Wink, etc.)
+  // Agrupar automáticamente todas las cuentas por jerarquía bancaria
   const handleGroupByEntity = async () => {
-    const nonCredit = [...(financeData.accounts || []).filter(a => a.type !== 'credito')];
+    const all = [...(financeData.accounts || [])];
     
     const getEntityRank = (entity = '', name = '') => {
       const full = (entity + ' ' + name).toLowerCase();
@@ -420,24 +472,21 @@ export default function FinanceView() {
       return 6;
     };
 
-    nonCredit.sort((a, b) => {
+    all.sort((a, b) => {
       const rankA = getEntityRank(a.entity, a.name);
       const rankB = getEntityRank(b.entity, b.name);
       if (rankA !== rankB) return rankA - rankB;
       return (a.name || '').localeCompare(b.name || '');
     });
 
-    const creditCards = (financeData.accounts || []).filter(a => a.type === 'credito');
-    const newAll = [...nonCredit, ...creditCards];
-
-    setFinanceData(prev => ({ ...prev, accounts: newAll }));
+    setFinanceData(prev => ({ ...prev, accounts: all }));
     playExecutiveSound('success');
 
     try {
       await fetch(`${API}/api/finance/accounts/reorder`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ orderedIds: newAll.map(a => a.id) })
+        body: JSON.stringify({ orderedIds: all.map(a => a.id) })
       });
     } catch (_) {}
   };
@@ -919,7 +968,7 @@ export default function FinanceView() {
                         key={acc.id}
                         draggable={true}
                         onDragStart={(e) => {
-                          e.dataTransfer.setData('text/plain', String(idx));
+                          e.dataTransfer.setData('text/plain', acc.id);
                           e.dataTransfer.effectAllowed = 'move';
                         }}
                         onDragOver={(e) => {
@@ -928,9 +977,9 @@ export default function FinanceView() {
                         }}
                         onDrop={(e) => {
                           e.preventDefault();
-                          const srcIdx = parseInt(e.dataTransfer.getData('text/plain'), 10);
-                          if (!isNaN(srcIdx) && srcIdx !== idx) {
-                            handleDropAccount(srcIdx, idx);
+                          const srcId = e.dataTransfer.getData('text/plain');
+                          if (srcId && srcId !== acc.id) {
+                            handleDropAccountById(srcId, acc.id);
                           }
                         }}
                         onClick={() => setFilterAccountId(isSelected ? 'all' : acc.id)}
@@ -954,13 +1003,13 @@ export default function FinanceView() {
                             </div>
 
                             <div className="flex items-center gap-1">
-                              {/* Controles de reordenación rápida */}
+                              {/* Controles de reordenación rápida por ID */}
                               <button
                                 type="button"
                                 disabled={idx === 0}
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  handleMoveAccount(idx, -1);
+                                  handleMoveAccountById(acc.id, -1);
                                 }}
                                 className="p-1 rounded-md text-slate-400 hover:text-white hover:bg-white/15 disabled:opacity-20 disabled:pointer-events-none transition-all"
                                 title="Mover a la izquierda"
@@ -972,7 +1021,7 @@ export default function FinanceView() {
                                 disabled={idx === arr.length - 1}
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  handleMoveAccount(idx, 1);
+                                  handleMoveAccountById(acc.id, 1);
                                 }}
                                 className="p-1 rounded-md text-slate-400 hover:text-white hover:bg-white/15 disabled:opacity-20 disabled:pointer-events-none transition-all"
                                 title="Mover a la derecha"
@@ -1051,7 +1100,7 @@ export default function FinanceView() {
                   </div>
 
                   <button
-                    onClick={() => handleOpenAccountModal(null, 'objetivo')}
+                    onClick={() => handleOpenAccountModal(null, 'cdp')}
                     className="flex items-center gap-2 text-xs px-4 py-2.5 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 text-white font-semibold hover:from-indigo-500 hover:to-purple-500 transition-all shadow-md shadow-indigo-600/25 active:scale-95"
                   >
                     <Plus className="w-4 h-4" />
@@ -1062,15 +1111,32 @@ export default function FinanceView() {
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
                   {financeData.accounts
                     .filter(acc => acc.type === 'ahorro' || acc.type === 'objetivo' || acc.type === 'cdp' || acc.type === 'inversion')
-                    .map((acc) => {
+                    .map((acc, idx, arr) => {
                       const symbol = acc.currency === 'USD' ? '$' : '₡';
                       const isMarchamo = (acc.name || '').toLowerCase().includes('marchamo');
                       const isCDP = acc.type === 'cdp' || acc.type === 'inversion';
+                      const yieldAcc = (financeData.accounts || []).find(a => a.id === acc.yieldAccountId);
 
                       return (
                         <div
                           key={acc.id}
-                          className="relative p-5 rounded-2xl border border-indigo-500/20 bg-slate-900/80 hover:border-indigo-500/40 transition-all shadow-sm flex flex-col justify-between h-44"
+                          draggable={true}
+                          onDragStart={(e) => {
+                            e.dataTransfer.setData('text/plain', acc.id);
+                            e.dataTransfer.effectAllowed = 'move';
+                          }}
+                          onDragOver={(e) => {
+                            e.preventDefault();
+                            e.dataTransfer.dropEffect = 'move';
+                          }}
+                          onDrop={(e) => {
+                            e.preventDefault();
+                            const srcId = e.dataTransfer.getData('text/plain');
+                            if (srcId && srcId !== acc.id) {
+                              handleDropAccountById(srcId, acc.id);
+                            }
+                          }}
+                          className="relative p-5 rounded-2xl border border-indigo-500/20 bg-slate-900/80 hover:border-indigo-500/40 transition-all shadow-sm flex flex-col justify-between min-h-[210px] cursor-grab active:cursor-grabbing group"
                         >
                           <div>
                             <div className="flex items-center justify-between mb-2.5">
@@ -1085,9 +1151,32 @@ export default function FinanceView() {
                               </div>
 
                               <div className="flex items-center gap-1">
-                                <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
-                                  {isCDP ? 'Certificado a Plazo' : isMarchamo ? 'Reserva Marchamo' : 'Meta Programada'}
-                                </span>
+                                {/* Controles de reordenación rápida por ID */}
+                                <button
+                                  type="button"
+                                  disabled={idx === 0}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleMoveAccountById(acc.id, -1);
+                                  }}
+                                  className="p-1 rounded-md text-slate-400 hover:text-white hover:bg-white/15 disabled:opacity-20 disabled:pointer-events-none transition-all"
+                                  title="Mover a la izquierda"
+                                >
+                                  <ArrowLeft className="w-3.5 h-3.5" />
+                                </button>
+                                <button
+                                  type="button"
+                                  disabled={idx === arr.length - 1}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleMoveAccountById(acc.id, 1);
+                                  }}
+                                  className="p-1 rounded-md text-slate-400 hover:text-white hover:bg-white/15 disabled:opacity-20 disabled:pointer-events-none transition-all"
+                                  title="Mover a la derecha"
+                                >
+                                  <ArrowRight className="w-3.5 h-3.5" />
+                                </button>
+
                                 <button
                                   type="button"
                                   onClick={(e) => {
@@ -1102,20 +1191,57 @@ export default function FinanceView() {
                               </div>
                             </div>
 
+                            {/* Nombre y Badge de Tipo */}
                             <div>
-                              <div className="font-bold text-white text-sm truncate" title={acc.name}>
-                                {acc.name}
-                              </div>
-                              <div className="text-[11px] text-slate-400 font-mono mt-1 flex items-center justify-between">
-                                <span>{isCDP ? 'Rendimientos periódicos' : 'Fondo blindado / Intocable'}</span>
-                                <span className="text-[10px] px-1.5 py-0.2 rounded bg-white/10 text-slate-300 font-sans font-bold">
-                                  {acc.currency || 'CRC'}
+                              <div className="flex items-center justify-between gap-1.5">
+                                <div className="font-bold text-white text-sm truncate" title={acc.name}>
+                                  {acc.name}
+                                </div>
+                                <span className="text-[9px] font-bold px-2 py-0.5 rounded-full shrink-0 bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
+                                  {isCDP ? 'Certificado a Plazo' : isMarchamo ? 'Reserva Marchamo' : 'Meta de Ahorro'}
                                 </span>
+                              </div>
+
+                              {/* Parámetros de Inversión y Rendimiento */}
+                              <div className="mt-2.5 space-y-1.5 text-[11px]">
+                                {acc.dueDate ? (
+                                  <div className="flex items-center justify-between text-indigo-300 font-medium">
+                                    <span className="flex items-center gap-1">
+                                      <Calendar className="w-3 h-3 text-indigo-400" />
+                                      Vence: {formatDueDate(acc.dueDate)}
+                                    </span>
+                                    {acc.daysToDueDate !== null && (
+                                      <span className="text-[10px] px-1.5 py-0.2 rounded bg-indigo-500/20 text-indigo-300 font-mono font-bold">
+                                        {acc.daysToDueDate === 0 ? 'Vence hoy' : acc.daysToDueDate > 0 ? `en ${acc.daysToDueDate}d` : 'Vencido'}
+                                      </span>
+                                    )}
+                                  </div>
+                                ) : (
+                                  <div className="text-slate-400 flex items-center justify-between font-mono">
+                                    <span>{isCDP ? 'Plazo continuo' : 'Fondo blindado / Intocable'}</span>
+                                    <span className="text-[10px] px-1.5 py-0.2 rounded bg-white/10 text-slate-300 font-sans font-bold">
+                                      {acc.currency || 'CRC'}
+                                    </span>
+                                  </div>
+                                )}
+
+                                {acc.yieldAmount ? (
+                                  <div className="flex items-center justify-between text-emerald-400 font-mono font-medium">
+                                    <span className="text-[10px] text-slate-400 uppercase tracking-wider font-sans">Rendimiento:</span>
+                                    <span>+{symbol}{(Number(acc.yieldAmount) || 0).toLocaleString()} / {acc.yieldFrequency || 'quincena'}</span>
+                                  </div>
+                                ) : null}
+
+                                {yieldAcc && (
+                                  <div className="text-[10px] text-slate-400 truncate">
+                                    Acredita en: <span className="text-slate-300 font-medium">{yieldAcc.name}</span>
+                                  </div>
+                                )}
                               </div>
                             </div>
                           </div>
 
-                          <div className="pt-2.5 border-t border-white/10 flex flex-col justify-end">
+                          <div className="pt-2.5 border-t border-white/10 flex flex-col justify-end mt-2">
                             <span className="text-[10px] uppercase tracking-wider text-slate-400 font-medium block">
                               Capital Reservado
                             </span>
@@ -1123,9 +1249,15 @@ export default function FinanceView() {
                               <span className="text-xl font-bold font-mono tracking-tight text-indigo-400">
                                 {symbol}{(acc.balance || 0).toLocaleString()}
                               </span>
-                              <span className="text-[10px] text-slate-500 font-mono">
-                                Inicial: {symbol}{(acc.initialBalance || 0).toLocaleString()}
-                              </span>
+                              {acc.interestRate ? (
+                                <span className="text-[10px] text-indigo-300 font-mono font-bold bg-indigo-500/10 px-2 py-0.5 rounded-md border border-indigo-500/20">
+                                  {acc.interestRate}% anual
+                                </span>
+                              ) : (
+                                <span className="text-[10px] text-slate-500 font-mono">
+                                  Inicial: {symbol}{(acc.initialBalance || 0).toLocaleString()}
+                                </span>
+                              )}
                             </div>
                           </div>
                         </div>
@@ -2154,7 +2286,7 @@ export default function FinanceView() {
       {/* ======================================================== */}
       {showAccountModal && (
         <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
-          <div className="w-full max-w-md rounded-3xl bg-slate-900 border border-white/15 p-7 space-y-5 shadow-2xl">
+          <div className="w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-3xl bg-slate-900 border border-white/15 p-7 space-y-5 shadow-2xl">
             <div className="flex items-center justify-between border-b border-white/10 pb-4">
               <h3 className="font-bold text-white text-base">
                 {editingAccount ? 'Editar Cuenta o Efectivo' : 'Registrar Cuenta o Efectivo'}
@@ -2341,6 +2473,113 @@ export default function FinanceView() {
                         className="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-white/10 text-white font-mono"
                       />
                     </div>
+                  </div>
+                </div>
+              )}
+
+              {['cdp', 'objetivo', 'ahorro', 'inversion'].includes(accountForm.type) && (
+                <div className="p-4 rounded-2xl bg-indigo-950/40 border border-indigo-500/25 space-y-3.5">
+                  <div className="flex items-center gap-2">
+                    <PieChart className="w-4 h-4 text-indigo-400" />
+                    <span className="text-[11px] font-bold text-indigo-300 uppercase tracking-wider">
+                      Parámetros de Inversión, Plazo y Rendimiento
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-slate-300 block mb-1 font-medium">
+                        Fecha de Vencimiento / Plazo
+                      </label>
+                      <input
+                        type="date"
+                        value={accountForm.dueDate || ''}
+                        onChange={(e) => setAccountForm(prev => ({ ...prev, dueDate: e.target.value }))}
+                        className="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-white/10 text-white font-mono focus:border-indigo-500"
+                      />
+                      <span className="text-[10px] text-slate-400 block mt-0.5">
+                        Fecha límite donde vence o se libera el capital
+                      </span>
+                    </div>
+
+                    <div>
+                      <label className="text-slate-300 block mb-1 font-medium">
+                        Tasa de Interés Anual (%)
+                      </label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        value={accountForm.interestRate || ''}
+                        onChange={(e) => setAccountForm(prev => ({ ...prev, interestRate: e.target.value }))}
+                        placeholder="ej. 5.75"
+                        className="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-white/10 text-white font-mono focus:border-indigo-500"
+                      />
+                      <span className="text-[10px] text-slate-400 block mt-0.5">
+                        Rendimiento anual pactado con la entidad
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-slate-300 block mb-1 font-medium">
+                        Rendimiento Periódico
+                      </label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        value={accountForm.yieldAmount || ''}
+                        onChange={(e) => setAccountForm(prev => ({ ...prev, yieldAmount: e.target.value }))}
+                        placeholder="ej. 8000"
+                        className="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-white/10 text-white font-mono focus:border-indigo-500"
+                      />
+                      <span className="text-[10px] text-slate-400 block mt-0.5">
+                        Ganancia acordada (ej. ₡8.000 quincenales)
+                      </span>
+                    </div>
+
+                    <div>
+                      <label className="text-slate-300 block mb-1 font-medium">
+                        Frecuencia de Rendimiento
+                      </label>
+                      <select
+                        value={accountForm.yieldFrequency || 'quincenal'}
+                        onChange={(e) => setAccountForm(prev => ({ ...prev, yieldFrequency: e.target.value }))}
+                        className="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-white/10 text-white focus:border-indigo-500"
+                      >
+                        <option value="quincenal">Quincenal (Cada 15 días)</option>
+                        <option value="mensual">Mensual</option>
+                        <option value="trimestral">Trimestral</option>
+                        <option value="semestral">Semestral</option>
+                        <option value="al_vencimiento">Al Vencimiento del Plazo</option>
+                      </select>
+                      <span className="text-[10px] text-slate-400 block mt-0.5">
+                        Periodicidad del pago de rendimientos
+                      </span>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="text-slate-300 block mb-1 font-medium">
+                      Cuenta Receptora de Rendimientos (Débito)
+                    </label>
+                    <select
+                      value={accountForm.yieldAccountId || ''}
+                      onChange={(e) => setAccountForm(prev => ({ ...prev, yieldAccountId: e.target.value }))}
+                      className="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-white/10 text-white focus:border-indigo-500"
+                    >
+                      <option value="">Seleccionar cuenta operativa receptora...</option>
+                      {(financeData.accounts || [])
+                        .filter(a => a.type === 'debito')
+                        .map(acc => (
+                          <option key={acc.id} value={acc.id}>
+                            {acc.name} ({acc.entity}) {acc.last4 ? `•••• ${acc.last4}` : ''} - {acc.currency || 'CRC'}
+                          </option>
+                        ))}
+                    </select>
+                    <span className="text-[10px] text-slate-400 block mt-0.5">
+                      Cuenta de débito donde se acreditan los intereses
+                    </span>
                   </div>
                 </div>
               )}

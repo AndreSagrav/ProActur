@@ -170,12 +170,24 @@ class FinanceService {
         ? Math.max(0, acc.creditLimit - (acc.balance || 0))
         : null;
 
+      let daysToDueDate = null;
+      if (acc.dueDate) {
+        try {
+          const due = new Date(acc.dueDate + 'T00:00:00');
+          if (!isNaN(due.getTime())) {
+            const diffMs = due.getTime() - now.getTime();
+            daysToDueDate = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
+          }
+        } catch (_) {}
+      }
+
       return {
         ...acc,
         daysToCutOff,
         daysToPayment,
         isPaymentUrgent,
-        availableCredit
+        availableCredit,
+        daysToDueDate
       };
     });
 
@@ -273,6 +285,11 @@ class FinanceService {
       creditLimit: acc.type === 'credito' ? (Number(acc.creditLimit) || 0) : null,
       cutOffDay: acc.type === 'credito' ? (Number(acc.cutOffDay) || 1) : null,
       paymentDueDay: acc.type === 'credito' ? (Number(acc.paymentDueDay) || 1) : null,
+      dueDate: acc.dueDate || null,
+      interestRate: acc.interestRate !== undefined && acc.interestRate !== '' ? Number(acc.interestRate) : null,
+      yieldAmount: acc.yieldAmount !== undefined && acc.yieldAmount !== '' ? Number(acc.yieldAmount) : null,
+      yieldFrequency: acc.yieldFrequency || 'quincenal',
+      yieldAccountId: acc.yieldAccountId || null,
       color: acc.color || '#3b82f6',
       createdAt: new Date().toISOString()
     };
@@ -331,7 +348,12 @@ class FinanceService {
       ...updates,
       last4: updates.last4 ? updates.last4.slice(-4) : (data.accounts[idx].last4 || ''),
       initialBalance: newInit,
-      balance: newBal
+      balance: newBal,
+      dueDate: updates.dueDate !== undefined ? updates.dueDate : data.accounts[idx].dueDate,
+      interestRate: updates.interestRate !== undefined && updates.interestRate !== '' ? (Number(updates.interestRate) || null) : data.accounts[idx].interestRate,
+      yieldAmount: updates.yieldAmount !== undefined && updates.yieldAmount !== '' ? (Number(updates.yieldAmount) || null) : data.accounts[idx].yieldAmount,
+      yieldFrequency: updates.yieldFrequency !== undefined ? updates.yieldFrequency : (data.accounts[idx].yieldFrequency || 'quincenal'),
+      yieldAccountId: updates.yieldAccountId !== undefined ? updates.yieldAccountId : data.accounts[idx].yieldAccountId
     };
 
     this.writeLocal(data);
