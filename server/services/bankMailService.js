@@ -19,6 +19,7 @@ const DEFAULT_CONFIG = {
   port: 993,
   enabled: false,
   autoRecord: true, // Si es true, contabiliza de una vez en la cuenta correcta
+  syncStartDate: '2026-10-25', // Ignorar correos anteriores a esta fecha
   lastSync: null,
   syncIntervalMinutes: 15
 };
@@ -109,6 +110,7 @@ class BankMailService {
         : current.appPassword,
       enabled: newConfig.enabled !== undefined ? !!newConfig.enabled : current.enabled,
       autoRecord: newConfig.autoRecord !== undefined ? !!newConfig.autoRecord : current.autoRecord,
+      syncStartDate: newConfig.syncStartDate !== undefined ? newConfig.syncStartDate : current.syncStartDate,
       syncIntervalMinutes: Number(newConfig.syncIntervalMinutes) || 15
     };
 
@@ -180,6 +182,7 @@ class BankMailService {
     let entity = 'Comercio / Banco';
     const lower = fullText.toLowerCase();
     if (lower.includes('bac') || lower.includes('credomatic')) entity = 'BAC Credomatic';
+    else if (lower.includes('wink') || lower.includes('holawink')) entity = 'Wink';
     else if (lower.includes('popular') || lower.includes('bancopopular')) entity = 'Banco Popular';
     else if (lower.includes('coopeande')) entity = 'Coopeande';
     else if (lower.includes('bcr') || lower.includes('banco de costa rica')) entity = 'Banco de Costa Rica';
@@ -308,6 +311,22 @@ class BankMailService {
         reason: parsed.reason
       });
       return { status: 'discarded', reason: parsed.reason };
+    }
+
+    const config = this.getConfig();
+
+    // Si hay fecha de inicio configurada (ej: a partir de 2026-10-25), descartar anteriores
+    if (config.syncStartDate && parsed.date) {
+      const emailDate = parsed.date.slice(0, 10);
+      if (emailDate < config.syncStartDate) {
+        this.addLog({
+          status: 'discarded',
+          subject: emailData.subject,
+          from: emailData.from,
+          reason: `Descartado: correo anterior a la fecha de inicio contable (${config.syncStartDate})`
+        });
+        return { status: 'discarded', reason: `Anterior a ${config.syncStartDate}` };
+      }
     }
 
     const summary = await financeService.getSummary();

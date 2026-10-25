@@ -1,5 +1,633 @@
 [
   {
+    "id": "log_1792896898609_skzf",
+    "timestamp": "2026-10-25T02:54:58.609Z",
+    "status": "pending_confirmation",
+    "subject": "=?UTF-8?Q?Notificaci=C3=B3n_de_transacci=C3=B3n_LITTLE?=",
+    "parsed": {
+      "matched": true,
+      "entity": "BAC Credomatic",
+      "amount": 7300,
+      "currency": "CRC",
+      "type": "gasto",
+      "last4": "0095",
+      "merchant": "LITTLE CAESARS PIZZA G",
+      "note": "Compra: LITTLE CAESARS PIZZA G (BAC Credomatic)",
+      "category": "Varios",
+      "date": "2026-10-17T23:16:00.000Z"
+    },
+    "suggestedAccount": "No asignada"
+  },
+  {
+    "id": "log_1792896898016_1ubm",
+    "timestamp": "2026-10-25T02:54:58.016Z",
+    "status": "pending_confirmation",
+    "subject": "=?UTF-8?Q?Notificaci=C3=B3n_de_transacci=C3=B3n?=",
+    "parsed": {
+      "matched": true,
+      "entity": "BAC Credomatic",
+      "amount": 25,
+      "currency": "USD",
+      "type": "gasto",
+      "last4": "8177",
+      "merchant": "SUPABASE",
+      "note": "Compra: SUPABASE (BAC Credomatic)",
+      "category": "Varios",
+      "date": "2026-10-18T00:33:00.000Z"
+    },
+    "suggestedAccount": "No asignada"
+  },
+  {
+    "id": "log_1792896897455_o3y8",
+    "timestamp": "2026-10-25T02:54:57.455Z",
+    "status": "pending_confirmation",
+    "subject": "=?UTF-8?Q?Notificaci=C3=B3n_de_transacci=C3=B3n_CA?=",
+    "parsed": {
+      "matched": true,
+      "entity": "BAC Credomatic",
+      "amount": 7013,
+      "currency": "CRC",
+      "type": "gasto",
+      "last4": "0095",
+      "merchant": "CARNES ABARCA",
+      "note": "Compra: CARNES ABARCA (BAC Credomatic)",
+      "category": "Varios",
+      "date": "2026-10-18T19:02:00.000Z"
+    },
+    "suggestedAccount": "No asignada"
+  },
+  {
+    "id": "log_1792896896891_26xe",
+    "timestamp": "2026-10-25T02:54:56.891Z",
+    "status": "pending_confirmation",
+    "subject": "=?UTF-8?Q?Notificaci=C3=B3n_de_transacci=C3=B3n_?=",
+    "parsed": {
+      "matched": true,
+      "entity": "BAC Credomatic",
+      "amount": 3150,
+      "currency": "CRC",
+      "type": "gasto",
+      "last4": "0095",
+      "merchant": "SUPER ASIA",
+      "note": "Compra: SUPER ASIA (BAC Credomatic)",
+      "category": "Varios",
+      "date": "2026-10-18T19:26:00.000Z"
+    },
+    "suggestedAccount": "No asignada"
+  },
+  {
+    "id": "log_1792896896263_y853",
+    "timestamp": "2026-10-25T02:54:56.263Z",
+    "status": "pending_confirmation",
+    "subject": "=?UTF-8?Q?Notificaci=C3=B3n_de_transacci=C3=B3n_M?=",
+    "parsed": {
+      "matched": true,
+      "entity": "BAC Credomatic",
+      "amount": 800,
+      "currency": "CRC",
+      "type": "gasto",
+      "last4": "0095",
+      "merchant": "MUSI UCIMED",
+      "note": "Compra: MUSI UCIMED (BAC Credomatic)",
+      "category": "Varios",
+      "date": "2026-10-20T12:51:00.000Z"
+    },
+    "suggestedAccount": "No asignada"
+  },
+  {
+    "id": "log_1792896895664_uukc",
+    "timestamp": "2026-10-25T02:54:55.664Z",
+    "status": "pending_confirmation",
+    "subject": "=?UTF-8?Q?Notificaci=C3=B3n_de_transacci=C3=B3n_COBRO_?=",
+    "parsed": {
+      "matched": true,
+      "entity": "BAC Credomatic",
+      "amount": 2448.38,
+      "currency": "CRC",
+      "type": "gasto",
+      "last4": "0095",
+      "merchant": "COBRO ADMINISTRACION C",
+      "note": "Compra: COBRO ADMINISTRACION C (BAC Credomatic)",
+      "category": "Varios",
+      "date": "2026-10-20T16:22:00.000Z"
+    },
+    "suggestedAccount": "No asignada"
+  },
+  {
+    "id": "log_1792896895085_rq39",
+    "timestamp": "2026-10-25T02:54:55.085Z",
+    "status": "discarded",
+    "subject": "=?UTF-8?Q?Notificaci=C3=B3n_Transferencia_SIN?=",
+    "from": "BAC - SINPE <notificaciones@baccredomatic.cr>",
+    "reason": "No se detectó un monto financiero ejecutable"
+  },
+  {
+    "id": "log_1792896894887_uoy3",
+    "timestamp": "2026-10-25T02:54:54.887Z",
+    "status": "pending_confirmation",
+    "subject": "=?UTF-8?Q?Notificaci=C3=B3n_de_transacci=C3=B3n_?=",
+    "parsed": {
+      "matched": true,
+      "entity": "BAC Credomatic",
+      "amount": 2800,
+      "currency": "CRC",
+      "type": "gasto",
+      "last4": "0095",
+      "merchant": "BAGUETONI",
+      "note": "Compra: BAGUETONI (BAC Credomatic)",
+      "category": "Varios",
+      "date": "2026-10-21T18:40:00.000Z"
+    },
+    "suggestedAccount": "No asignada"
+  },
+  {
+    "id": "log_1792896894336_00o2",
+    "timestamp": "2026-10-25T02:54:54.336Z",
+    "status": "pending_confirmation",
+    "subject": "=?UTF-8?Q?Notificaci=C3=B3n_de_transacci=C3=B3n_MINI?=",
+    "parsed": {
+      "matched": true,
+      "entity": "BAC Credomatic",
+      "amount": 2450,
+      "currency": "CRC",
+      "type": "gasto",
+      "last4": "0095",
+      "merchant": "MINI SUPER COLIBRI",
+      "note": "Compra: MINI SUPER COLIBRI (BAC Credomatic)",
+      "category": "Varios",
+      "date": "2026-10-21T18:44:00.000Z"
+    },
+    "suggestedAccount": "No asignada"
+  },
+  {
+    "id": "log_1792896893754_dqdr",
+    "timestamp": "2026-10-25T02:54:53.754Z",
+    "status": "pending_confirmation",
+    "subject": "=?UTF-8?Q?Notificaci=C3=B3n_de_transacci=C3=B3n_SO?=",
+    "parsed": {
+      "matched": true,
+      "entity": "BAC Credomatic",
+      "amount": 4000,
+      "currency": "CRC",
+      "type": "gasto",
+      "last4": "0095",
+      "merchant": "SODA GLORIANA",
+      "note": "Compra: SODA GLORIANA (BAC Credomatic)",
+      "category": "Varios",
+      "date": "2026-10-22T12:20:00.000Z"
+    },
+    "suggestedAccount": "No asignada"
+  },
+  {
+    "id": "log_1792896893172_tobf",
+    "timestamp": "2026-10-25T02:54:53.172Z",
+    "status": "pending_confirmation",
+    "subject": "=?UTF-8?Q?Notificaci=C3=B3n_de_transacci=C3=B3n_SO?=",
+    "parsed": {
+      "matched": true,
+      "entity": "BAC Credomatic",
+      "amount": 2000,
+      "currency": "CRC",
+      "type": "gasto",
+      "last4": "0095",
+      "merchant": "SODA GLORIANA",
+      "note": "Compra: SODA GLORIANA (BAC Credomatic)",
+      "category": "Varios",
+      "date": "2026-10-22T12:21:00.000Z"
+    },
+    "suggestedAccount": "No asignada"
+  },
+  {
+    "id": "log_1792896892575_hkef",
+    "timestamp": "2026-10-25T02:54:52.575Z",
+    "status": "discarded",
+    "subject": "=?UTF-8?Q?Notificaci=C3=B3n_de_Transferencia?=",
+    "from": "BAC - SINPE <notificaciones@baccredomatic.cr>",
+    "reason": "No se detectó un monto financiero ejecutable"
+  },
+  {
+    "id": "log_1792896892383_9w2h",
+    "timestamp": "2026-10-25T02:54:52.383Z",
+    "status": "discarded",
+    "subject": "Su documento: 50622102600310119109500100002010000440540100000551",
+    "from": "no-reply@dfr.cloud",
+    "reason": "No se detectó un monto financiero ejecutable"
+  },
+  {
+    "id": "log_1792896892064_6hup",
+    "timestamp": "2026-10-25T02:54:52.064Z",
+    "status": "discarded",
+    "subject": "=?UTF-8?q?Su_validaci=C3=B3n_para_el_documento:_5062210260031011910950010?=",
+    "from": "no-reply@dfr.cloud",
+    "reason": "No se detectó un monto financiero ejecutable"
+  },
+  {
+    "id": "log_1792896891834_69dp",
+    "timestamp": "2026-10-25T02:54:51.835Z",
+    "status": "pending_confirmation",
+    "subject": "=?UTF-8?Q?Notificaci=C3=B3n_de_transacci=C3=B3n_GESS?=",
+    "parsed": {
+      "matched": true,
+      "entity": "BAC Credomatic",
+      "amount": 1660,
+      "currency": "CRC",
+      "type": "gasto",
+      "last4": "0095",
+      "merchant": "GESSA PERI ANONOS",
+      "note": "Compra: GESSA PERI ANONOS (BAC Credomatic)",
+      "category": "Varios",
+      "date": "2026-10-22T17:31:00.000Z"
+    },
+    "suggestedAccount": "No asignada"
+  },
+  {
+    "id": "log_1792896891271_zwl0",
+    "timestamp": "2026-10-25T02:54:51.271Z",
+    "status": "pending_confirmation",
+    "subject": "=?UTF-8?Q?Notificaci=C3=B3n_de_transacci=C3=B3n_?=",
+    "parsed": {
+      "matched": true,
+      "entity": "BAC Credomatic",
+      "amount": 2600,
+      "currency": "CRC",
+      "type": "gasto",
+      "last4": "8177",
+      "merchant": "Google One",
+      "note": "Compra: Google One (BAC Credomatic)",
+      "category": "Servicios y Software",
+      "date": "2026-10-23T14:26:00.000Z"
+    },
+    "suggestedAccount": "No asignada"
+  },
+  {
+    "id": "log_1792896890645_fywb",
+    "timestamp": "2026-10-25T02:54:50.645Z",
+    "status": "pending_confirmation",
+    "subject": "=?UTF-8?Q?Notificaci=C3=B3n_de_transacci=C3=B3n_K?=",
+    "parsed": {
+      "matched": true,
+      "entity": "BAC Credomatic",
+      "amount": 2492,
+      "currency": "CRC",
+      "type": "gasto",
+      "last4": "0095",
+      "merchant": "KFC EXPRESS",
+      "note": "Compra: KFC EXPRESS (BAC Credomatic)",
+      "category": "Alimentación y Reuniones",
+      "date": "2026-10-24T23:24:00.000Z"
+    },
+    "suggestedAccount": "No asignada"
+  },
+  {
+    "id": "log_1792896889566_lx5c",
+    "timestamp": "2026-10-25T02:54:49.566Z",
+    "status": "discarded",
+    "subject": "=?UTF-8?Q?Confirmaci=C3=B3n_de_reenv=C3=ADo_de_Gmail=3A_recibir_correo_d?=",
+    "from": "Equipo de Gmail <forwarding-noreply@google.com>",
+    "reason": "No se detectó un monto financiero ejecutable"
+  },
+  {
+    "id": "log_1792896889378_3s4d",
+    "timestamp": "2026-10-25T02:54:49.378Z",
+    "status": "discarded",
+    "subject": "=?UTF-8?Q?Confirmaci=C3=B3n_de_reenv=C3=ADo_de_Gmail=3A_recibir_correo_d?=",
+    "from": "Equipo de Gmail <forwarding-noreply@google.com>",
+    "reason": "No se detectó un monto financiero ejecutable"
+  },
+  {
+    "id": "log_1792896889189_wmjz",
+    "timestamp": "2026-10-25T02:54:49.189Z",
+    "status": "discarded",
+    "subject": "=?UTF-8?Q?Confirmaci=C3=B3n_de_reenv=C3=ADo_de_Gmail=3A_recibir_correo_d?=",
+    "from": "Equipo de Gmail <forwarding-noreply@google.com>",
+    "reason": "No se detectó un monto financiero ejecutable"
+  },
+  {
+    "id": "log_1792895999345_gyft",
+    "timestamp": "2026-10-25T02:39:59.345Z",
+    "status": "pending_confirmation",
+    "subject": "=?UTF-8?Q?Notificaci=C3=B3n_de_transacci=C3=B3n_S?=",
+    "parsed": {
+      "matched": true,
+      "entity": "BAC Credomatic",
+      "amount": 3800,
+      "currency": "CRC",
+      "type": "gasto",
+      "last4": "0095",
+      "merchant": "SERVI INDOOR",
+      "note": "Compra: SERVI INDOOR (BAC Credomatic)",
+      "category": "Varios",
+      "date": "2026-10-17T00:23:00.000Z"
+    },
+    "suggestedAccount": "No asignada"
+  },
+  {
+    "id": "log_1792895998771_63ut",
+    "timestamp": "2026-10-25T02:39:58.771Z",
+    "status": "pending_confirmation",
+    "subject": "=?UTF-8?Q?Notificaci=C3=B3n_de_transacci=C3=B3n_SUPER_?=",
+    "parsed": {
+      "matched": true,
+      "entity": "BAC Credomatic",
+      "amount": 6680,
+      "currency": "CRC",
+      "type": "gasto",
+      "last4": "0095",
+      "merchant": "SUPER HERRERA DEL ESTE",
+      "note": "Compra: SUPER HERRERA DEL ESTE (BAC Credomatic)",
+      "category": "Varios",
+      "date": "2026-10-17T23:07:00.000Z"
+    },
+    "suggestedAccount": "No asignada"
+  },
+  {
+    "id": "log_1792895998177_m4au",
+    "timestamp": "2026-10-25T02:39:58.177Z",
+    "status": "pending_confirmation",
+    "subject": "=?UTF-8?Q?Notificaci=C3=B3n_de_transacci=C3=B3n_LITTLE?=",
+    "parsed": {
+      "matched": true,
+      "entity": "BAC Credomatic",
+      "amount": 7300,
+      "currency": "CRC",
+      "type": "gasto",
+      "last4": "0095",
+      "merchant": "LITTLE CAESARS PIZZA G",
+      "note": "Compra: LITTLE CAESARS PIZZA G (BAC Credomatic)",
+      "category": "Varios",
+      "date": "2026-10-17T23:16:00.000Z"
+    },
+    "suggestedAccount": "No asignada"
+  },
+  {
+    "id": "log_1792895997615_olhk",
+    "timestamp": "2026-10-25T02:39:57.615Z",
+    "status": "pending_confirmation",
+    "subject": "=?UTF-8?Q?Notificaci=C3=B3n_de_transacci=C3=B3n?=",
+    "parsed": {
+      "matched": true,
+      "entity": "BAC Credomatic",
+      "amount": 25,
+      "currency": "USD",
+      "type": "gasto",
+      "last4": "8177",
+      "merchant": "SUPABASE",
+      "note": "Compra: SUPABASE (BAC Credomatic)",
+      "category": "Varios",
+      "date": "2026-10-18T00:33:00.000Z"
+    },
+    "suggestedAccount": "No asignada"
+  },
+  {
+    "id": "log_1792895996988_yhqx",
+    "timestamp": "2026-10-25T02:39:56.988Z",
+    "status": "pending_confirmation",
+    "subject": "=?UTF-8?Q?Notificaci=C3=B3n_de_transacci=C3=B3n_CA?=",
+    "parsed": {
+      "matched": true,
+      "entity": "BAC Credomatic",
+      "amount": 7013,
+      "currency": "CRC",
+      "type": "gasto",
+      "last4": "0095",
+      "merchant": "CARNES ABARCA",
+      "note": "Compra: CARNES ABARCA (BAC Credomatic)",
+      "category": "Varios",
+      "date": "2026-10-18T19:02:00.000Z"
+    },
+    "suggestedAccount": "No asignada"
+  },
+  {
+    "id": "log_1792895996400_oiqk",
+    "timestamp": "2026-10-25T02:39:56.400Z",
+    "status": "pending_confirmation",
+    "subject": "=?UTF-8?Q?Notificaci=C3=B3n_de_transacci=C3=B3n_?=",
+    "parsed": {
+      "matched": true,
+      "entity": "BAC Credomatic",
+      "amount": 3150,
+      "currency": "CRC",
+      "type": "gasto",
+      "last4": "0095",
+      "merchant": "SUPER ASIA",
+      "note": "Compra: SUPER ASIA (BAC Credomatic)",
+      "category": "Varios",
+      "date": "2026-10-18T19:26:00.000Z"
+    },
+    "suggestedAccount": "No asignada"
+  },
+  {
+    "id": "log_1792895995840_igg5",
+    "timestamp": "2026-10-25T02:39:55.840Z",
+    "status": "pending_confirmation",
+    "subject": "=?UTF-8?Q?Notificaci=C3=B3n_de_transacci=C3=B3n_M?=",
+    "parsed": {
+      "matched": true,
+      "entity": "BAC Credomatic",
+      "amount": 800,
+      "currency": "CRC",
+      "type": "gasto",
+      "last4": "0095",
+      "merchant": "MUSI UCIMED",
+      "note": "Compra: MUSI UCIMED (BAC Credomatic)",
+      "category": "Varios",
+      "date": "2026-10-20T12:51:00.000Z"
+    },
+    "suggestedAccount": "No asignada"
+  },
+  {
+    "id": "log_1792895995265_alcx",
+    "timestamp": "2026-10-25T02:39:55.265Z",
+    "status": "pending_confirmation",
+    "subject": "=?UTF-8?Q?Notificaci=C3=B3n_de_transacci=C3=B3n_COBRO_?=",
+    "parsed": {
+      "matched": true,
+      "entity": "BAC Credomatic",
+      "amount": 2448.38,
+      "currency": "CRC",
+      "type": "gasto",
+      "last4": "0095",
+      "merchant": "COBRO ADMINISTRACION C",
+      "note": "Compra: COBRO ADMINISTRACION C (BAC Credomatic)",
+      "category": "Varios",
+      "date": "2026-10-20T16:22:00.000Z"
+    },
+    "suggestedAccount": "No asignada"
+  },
+  {
+    "id": "log_1792895994676_8u27",
+    "timestamp": "2026-10-25T02:39:54.676Z",
+    "status": "discarded",
+    "subject": "=?UTF-8?Q?Notificaci=C3=B3n_Transferencia_SIN?=",
+    "from": "BAC - SINPE <notificaciones@baccredomatic.cr>",
+    "reason": "No se detectó un monto financiero ejecutable"
+  },
+  {
+    "id": "log_1792895994487_9n2h",
+    "timestamp": "2026-10-25T02:39:54.487Z",
+    "status": "pending_confirmation",
+    "subject": "=?UTF-8?Q?Notificaci=C3=B3n_de_transacci=C3=B3n_?=",
+    "parsed": {
+      "matched": true,
+      "entity": "BAC Credomatic",
+      "amount": 2800,
+      "currency": "CRC",
+      "type": "gasto",
+      "last4": "0095",
+      "merchant": "BAGUETONI",
+      "note": "Compra: BAGUETONI (BAC Credomatic)",
+      "category": "Varios",
+      "date": "2026-10-21T18:40:00.000Z"
+    },
+    "suggestedAccount": "No asignada"
+  },
+  {
+    "id": "log_1792895993888_3e6z",
+    "timestamp": "2026-10-25T02:39:53.888Z",
+    "status": "pending_confirmation",
+    "subject": "=?UTF-8?Q?Notificaci=C3=B3n_de_transacci=C3=B3n_MINI?=",
+    "parsed": {
+      "matched": true,
+      "entity": "BAC Credomatic",
+      "amount": 2450,
+      "currency": "CRC",
+      "type": "gasto",
+      "last4": "0095",
+      "merchant": "MINI SUPER COLIBRI",
+      "note": "Compra: MINI SUPER COLIBRI (BAC Credomatic)",
+      "category": "Varios",
+      "date": "2026-10-21T18:44:00.000Z"
+    },
+    "suggestedAccount": "No asignada"
+  },
+  {
+    "id": "log_1792895993327_viy4",
+    "timestamp": "2026-10-25T02:39:53.327Z",
+    "status": "pending_confirmation",
+    "subject": "=?UTF-8?Q?Notificaci=C3=B3n_de_transacci=C3=B3n_SO?=",
+    "parsed": {
+      "matched": true,
+      "entity": "BAC Credomatic",
+      "amount": 4000,
+      "currency": "CRC",
+      "type": "gasto",
+      "last4": "0095",
+      "merchant": "SODA GLORIANA",
+      "note": "Compra: SODA GLORIANA (BAC Credomatic)",
+      "category": "Varios",
+      "date": "2026-10-22T12:20:00.000Z"
+    },
+    "suggestedAccount": "No asignada"
+  },
+  {
+    "id": "log_1792895992740_0xou",
+    "timestamp": "2026-10-25T02:39:52.740Z",
+    "status": "pending_confirmation",
+    "subject": "=?UTF-8?Q?Notificaci=C3=B3n_de_transacci=C3=B3n_SO?=",
+    "parsed": {
+      "matched": true,
+      "entity": "BAC Credomatic",
+      "amount": 2000,
+      "currency": "CRC",
+      "type": "gasto",
+      "last4": "0095",
+      "merchant": "SODA GLORIANA",
+      "note": "Compra: SODA GLORIANA (BAC Credomatic)",
+      "category": "Varios",
+      "date": "2026-10-22T12:21:00.000Z"
+    },
+    "suggestedAccount": "No asignada"
+  },
+  {
+    "id": "log_1792895992165_fg3m",
+    "timestamp": "2026-10-25T02:39:52.165Z",
+    "status": "discarded",
+    "subject": "=?UTF-8?Q?Notificaci=C3=B3n_de_Transferencia?=",
+    "from": "BAC - SINPE <notificaciones@baccredomatic.cr>",
+    "reason": "No se detectó un monto financiero ejecutable"
+  },
+  {
+    "id": "log_1792895991949_nq6a",
+    "timestamp": "2026-10-25T02:39:51.949Z",
+    "status": "discarded",
+    "subject": "Su documento: 50622102600310119109500100002010000440540100000551",
+    "from": "no-reply@dfr.cloud",
+    "reason": "No se detectó un monto financiero ejecutable"
+  },
+  {
+    "id": "log_1792895991663_upf2",
+    "timestamp": "2026-10-25T02:39:51.663Z",
+    "status": "discarded",
+    "subject": "=?UTF-8?q?Su_validaci=C3=B3n_para_el_documento:_5062210260031011910950010?=",
+    "from": "no-reply@dfr.cloud",
+    "reason": "No se detectó un monto financiero ejecutable"
+  },
+  {
+    "id": "log_1792895991409_ssx8",
+    "timestamp": "2026-10-25T02:39:51.409Z",
+    "status": "pending_confirmation",
+    "subject": "=?UTF-8?Q?Notificaci=C3=B3n_de_transacci=C3=B3n_GESS?=",
+    "parsed": {
+      "matched": true,
+      "entity": "BAC Credomatic",
+      "amount": 1660,
+      "currency": "CRC",
+      "type": "gasto",
+      "last4": "0095",
+      "merchant": "GESSA PERI ANONOS",
+      "note": "Compra: GESSA PERI ANONOS (BAC Credomatic)",
+      "category": "Varios",
+      "date": "2026-10-22T17:31:00.000Z"
+    },
+    "suggestedAccount": "No asignada"
+  },
+  {
+    "id": "log_1792895990847_9fk4",
+    "timestamp": "2026-10-25T02:39:50.847Z",
+    "status": "pending_confirmation",
+    "subject": "=?UTF-8?Q?Notificaci=C3=B3n_de_transacci=C3=B3n_?=",
+    "parsed": {
+      "matched": true,
+      "entity": "BAC Credomatic",
+      "amount": 2600,
+      "currency": "CRC",
+      "type": "gasto",
+      "last4": "8177",
+      "merchant": "Google One",
+      "note": "Compra: Google One (BAC Credomatic)",
+      "category": "Servicios y Software",
+      "date": "2026-10-23T14:26:00.000Z"
+    },
+    "suggestedAccount": "No asignada"
+  },
+  {
+    "id": "log_1792895990116_1gzn",
+    "timestamp": "2026-10-25T02:39:50.116Z",
+    "status": "pending_confirmation",
+    "subject": "=?UTF-8?Q?Notificaci=C3=B3n_de_transacci=C3=B3n_K?=",
+    "parsed": {
+      "matched": true,
+      "entity": "BAC Credomatic",
+      "amount": 2492,
+      "currency": "CRC",
+      "type": "gasto",
+      "last4": "0095",
+      "merchant": "KFC EXPRESS",
+      "note": "Compra: KFC EXPRESS (BAC Credomatic)",
+      "category": "Alimentación y Reuniones",
+      "date": "2026-10-24T23:24:00.000Z"
+    },
+    "suggestedAccount": "No asignada"
+  },
+  {
+    "id": "log_1792895989059_bqzr",
+    "timestamp": "2026-10-25T02:39:49.059Z",
+    "status": "discarded",
+    "subject": "=?UTF-8?Q?Confirmaci=C3=B3n_de_reenv=C3=ADo_de_Gmail=3A_recibir_correo_d?=",
+    "from": "Equipo de Gmail <forwarding-noreply@google.com>",
+    "reason": "No se detectó un monto financiero ejecutable"
+  },
+  {
     "id": "log_1792894211344_msz2",
     "timestamp": "2026-10-25T02:10:11.344Z",
     "status": "pending_confirmation",

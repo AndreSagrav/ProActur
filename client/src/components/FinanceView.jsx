@@ -1346,6 +1346,19 @@ export default function FinanceView() {
                   />
                 </div>
 
+                <div>
+                  <label className="text-slate-300 block mb-1.5 font-medium">Contabilizar a partir de fecha</label>
+                  <input
+                    type="date"
+                    value={mailConfig.syncStartDate || '2026-10-25'}
+                    onChange={(e) => setMailConfig(prev => ({ ...prev, syncStartDate: e.target.value }))}
+                    className="w-full px-4 py-2.5 rounded-xl bg-slate-950/80 border border-white/10 text-white focus:outline-none focus:border-sky-500 font-mono"
+                  />
+                  <span className="text-[10px] text-slate-500 block mt-1">
+                    Cualquier comprobante anterior a esta fecha será ignorado.
+                  </span>
+                </div>
+
                 <div className="pt-2">
                   <label className="flex items-center gap-2.5 cursor-pointer">
                     <input
