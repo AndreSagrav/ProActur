@@ -824,6 +824,16 @@ router.delete('/finance/accounts/:id', async (req, res) => {
   }
 });
 
+router.post('/finance/accounts/reorder', async (req, res) => {
+  try {
+    const { orderedIds } = req.body || {};
+    const accounts = await financeService.reorderAccounts(orderedIds);
+    res.json({ success: true, accounts });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // PRÉSTAMOS & CRÉDITOS
 router.get('/finance/loans', async (req, res) => {
   try {

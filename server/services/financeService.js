@@ -79,13 +79,22 @@ class FinanceService {
         
         if (supaAccounts && supaAccounts.length > 0) {
           const localAccounts = data.accounts || [];
-          data.accounts = supaAccounts.map(sa => {
+          let customOrderIds = localAccounts.map(a => a.id);
+          try {
+            const { data: orderDoc } = await supabase.from('meetings').select('transcript').eq('id', '__sys_accounts_order__').single();
+            if (orderDoc && orderDoc.transcript) {
+              const parsed = JSON.parse(orderDoc.transcript);
+              if (Array.isArray(parsed) && parsed.length > 0) customOrderIds = parsed;
+            }
+          } catch (_) {}
+
+          const mapped = supaAccounts.map(sa => {
             const local = localAccounts.find(la => la.id === sa.id);
             return {
               ...local,
               ...sa,
               last4: sa.last4 || local?.last4,
-              entity: sa.entity || local?.entity || (sa.name.includes('BAC') ? 'BAC Credomatic' : sa.name.includes('Popular') ? 'Banco Popular' : sa.name.includes('Wink') ? 'Wink' : 'Entidad Bancaria'),
+              entity: sa.entity || local?.entity || (sa.name.includes('BAC') ? 'BAC Credomatic' : sa.name.includes('Popular') ? 'Banco Popular' : sa.name.includes('Wink') ? 'Wink' : 'Banco'),
               initialBalance: sa.initial_balance !== undefined ? sa.initial_balance : (local?.initialBalance || 0),
               creditLimit: sa.credit_limit !== undefined ? sa.credit_limit : (local?.creditLimit || (sa.type === 'credito' ? 1344000 : null)),
               cutOffDay: sa.cut_off_day !== undefined ? sa.cut_off_day : (local?.cutOffDay || (sa.type === 'credito' ? 13 : null)),
@@ -103,6 +112,16 @@ class FinanceService {
               rewardPoints: local?.rewardPoints ?? 0
             };
           });
+
+          const sorted = [];
+          for (const id of customOrderIds) {
+            const acc = mapped.find(m => m.id === id);
+            if (acc) sorted.push(acc);
+          }
+          for (const acc of mapped) {
+            if (!sorted.some(s => s.id === acc.id)) sorted.push(acc);
+          }
+          data.accounts = sorted;
         }
         if (supaLoans && supaLoans.length > 0) {
           data.loans = supaLoans;
@@ -160,7 +179,7 @@ class FinanceService {
       };
     });
 
-    const liquidAccounts = enrichedAccounts.filter(a => a.type === 'debito' || a.type === 'efectivo' || a.type === 'ahorro');
+    const liquidAccounts = enrichedAccounts.filter(a => a.type === 'debito' || a.type === 'efectivo' || a.type === 'ahorro' || a.type === 'objetivo');
     const balanceCRC = liquidAccounts
       .filter(a => (a.currency || 'CRC').toUpperCase() === 'CRC')
       .reduce((sum, a) => sum + (Number(a.balance) || 0), 0);
@@ -312,6 +331,37 @@ class FinanceService {
     }
 
     return true;
+  }
+
+  async reorderAccounts(orderedIds) {
+    if (!Array.isArray(orderedIds)) return false;
+    const data = this.readLocal();
+    const existing = data.accounts || [];
+    const ordered = [];
+    for (const id of orderedIds) {
+      const acc = existing.find(a => a.id === id);
+      if (acc) ordered.push(acc);
+    }
+    for (const acc of existing) {
+      if (!ordered.some(o => o.id === acc.id)) ordered.push(acc);
+    }
+    data.accounts = ordered;
+    this.writeLocal(data);
+
+    const supabase = getSupabaseClient();
+    if (supabase) {
+      try {
+        await supabase.from('meetings').upsert({
+          id: '__sys_accounts_order__',
+          title: '[SYSTEM] Accounts Order',
+          summary: 'Orden personalizado de cuentas bancarias',
+          transcript: JSON.stringify(ordered.map(a => a.id)),
+          updated_at: new Date().toISOString()
+        }, { onConflict: 'id' });
+      } catch (_) {}
+    }
+
+    return ordered;
   }
 
   // GESTIÓN DE PRÉSTAMOS

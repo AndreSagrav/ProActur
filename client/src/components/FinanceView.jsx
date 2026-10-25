@@ -5,7 +5,7 @@ import {
   PieChart, RefreshCw, X, Mail, ShieldCheck, CheckCircle2,
   Calendar, Clock, DollarSign, Edit3, ChevronRight, Play, AlertTriangle,
   Zap, Bell, ArrowUpRight, ArrowDownRight, Layers, FileSpreadsheet,
-  Coins, ArrowRightLeft, Percent, Sparkles, Receipt
+  Coins, ArrowRightLeft, Percent, Sparkles, Receipt, ArrowLeft, ArrowRight
 } from 'lucide-react';
 
 const API = import.meta.env.VITE_API_URL || '';
@@ -82,6 +82,7 @@ export default function FinanceView() {
   const [editingAccount, setEditingAccount] = useState(null);
   const [showLoanModal, setShowLoanModal] = useState(false);
   const [editingLoan, setEditingLoan] = useState(null);
+  const [showReorderModal, setShowReorderModal] = useState(false);
 
   // Estados Gmail
   const [mailConfig, setMailConfig] = useState({ email: '', appPassword: '', enabled: false, autoRecord: true });
@@ -292,9 +293,32 @@ export default function FinanceView() {
       const balVal = parseFloat(accountForm.balance) || (parseFloat(accountForm.initialBalance) || 0);
       const initVal = parseFloat(accountForm.initialBalance) || balVal;
 
+      let resolvedEntity = (accountForm.entity || '').trim();
+      if (accountForm.type === 'efectivo') {
+        resolvedEntity = 'Efectivo';
+      } else if (!resolvedEntity) {
+        const lowerName = (accountForm.name || '').toLowerCase();
+        if (lowerName.includes('bac')) resolvedEntity = 'BAC Credomatic';
+        else if (lowerName.includes('wink')) resolvedEntity = 'Wink';
+        else if (lowerName.includes('popular')) resolvedEntity = 'Banco Popular';
+        else if (lowerName.includes('bcr')) resolvedEntity = 'BCR';
+        else if (lowerName.includes('scotia')) resolvedEntity = 'Scotiabank';
+        else if (lowerName.includes('davivienda')) resolvedEntity = 'Davivienda';
+        else resolvedEntity = 'Banco';
+      }
+
+      let resolvedColor = accountForm.color;
+      if (!resolvedColor || resolvedColor === '#0ea5e9') {
+        if (resolvedEntity.includes('BAC')) resolvedColor = '#e4032b';
+        else if (resolvedEntity.includes('Wink')) resolvedColor = '#06b6d4';
+        else if (resolvedEntity.includes('Popular')) resolvedColor = '#f59e0b';
+        else if (resolvedEntity.includes('BCR')) resolvedColor = '#2563eb';
+      }
+
       const payload = {
         ...accountForm,
-        entity: accountForm.type === 'efectivo' ? 'Efectivo' : accountForm.entity,
+        entity: resolvedEntity,
+        color: resolvedColor,
         initialBalance: initVal,
         balance: balVal,
         creditLimit: accountForm.type === 'credito' ? (parseFloat(accountForm.creditLimit) || 0) : null,
@@ -326,6 +350,69 @@ export default function FinanceView() {
     } catch (err) {
       console.error('[Delete Account Error]', err);
     }
+  };
+
+  // Mover cuenta individualmente hacia la izquierda o derecha (acomodarlas a gusto exacto)
+  const handleMoveAccount = async (index, direction) => {
+    const nonCredit = (financeData.accounts || []).filter(a => a.type !== 'credito');
+    const targetIndex = index + direction;
+    if (targetIndex < 0 || targetIndex >= nonCredit.length) return;
+
+    const newNonCredit = [...nonCredit];
+    const temp = newNonCredit[index];
+    newNonCredit[index] = newNonCredit[targetIndex];
+    newNonCredit[targetIndex] = temp;
+
+    const creditCards = (financeData.accounts || []).filter(a => a.type === 'credito');
+    const newAll = [...newNonCredit, ...creditCards];
+
+    setFinanceData(prev => ({ ...prev, accounts: newAll }));
+    playExecutiveSound('click');
+
+    try {
+      await fetch(`${API}/api/finance/accounts/reorder`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ orderedIds: newAll.map(a => a.id) })
+      });
+    } catch (_) {}
+  };
+
+  // Agrupar automáticamente todas las cuentas de la misma entidad (BAC con BAC, Wink con Wink, etc.)
+  const handleGroupByEntity = async () => {
+    const nonCredit = [...(financeData.accounts || []).filter(a => a.type !== 'credito')];
+    
+    const getEntityRank = (entity = '', name = '') => {
+      const full = (entity + ' ' + name).toLowerCase();
+      if (full.includes('bac')) return 1;
+      if (full.includes('wink')) return 2;
+      if (full.includes('popular')) return 3;
+      if (full.includes('bcr')) return 4;
+      if (full.includes('scotia') || full.includes('davivienda')) return 5;
+      if (full.includes('efectivo') || full.includes('caja')) return 9;
+      return 6;
+    };
+
+    nonCredit.sort((a, b) => {
+      const rankA = getEntityRank(a.entity, a.name);
+      const rankB = getEntityRank(b.entity, b.name);
+      if (rankA !== rankB) return rankA - rankB;
+      return (a.name || '').localeCompare(b.name || '');
+    });
+
+    const creditCards = (financeData.accounts || []).filter(a => a.type === 'credito');
+    const newAll = [...nonCredit, ...creditCards];
+
+    setFinanceData(prev => ({ ...prev, accounts: newAll }));
+    playExecutiveSound('success');
+
+    try {
+      await fetch(`${API}/api/finance/accounts/reorder`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ orderedIds: newAll.map(a => a.id) })
+      });
+    } catch (_) {}
   };
 
   // Préstamos
@@ -719,20 +806,44 @@ export default function FinanceView() {
             </div>
           </div>
 
-          {/* SECCIÓN DE CUENTAS BANCARIAS (4 EN UNA SOLA FILA - DISEÑO EJECUTIVO) */}
+          {/* SECCIÓN DE CUENTAS BANCARIAS (DISEÑO EJECUTIVO AGRUPADO Y REORDENABLE) */}
           <div className="space-y-4">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div>
                 <h2 className="text-lg font-bold text-white flex items-center gap-2">
-                  <CreditCard className="w-5 h-5 text-sky-400" />
-                  Mis Cuentas Bancarias
+                  <Landmark className="w-5 h-5 text-sky-400" />
+                  Cuentas Bancarias
                 </h2>
                 <p className="text-xs text-slate-400">
-                  {financeData.accounts.filter(a => a.type !== 'credito').length} cuentas con fondos líquidos disponibles
+                  {financeData.accounts.filter(a => a.type !== 'credito').length} cuentas activas con fondos disponibles • Organizadas a tu gusto
                 </p>
               </div>
 
-              <div className="flex items-center gap-3">
+              <div className="flex flex-wrap items-center gap-2.5">
+                {financeData.accounts.filter(a => a.type !== 'credito').length > 1 && (
+                  <button
+                    type="button"
+                    onClick={() => setShowReorderModal(true)}
+                    className="flex items-center gap-1.5 text-xs px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-sky-400 border border-sky-500/30 transition-all font-semibold shadow-sm active:scale-95"
+                    title="Acomodar cuentas en el orden que prefiera"
+                  >
+                    <ArrowRightLeft className="w-3.5 h-3.5" />
+                    <span>Acomodar a mi gusto</span>
+                  </button>
+                )}
+
+                {financeData.accounts.filter(a => a.type !== 'credito').length > 1 && (
+                  <button
+                    type="button"
+                    onClick={handleGroupByEntity}
+                    className="flex items-center gap-1.5 text-xs px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-sky-400 border border-sky-500/30 transition-all font-semibold shadow-sm active:scale-95"
+                    title="Alinear cuentas por entidad: Todas las del BAC juntas, Wink juntas, Banco Popular juntas"
+                  >
+                    <Layers className="w-3.5 h-3.5" />
+                    <span>Agrupar por Banco</span>
+                  </button>
+                )}
+
                 {financeData.accounts.filter(a => a.type !== 'credito').length > 0 && (
                   <button
                     onClick={() => setFilterAccountId('all')}
@@ -745,12 +856,13 @@ export default function FinanceView() {
                     Ver Todas
                   </button>
                 )}
+
                 <button
                   onClick={() => handleOpenAccountModal(null, 'debito')}
-                  className="flex items-center gap-2 text-xs px-4 py-2.5 rounded-xl bg-gradient-to-r from-sky-600 to-indigo-600 text-white font-semibold hover:from-sky-500 hover:to-indigo-500 transition-all shadow-md shadow-sky-600/25"
+                  className="flex items-center gap-2 text-xs px-4 py-2.5 rounded-xl bg-gradient-to-r from-sky-600 to-indigo-600 text-white font-semibold hover:from-sky-500 hover:to-indigo-500 transition-all shadow-md shadow-sky-600/25 active:scale-95"
                 >
                   <Plus className="w-4 h-4" />
-                  Nueva Cuenta
+                  <span>Nueva Cuenta</span>
                 </button>
               </div>
             </div>
@@ -758,14 +870,14 @@ export default function FinanceView() {
             {financeData.accounts.filter(a => a.type !== 'credito').length === 0 ? (
               <div className="p-12 md:p-16 rounded-3xl bg-slate-900/40 backdrop-blur-md border border-white/10 text-center space-y-5">
                 <div className="w-16 h-16 rounded-3xl bg-gradient-to-tr from-sky-500/10 via-indigo-500/10 to-emerald-500/10 border border-white/10 flex items-center justify-center text-sky-400 mx-auto shadow-inner">
-                  <CreditCard className="w-8 h-8" />
+                  <Landmark className="w-8 h-8" />
                 </div>
                 <div className="max-w-md mx-auto space-y-2">
                   <h3 className="text-lg font-bold text-white">
-                    No hay cuentas configuradas todavía
+                    No hay cuentas bancarias configuradas todavía
                   </h3>
                   <p className="text-xs text-slate-400 leading-relaxed">
-                    Registre sus cuentas bancarias o efectivo físico con su saldo inicial real.
+                    Registre sus cuentas bancarias o efectivo físico con su saldo real.
                   </p>
                 </div>
                 <div>
@@ -774,16 +886,16 @@ export default function FinanceView() {
                     className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-gradient-to-r from-sky-600 to-indigo-600 text-white font-semibold text-xs hover:from-sky-500 hover:to-indigo-500 transition-all shadow-lg shadow-sky-600/30"
                   >
                     <Plus className="w-4 h-4" />
-                    Registrar Cuenta
+                    Registrar Cuenta Bancaria
                   </button>
                 </div>
               </div>
             ) : (
-              /* CARRUSEL DESLIZABLE EN MÓVIL Y CUADRÍCULA EN ESCRITORIO (APPLE WALLET STYLE) */
-              <div className="flex gap-3 overflow-x-auto pb-3 sm:pb-0 scrollbar-none snap-x snap-mandatory sm:grid sm:grid-cols-2 lg:grid-cols-4 sm:gap-4">
+              /* REJILLA RESPONSIVE CON CONTROLES MANUALES PARA ACOMODAR A GUSTO */
+              <div className="flex gap-3 overflow-x-auto pb-3 sm:pb-0 scrollbar-none snap-x snap-mandatory sm:grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 sm:gap-4">
                 {financeData.accounts
                   .filter(acc => acc.type !== 'credito')
-                  .map(acc => {
+                  .map((acc, idx, arr) => {
                     const isSelected = filterAccountId === acc.id;
                     const isCash = acc.type === 'efectivo';
                     const symbol = acc.currency === 'USD' ? '$' : '₡';
@@ -792,26 +904,73 @@ export default function FinanceView() {
                       <div
                         key={acc.id}
                         onClick={() => setFilterAccountId(isSelected ? 'all' : acc.id)}
-                        className={`min-w-[260px] max-w-[280px] shrink-0 snap-start sm:min-w-0 sm:max-w-none relative p-5 rounded-2xl border transition-all cursor-pointer group shadow-sm flex flex-col justify-between h-40 ${
+                        className={`min-w-[270px] max-w-[290px] shrink-0 snap-start sm:min-w-0 sm:max-w-none relative p-5 rounded-2xl border transition-all cursor-pointer group shadow-sm flex flex-col justify-between h-44 ${
                           isSelected
                             ? 'border-sky-500 ring-2 ring-sky-500/30 bg-slate-900/95 shadow-sky-500/10'
                             : 'border-white/10 bg-slate-900/60 hover:border-white/25 hover:bg-slate-900/80'
                         }`}
                       >
                         <div>
-                          {/* Header de la tarjeta */}
+                          {/* Header de la cuenta */}
                           <div className="flex items-center justify-between mb-2.5">
                             <div className="flex items-center gap-2">
                               <span
-                                className="w-2.5 h-2.5 rounded-full shadow-sm"
+                                className="w-2.5 h-2.5 rounded-full shadow-sm shrink-0"
                                 style={{ backgroundColor: acc.color || '#0ea5e9' }}
                               />
                               <span className="text-[11px] font-bold text-slate-300 uppercase tracking-wider truncate max-w-[120px]">
-                                {isCash ? 'Caja Físico' : (acc.entity || 'Banco')}
+                                {isCash ? 'Caja / Efectivo' : (acc.entity || 'Banco')}
                               </span>
                             </div>
-                            <div className="flex items-center gap-1.5">
-                              <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+
+                            <div className="flex items-center gap-1">
+                              {/* Controles para acomodar a gusto exacto del usuario */}
+                              <button
+                                type="button"
+                                disabled={idx === 0}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleMoveAccount(idx, -1);
+                                }}
+                                className="p-1 rounded-md text-slate-400 hover:text-white hover:bg-white/15 disabled:opacity-20 disabled:pointer-events-none transition-all"
+                                title="Mover a la izquierda"
+                              >
+                                <ArrowLeft className="w-3.5 h-3.5" />
+                              </button>
+                              <button
+                                type="button"
+                                disabled={idx === arr.length - 1}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleMoveAccount(idx, 1);
+                                }}
+                                className="p-1 rounded-md text-slate-400 hover:text-white hover:bg-white/15 disabled:opacity-20 disabled:pointer-events-none transition-all"
+                                title="Mover a la derecha"
+                              >
+                                <ArrowRight className="w-3.5 h-3.5" />
+                              </button>
+
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleOpenAccountModal(acc);
+                                }}
+                                className="p-1.5 rounded-lg text-slate-300 hover:text-white bg-slate-950/60 hover:bg-white/10 transition-all border border-white/10 ml-0.5"
+                                title="Editar Cuenta Bancaria"
+                              >
+                                <Edit3 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          </div>
+
+                          {/* Nombre y Badge de Tipo */}
+                          <div>
+                            <div className="flex items-center justify-between gap-1.5">
+                              <div className="font-bold text-white text-sm truncate" title={acc.name}>
+                                {acc.name}
+                              </div>
+                              <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full shrink-0 ${
                                 isCash
                                   ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
                                   : acc.type === 'ahorro'
@@ -820,28 +979,17 @@ export default function FinanceView() {
                                   ? 'bg-purple-500/10 text-purple-400 border border-purple-500/20'
                                   : 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
                               }`}>
-                                {isCash ? 'Efectivo' : acc.type === 'ahorro' ? 'Ahorro' : acc.type === 'objetivo' ? 'Meta/Objetivo' : 'Débito'}
+                                {isCash ? 'Efectivo' : acc.type === 'ahorro' ? 'Ahorros' : acc.type === 'objetivo' ? 'Meta' : 'Cuenta Bancaria'}
                               </span>
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleOpenAccountModal(acc);
-                                }}
-                                className="p-1.5 rounded-lg text-slate-300 hover:text-white bg-slate-950/60 hover:bg-white/10 transition-all border border-white/10"
-                                title="Editar Saldo o Parámetros"
-                              >
-                                <Edit3 className="w-3.5 h-3.5" />
-                              </button>
                             </div>
-                          </div>
 
-                          {/* Nombre y Últimos 4 */}
-                          <div>
-                            <div className="font-bold text-white text-sm truncate" title={acc.name}>
-                              {acc.name}
-                            </div>
-                            <div className="text-[11px] text-slate-400 font-mono mt-0.5">
-                              {isCash ? 'Billetes / Monedas' : acc.last4 ? `•••• ${acc.last4}` : 'Sin tarjeta asociada'}
+                            <div className="text-[11px] text-slate-400 font-mono mt-1 flex items-center justify-between">
+                              <span>
+                                {isCash ? 'Billetes / Monedas' : acc.last4 ? `Cuenta •••• ${acc.last4}` : 'Cuenta Bancaria Activa'}
+                              </span>
+                              <span className="text-[10px] px-1.5 py-0.2 rounded bg-white/10 text-slate-300 font-sans font-bold">
+                                {acc.currency || 'CRC'}
+                              </span>
                             </div>
                           </div>
                         </div>
@@ -849,7 +997,7 @@ export default function FinanceView() {
                         {/* Saldo Disponible */}
                         <div className="pt-2.5 border-t border-white/10 flex flex-col justify-end">
                           <span className="text-[10px] uppercase tracking-wider text-slate-400 font-medium block">
-                            Disponible
+                            Saldo Disponible
                           </span>
                           <div className="flex items-baseline justify-between mt-0.5">
                             <span className="text-xl font-bold font-mono tracking-tight text-emerald-400">
@@ -1929,7 +2077,7 @@ export default function FinanceView() {
                     }))}
                     className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-white/10 text-white focus:outline-none focus:border-sky-500"
                   >
-                    <option value="debito">Cuenta Bancaria (Débito)</option>
+                    <option value="debito">Cuenta Bancaria (Corriente / Vista)</option>
                     <option value="ahorro">Cuenta de Ahorros</option>
                     <option value="objetivo">Objetivo / Meta de Ahorro</option>
                     <option value="credito">Tarjeta de Crédito</option>
@@ -1944,11 +2092,45 @@ export default function FinanceView() {
                     disabled={accountForm.type === 'efectivo'}
                     value={accountForm.type === 'efectivo' ? 'Efectivo' : accountForm.entity}
                     onChange={(e) => setAccountForm(prev => ({ ...prev, entity: e.target.value }))}
-                    placeholder="BAC, Popular, Wink, Scotia"
+                    placeholder="BAC, Wink, Banco Popular..."
                     className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-white/10 text-white disabled:opacity-50"
                   />
                 </div>
               </div>
+
+              {accountForm.type !== 'efectivo' && (
+                <div>
+                  <span className="text-[11px] text-slate-400 block mb-1.5 font-medium">Selección rápida de Banco:</span>
+                  <div className="flex flex-wrap gap-1.5">
+                    {[
+                      { name: 'BAC Credomatic', short: 'BAC', color: '#e4032b' },
+                      { name: 'Wink', short: 'Wink', color: '#06b6d4' },
+                      { name: 'Banco Popular', short: 'Popular', color: '#f59e0b' },
+                      { name: 'BCR', short: 'BCR', color: '#2563eb' },
+                      { name: 'Davivienda', short: 'Davivienda', color: '#dc2626' },
+                      { name: 'Scotiabank', short: 'Scotiabank', color: '#ef4444' }
+                    ].map(b => (
+                      <button
+                        key={b.name}
+                        type="button"
+                        onClick={() => setAccountForm(prev => ({
+                          ...prev,
+                          entity: b.name,
+                          color: b.color,
+                          name: prev.name || `${b.short} ${prev.currency === 'USD' ? 'Dólares' : prev.type === 'ahorro' ? 'Ahorro' : prev.type === 'objetivo' ? 'Meta' : 'Cuenta'}`
+                        }))}
+                        className={`px-2.5 py-1 rounded-lg text-[10px] font-bold transition-all border ${
+                          accountForm.entity === b.name
+                            ? 'bg-sky-500/20 text-sky-300 border-sky-500/50 shadow-sm'
+                            : 'bg-slate-950 text-slate-400 border-white/10 hover:border-white/25 hover:text-white'
+                        }`}
+                      >
+                        {b.short}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               <div>
                 <label className="text-slate-300 block mb-1.5 font-medium">Nombre Descriptivo</label>
@@ -1983,14 +2165,14 @@ export default function FinanceView() {
                   </select>
                 </div>
                 <div>
-                  <label className="text-slate-300 block mb-1.5 font-medium">Últimos 4 Dígitos</label>
+                  <label className="text-slate-300 block mb-1.5 font-medium">Últimos 4 Dígitos (Opcional)</label>
                   <input
                     type="text"
                     maxLength={4}
                     disabled={accountForm.type === 'efectivo'}
                     value={accountForm.type === 'efectivo' ? 'N/A' : accountForm.last4}
                     onChange={(e) => setAccountForm(prev => ({ ...prev, last4: e.target.value }))}
-                    placeholder={accountForm.type === 'ahorro' || accountForm.type === 'objetivo' ? 'Opcional' : '1234'}
+                    placeholder="ej. 1234"
                     className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-white/10 text-white font-mono disabled:opacity-50"
                   />
                 </div>
@@ -2084,6 +2266,107 @@ export default function FinanceView() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* ======================================================== */}
+      {/* MODAL: ACOMODAR CUENTAS A MI GUSTO                       */}
+      {/* ======================================================== */}
+      {showReorderModal && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="w-full max-w-lg rounded-3xl bg-slate-900 border border-white/15 p-6 md:p-7 space-y-5 shadow-2xl">
+            <div className="flex items-center justify-between border-b border-white/10 pb-4">
+              <div>
+                <h3 className="font-bold text-white text-base flex items-center gap-2">
+                  <ArrowRightLeft className="w-4 h-4 text-sky-400" />
+                  Acomodar Cuentas a su Gusto
+                </h3>
+                <p className="text-xs text-slate-400 mt-0.5">
+                  Suba o baje cada cuenta para elegir el orden exacto en que se muestran en el panel.
+                </p>
+              </div>
+              <button
+                onClick={() => setShowReorderModal(false)}
+                className="p-1.5 rounded-lg text-slate-400 hover:text-white"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="space-y-2 max-h-[60vh] overflow-y-auto pr-1">
+              {financeData.accounts
+                .filter(a => a.type !== 'credito')
+                .map((acc, idx, arr) => {
+                  const symbol = acc.currency === 'USD' ? '$' : '₡';
+                  return (
+                    <div
+                      key={acc.id}
+                      className="p-3.5 rounded-2xl bg-slate-950/70 border border-white/10 flex items-center justify-between gap-3 hover:border-white/20 transition-all"
+                    >
+                      <div className="flex items-center gap-3 min-w-0">
+                        <span className="font-mono text-xs font-bold text-slate-500 w-5 text-center">
+                          {idx + 1}
+                        </span>
+                        <span
+                          className="w-3 h-3 rounded-full shrink-0 shadow-sm"
+                          style={{ backgroundColor: acc.color || '#0ea5e9' }}
+                        />
+                        <div className="min-w-0">
+                          <div className="font-bold text-white text-xs truncate">
+                            {acc.name}
+                          </div>
+                          <div className="text-[11px] text-slate-400 flex items-center gap-2">
+                            <span>{acc.entity || 'Banco'}</span>
+                            <span>•</span>
+                            <span className="font-mono text-emerald-400">{symbol}{(acc.balance || 0).toLocaleString()}</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <button
+                          type="button"
+                          disabled={idx === 0}
+                          onClick={() => handleMoveAccount(idx, -1)}
+                          className="px-2.5 py-1.5 rounded-xl bg-slate-800 text-slate-200 hover:text-white hover:bg-slate-700 disabled:opacity-20 disabled:pointer-events-none text-xs font-semibold flex items-center gap-1 border border-white/10 transition-all"
+                          title="Subir"
+                        >
+                          ↑ Subir
+                        </button>
+                        <button
+                          type="button"
+                          disabled={idx === arr.length - 1}
+                          onClick={() => handleMoveAccount(idx, 1)}
+                          className="px-2.5 py-1.5 rounded-xl bg-slate-800 text-slate-200 hover:text-white hover:bg-slate-700 disabled:opacity-20 disabled:pointer-events-none text-xs font-semibold flex items-center gap-1 border border-white/10 transition-all"
+                          title="Bajar"
+                        >
+                          ↓ Bajar
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+            </div>
+
+            <div className="pt-3 border-t border-white/10 flex items-center justify-between gap-3">
+              <button
+                type="button"
+                onClick={handleGroupByEntity}
+                className="px-3.5 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-sky-400 border border-sky-500/30 text-xs font-semibold flex items-center gap-1.5 transition-all active:scale-95"
+                title="Alinear todas las del BAC juntas, Wink juntas, Banco Popular juntas"
+              >
+                <Layers className="w-3.5 h-3.5" />
+                <span>Agrupar por Banco</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowReorderModal(false)}
+                className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-sky-600 to-indigo-600 text-white font-semibold text-xs hover:from-sky-500 hover:to-indigo-500 transition-all shadow-md shadow-sky-600/25"
+              >
+                Listo / Guardar Orden
+              </button>
+            </div>
           </div>
         </div>
       )}
