@@ -876,10 +876,10 @@ router.post('/assistant/edus-jobs', async (req, res) => {
 });
 
 // Consulta de Promociones en Comercios (KFC, etc.)
-router.get('/assistant/promos', (req, res) => {
+router.get('/assistant/promos', async (req, res) => {
   try {
     const merchant = req.query.merchant || 'KFC';
-    const result = edusService.searchPromotions(merchant);
+    const result = await edusService.searchPromotions(merchant);
     res.json(result);
   } catch (err) {
     res.status(500).json({ error: err.message });

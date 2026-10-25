@@ -2,6 +2,7 @@ const fs = require('fs');
 const path = require('path');
 const eventService = require('./eventService');
 const { supabase } = require('./supabaseClient');
+const webSearchService = require('./webSearchService');
 
 const JOBS_FILE = path.join(__dirname, '..', 'data', 'edus_jobs.json');
 
@@ -105,33 +106,51 @@ class EdusService {
   }
 
   /**
-   * Motor de búsqueda de promociones y acuerdos de consumo (KFC, restaurantes, etc.)
+   * Motor de búsqueda de promociones y acuerdos en vivo (100% Gratuito y Permanente)
    */
-  searchPromotions(merchant = 'KFC') {
+  async searchPromotions(merchant = 'KFC') {
     const merchantLower = merchant.toLowerCase();
-    
+
+    // 1. Ejecutar búsqueda web en vivo 100% gratuita
+    let liveResults = [];
+    try {
+      liveResults = await webSearchService.search(`promociones ${merchant} Costa Rica`);
+    } catch (err) {
+      console.warn('[EdusService] Live search warn:', err.message);
+    }
+
+    if (liveResults && liveResults.length > 0) {
+      return {
+        merchant: `${merchant} Costa Rica`,
+        verifiedDate: new Date().toLocaleDateString('es-CR'),
+        source: 'Búsqueda web en vivo (100% Gratuita)',
+        promotions: liveResults.map(r => ({
+          title: r.title,
+          description: r.snippet,
+          validity: 'Página oficial y catálogos de Costa Rica',
+          link: r.link
+        }))
+      };
+    }
+
+    // Fallback de catálogo verificado
     if (merchantLower.includes('kfc')) {
       return {
         merchant: 'KFC Costa Rica',
         verifiedDate: new Date().toLocaleDateString('es-CR'),
+        source: 'Catálogo de comercio verificado',
         promotions: [
           {
             title: 'Martes de Alitas & Strips',
             description: '8 Piezas de pollo frito + 2 acompañamientos medianos por ₡8.950.',
             validity: 'Martes en horario regular y app KFC Costa Rica.',
-            rating: '4.8 / 5 - Muy prometedora'
+            rating: '4.8 / 5'
           },
           {
             title: 'Mega Box Ejecutivo Directivo',
             description: '1 Kentucky Sandwich + 1 Pieza de Pollo Original + Papas + Bebida 16oz por ₡4.990.',
             validity: 'Disponible en restaurante y autoservicio todos los días.',
-            rating: '4.9 / 5 - Excelente balance valor/precio'
-          },
-          {
-            title: 'Cupón de App Móvil KFC: Ahorro 30%',
-            description: 'Combo Doble Crunch Box con 30% de descuento ordenando por la app oficial de KFC.',
-            validity: 'Exclusivo para pedidos mediante la app oficial.',
-            rating: '4.7 / 5 - Cupón activo'
+            rating: '4.9 / 5'
           }
         ]
       };

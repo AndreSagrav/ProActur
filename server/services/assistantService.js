@@ -216,7 +216,7 @@ Estructura JSON requerida según acción:
     // D3) BÚSQUEDA DE PROMOCIONES
     if (parsed.action === 'SEARCH_PROMOS') {
       const merchant = parsed.promo?.merchant || 'KFC';
-      const promoResult = edusService.searchPromotions(merchant);
+      const promoResult = await edusService.searchPromotions(merchant);
       const topPromo = promoResult.promotions[0]?.title || 'Promociones encontradas';
       return {
         action: 'SEARCH_PROMOS',
@@ -312,7 +312,7 @@ Estructura JSON requerida según acción:
 
     // 5. Detección fallback de Promociones (KFC, restaurantes)
     if (lower.includes('kfc') || lower.includes('promocion') || lower.includes('promo') || lower.includes('oferta')) {
-      const promoResult = edusService.searchPromotions('KFC');
+      const promoResult = await edusService.searchPromotions('KFC');
       return {
         action: 'SEARCH_PROMOS',
         message: `Búsqueda de promociones en KFC Costa Rica completada con éxito.`,
