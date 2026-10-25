@@ -1,4 +1,7 @@
-const puppeteer = require('puppeteer-core');
+let puppeteer = null;
+try {
+  puppeteer = require('puppeteer-core');
+} catch (_) {}
 const fs = require('fs');
 const path = require('path');
 const config = require('../config');

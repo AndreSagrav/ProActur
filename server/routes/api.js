@@ -1083,6 +1083,8 @@ router.post('/assistant/chat', async (req, res) => {
     console.error('[Assistant Chat Error]:', err);
     res.status(500).json({ error: err.message });
   }
+});
+
 // Transcripción de Audio en Vivo para Dobby con Groq Whisper (Compatible 100% con Móvil y PC)
 router.post('/assistant/transcribe-audio', upload.single('audio'), async (req, res) => {
   try {
