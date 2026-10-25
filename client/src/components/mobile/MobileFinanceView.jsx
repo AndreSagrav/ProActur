@@ -107,20 +107,46 @@ export default function MobileFinanceView() {
     }
   };
 
-  const fetchMailData = async () => {
+  const fetchMailData = async (triggerSync = false) => {
     try {
       const res = await fetch(`${API}/api/finance/mail-config`);
       if (res.ok) {
         const data = await res.json();
         setMailConfig(data.config || {});
         setMailLogs(data.logs || []);
+
+        const cfg = data.config;
+        if (cfg?.enabled && cfg?.email && triggerSync) {
+          fetch(`${API}/api/finance/mail-sync`, { method: 'POST' })
+            .then(r => r.json())
+            .then(resData => {
+              if (resData.success) {
+                if (resData.recorded > 0) {
+                  fetchFinance();
+                }
+                fetch(`${API}/api/finance/mail-config`)
+                  .then(r => r.json())
+                  .then(d => {
+                    setMailConfig(d.config || {});
+                    setMailLogs(d.logs || []);
+                  }).catch(() => {});
+              }
+            })
+            .catch(() => {});
+        }
       }
     } catch (_) {}
   };
 
   useEffect(() => {
     fetchFinance();
-    fetchMailData();
+    fetchMailData(true);
+
+    const interval = setInterval(() => {
+      fetchMailData(true);
+    }, 60 * 1000);
+
+    return () => clearInterval(interval);
   }, []);
 
   const handleCreateTx = async (e) => {

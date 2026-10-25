@@ -159,7 +159,7 @@ export default function FinanceView() {
     }
   };
 
-  const fetchMailData = async () => {
+  const fetchMailData = async (triggerSync = false) => {
     try {
       const res = await fetch(`${API}/api/finance/mail-config`);
       if (res.ok) {
@@ -167,20 +167,24 @@ export default function FinanceView() {
         setMailConfig(data.config || {});
         setMailLogs(data.logs || []);
 
-        // Auto-sincronizar silenciosamente al abrir la vista si lleva más de 10 min sin sincronizar
         const cfg = data.config;
-        if (cfg?.enabled && cfg?.email) {
-          const last = cfg.lastSync ? new Date(cfg.lastSync).getTime() : 0;
-          if (Date.now() - last > 10 * 60 * 1000) {
-            fetch(`${API}/api/finance/mail-sync`, { method: 'POST' })
-              .then(r => r.json())
-              .then(resData => {
-                if (resData.success && resData.recorded > 0) {
+        if (cfg?.enabled && cfg?.email && triggerSync) {
+          fetch(`${API}/api/finance/mail-sync`, { method: 'POST' })
+            .then(r => r.json())
+            .then(resData => {
+              if (resData.success) {
+                if (resData.recorded > 0) {
                   fetchFinanceData();
                 }
-              })
-              .catch(() => {});
-          }
+                fetch(`${API}/api/finance/mail-config`)
+                  .then(r => r.json())
+                  .then(d => {
+                    setMailConfig(d.config || {});
+                    setMailLogs(d.logs || []);
+                  }).catch(() => {});
+              }
+            })
+            .catch(() => {});
         }
       }
     } catch (_) {}
@@ -188,7 +192,13 @@ export default function FinanceView() {
 
   useEffect(() => {
     fetchFinanceData();
-    fetchMailData();
+    fetchMailData(true);
+
+    const interval = setInterval(() => {
+      fetchMailData(true);
+    }, 60 * 1000);
+
+    return () => clearInterval(interval);
   }, []);
 
   // Transacciones

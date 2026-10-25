@@ -734,6 +734,16 @@ router.post('/meetings/:id/ask', async (req, res) => {
 router.get('/finance/summary', async (req, res) => {
   try {
     const { month, year } = req.query;
+
+    // Auto-sincronización proactiva de correos bancarios si lleva más de 2 minutos sin sincronizar
+    const mailCfg = bankMailService.getConfig();
+    if (mailCfg && mailCfg.enabled && mailCfg.email && mailCfg.appPassword) {
+      const last = mailCfg.lastSync ? new Date(mailCfg.lastSync).getTime() : 0;
+      if (Date.now() - last > 2 * 60 * 1000) {
+        bankMailService.syncInbox().catch(() => {});
+      }
+    }
+
     const summary = await financeService.getSummary(month, year);
     res.json(summary);
   } catch (err) {

@@ -176,10 +176,14 @@ class BankMailService {
       if (fs.existsSync(LOGS_FILE)) {
         logs = JSON.parse(fs.readFileSync(LOGS_FILE, 'utf8'));
       }
+      const cleanSubject = decodeMimeWords(logItem.subject || '');
+      const cleanFrom = decodeMimeWords(logItem.from || '');
       logs.unshift({
         id: 'log_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6),
         timestamp: new Date().toISOString(),
-        ...logItem
+        ...logItem,
+        subject: cleanSubject,
+        from: cleanFrom
       });
       fs.writeFileSync(LOGS_FILE, JSON.stringify(logs.slice(0, 100), null, 2), 'utf8');
     } catch (_) {}
@@ -378,6 +382,7 @@ class BankMailService {
 
     const summary = await financeService.getSummary();
     const accounts = summary.accounts || [];
+    const transactions = summary.transactions || [];
 
     // Buscar la cuenta que coincide con los últimos 4 dígitos (priorizando coincidencia de moneda USD vs CRC)
     let targetAccount = null;
@@ -400,6 +405,24 @@ class BankMailService {
     }
     if (!targetAccount) {
       targetAccount = accounts[0];
+    }
+
+    // CONTROL ESTRICTO DE DUPLICADOS:
+    // Si ya existe una transacción con el mismo monto, cuenta y comercio/fecha registrada automáticamente, omitir
+    const isDuplicate = transactions.some(tx => {
+      const sameAcc = tx.accountId === targetAccount.id;
+      const sameAmount = Math.abs(Number(tx.amount) - Number(parsed.amount)) < 0.01;
+      const sameCurrency = (tx.currency || 'CRC') === (parsed.currency || 'CRC');
+      const sameMerchant = tx.merchant && parsed.merchant && tx.merchant.toLowerCase().trim() === parsed.merchant.toLowerCase().trim();
+      const sameDate = tx.date && parsed.date && tx.date.slice(0, 10) === parsed.date.slice(0, 10);
+      return sameAcc && sameAmount && sameCurrency && (sameMerchant || sameDate);
+    });
+
+    if (isDuplicate) {
+      return {
+        status: 'duplicate',
+        reason: `Transacción ya registrada previamente (${parsed.merchant} - ${parsed.currency} ${parsed.amount})`
+      };
     }
 
     if (config.autoRecord && targetAccount) {
@@ -618,7 +641,7 @@ class BankMailService {
                 const searchMatch = buffer.match(/\* SEARCH ([\d\s]+)/);
                 if (searchMatch && searchMatch[1].trim()) {
                   const allIds = searchMatch[1].trim().split(/\s+/).map(Number).filter(n => !isNaN(n));
-                  msgIds = allIds.slice(-20).reverse();
+                  msgIds = allIds.slice(-50).reverse();
                 }
                 buffer = '';
                 if (msgIds.length === 0) {

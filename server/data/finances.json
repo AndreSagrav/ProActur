@@ -7,7 +7,7 @@
       "type": "debito",
       "last4": "0095",
       "initialBalance": 14598,
-      "balance": 14598,
+      "balance": 12048,
       "currency": "CRC",
       "creditLimit": null,
       "cutOffDay": null,
@@ -57,12 +57,12 @@
       "currency": "CRC",
       "creditLimit": 1344000,
       "creditLimitUSD": 3000,
-      "availableCredit": 1301445.20,
+      "availableCredit": 1301445.2,
       "availableCreditUSD": 2905.01,
       "cashPaymentCRC": 0,
       "cashPaymentUSD": 68.99,
       "minPaymentCRC": 0,
-      "minPaymentUSD": 5.00,
+      "minPaymentUSD": 5,
       "interestRateCRC": 32,
       "interestRateUSD": 27.5,
       "cutOffDay": 13,
@@ -88,6 +88,20 @@
     }
   ],
   "loans": [],
-  "transactions": [],
+  "transactions": [
+    {
+      "id": "tx_1792936782903",
+      "accountId": "acc_1792898165250",
+      "type": "gasto",
+      "category": "Gasolina y Transporte",
+      "note": "Compra: AM PM TRES RIOS (BAC Credomatic)",
+      "merchant": "AM PM TRES RIOS",
+      "amount": 2550,
+      "currency": "CRC",
+      "source": "gmail_auto",
+      "rawSnippet": "=?UTF-8?Q?Notificaci=C3=B3n_de_transacci=C3=B3n_AM_?=",
+      "date": "2026-10-25T13:59:42.903Z"
+    }
+  ],
   "budgets": []
 }
