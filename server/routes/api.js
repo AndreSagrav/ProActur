@@ -1105,22 +1105,36 @@ router.post('/assistant/edus-jobs', async (req, res) => {
   }
 });
 
-// Automatización de Navegador en Vivo Doby (Web Agent EDUS CCSS)
-router.post('/assistant/doby-browser/launch', async (req, res) => {
+// Automatización de Navegador en Vivo Dobby (Web Agent EDUS CCSS)
+const handleLaunchDobby = async (req, res) => {
   try {
-    const { userCedula, userClave, headless } = req.body || {};
+    const { userCedula, userClave, headless, autoSolve } = req.body || {};
     const result = await dobyBrowserService.launchEdusPortal({
       headless: headless !== undefined ? headless : false,
       userCedula,
-      userClave
+      userClave,
+      autoSolve: autoSolve !== false
     });
     res.json(result);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
-});
+};
+router.post('/assistant/dobby-browser/launch', handleLaunchDobby);
+router.post('/assistant/doby-browser/launch', handleLaunchDobby);
 
-router.post('/assistant/doby-browser/captcha', async (req, res) => {
+const handleSolveCaptcha = async (req, res) => {
+  try {
+    const result = await dobyBrowserService.autoSolveCaptcha();
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
+router.post('/assistant/dobby-browser/auto-solve', handleSolveCaptcha);
+router.post('/assistant/doby-browser/auto-solve', handleSolveCaptcha);
+
+const handleSubmitCaptcha = async (req, res) => {
   try {
     const { captchaCode } = req.body || {};
     if (!captchaCode) return res.status(400).json({ error: 'Debe ingresar el código de seguridad (Captcha).' });
@@ -1129,25 +1143,31 @@ router.post('/assistant/doby-browser/captcha', async (req, res) => {
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
-});
+};
+router.post('/assistant/dobby-browser/captcha', handleSubmitCaptcha);
+router.post('/assistant/doby-browser/captcha', handleSubmitCaptcha);
 
-router.get('/assistant/doby-browser/status', async (req, res) => {
+const handleGetStatus = async (req, res) => {
   try {
     const result = await dobyBrowserService.getStatus();
     res.json(result);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
-});
+};
+router.get('/assistant/dobby-browser/status', handleGetStatus);
+router.get('/assistant/doby-browser/status', handleGetStatus);
 
-router.post('/assistant/doby-browser/close', async (req, res) => {
+const handleCloseBrowser = async (req, res) => {
   try {
     const result = await dobyBrowserService.close();
     res.json(result);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
-});
+};
+router.post('/assistant/dobby-browser/close', handleCloseBrowser);
+router.post('/assistant/doby-browser/close', handleCloseBrowser);
 
 module.exports = router;
 

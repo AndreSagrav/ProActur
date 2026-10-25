@@ -17,7 +17,7 @@ export default function ConversationalAssistantModal({
     {
       id: 'welcome',
       role: 'assistant',
-      text: 'Hola César, soy Doby, tu copiloto ejecutivo. ¿En qué te colaboro hoy?',
+      text: 'Hola César, soy Dobby, tu copiloto ejecutivo. ¿En qué te colaboro hoy?',
       action: 'GREETING',
       timestamp: new Date().toLocaleTimeString('es-CR', { hour: '2-digit', minute: '2-digit' })
     }
@@ -32,10 +32,12 @@ export default function ConversationalAssistantModal({
     active: false,
     status: 'inactivo',
     screenshot: null,
-    logs: []
+    logs: [],
+    solvedCaptcha: null
   });
   const [captchaInput, setCaptchaInput] = useState('');
   const [isLaunchingBrowser, setIsLaunchingBrowser] = useState(false);
+  const [isSolvingCaptcha, setIsSolvingCaptcha] = useState(false);
 
   const messagesEndRef = useRef(null);
   const recognitionRef = useRef(null);
@@ -43,7 +45,7 @@ export default function ConversationalAssistantModal({
 
   const checkBrowserStatus = async () => {
     try {
-      const res = await fetch(`${API}/api/assistant/doby-browser/status`);
+      const res = await fetch(`${API}/api/assistant/dobby-browser/status`);
       if (res.ok) {
         const data = await res.json();
         if (data.hasActiveBrowser) {
@@ -51,20 +53,24 @@ export default function ConversationalAssistantModal({
             active: true,
             status: data.status,
             screenshot: data.screenshot,
-            logs: data.logs || []
+            logs: data.logs || [],
+            solvedCaptcha: data.solvedCaptcha || null
           });
+          if (data.solvedCaptcha && !captchaInput) {
+            setCaptchaInput(data.solvedCaptcha);
+          }
         }
       }
     } catch (_) {}
   };
 
-  const handleLaunchDobyBrowser = async () => {
+  const handleLaunchDobbyBrowser = async () => {
     try {
       setIsLaunchingBrowser(true);
-      const res = await fetch(`${API}/api/assistant/doby-browser/launch`, {
+      const res = await fetch(`${API}/api/assistant/dobby-browser/launch`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ headless: false })
+        body: JSON.stringify({ headless: false, autoSolve: true })
       });
       const data = await res.json();
       if (data.success) {
@@ -72,9 +78,15 @@ export default function ConversationalAssistantModal({
           active: true,
           status: data.status,
           screenshot: data.screenshot,
-          logs: data.logs || []
+          logs: data.logs || [],
+          solvedCaptcha: data.solvedCaptcha || null
         });
-        speakText('Navegador Chrome abierto en tu pantalla en el portal de EDUS. Ingresa el código de seguridad o tus credenciales para continuar.');
+        if (data.solvedCaptcha) {
+          setCaptchaInput(data.solvedCaptcha);
+          speakText(`Chrome abierto en pantalla. Dobby descifró el código captcha ${data.solvedCaptcha} automáticamente.`);
+        } else {
+          speakText('Chrome abierto en tu pantalla en el portal de EDUS.');
+        }
       } else {
         alert(data.error || 'No se pudo abrir el navegador.');
       }
@@ -85,24 +97,42 @@ export default function ConversationalAssistantModal({
     }
   };
 
+  const handleAutoSolveCaptcha = async () => {
+    try {
+      setIsSolvingCaptcha(true);
+      const res = await fetch(`${API}/api/assistant/dobby-browser/auto-solve`, { method: 'POST' });
+      const data = await res.json();
+      if (data.success && data.code) {
+        setCaptchaInput(data.code);
+        checkBrowserStatus();
+        speakText(`Dobby descifró el código: ${data.code}.`);
+      } else {
+        alert(data.error || 'No se pudo descifrar el captcha automáticamente.');
+      }
+    } catch (err) {
+      alert(err.message);
+    } finally {
+      setIsSolvingCaptcha(false);
+    }
+  };
+
   const handleSendCaptcha = async () => {
     if (!captchaInput.trim()) return;
     try {
-      const res = await fetch(`${API}/api/assistant/doby-browser/captcha`, {
+      const res = await fetch(`${API}/api/assistant/dobby-browser/captcha`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ captchaCode: captchaInput.trim() })
       });
       const data = await res.json();
       if (data.success) {
-        setCaptchaInput('');
         setBrowserSession(prev => ({
           ...prev,
           status: data.status,
           screenshot: data.screenshot || prev.screenshot,
           logs: data.logs || prev.logs
         }));
-        speakText('Código de seguridad enviado. Procesando sesión de EDUS.');
+        speakText('Código captcha enviado a Chrome.');
       } else {
         alert(data.error || 'Error al enviar código.');
       }
@@ -113,8 +143,9 @@ export default function ConversationalAssistantModal({
 
   const handleCloseBrowser = async () => {
     try {
-      await fetch(`${API}/api/assistant/doby-browser/close`, { method: 'POST' });
-      setBrowserSession({ active: false, status: 'inactivo', screenshot: null, logs: [] });
+      await fetch(`${API}/api/assistant/dobby-browser/close`, { method: 'POST' });
+      setBrowserSession({ active: false, status: 'inactivo', screenshot: null, logs: [], solvedCaptcha: null });
+      setCaptchaInput('');
     } catch (_) {}
   };
 
@@ -367,7 +398,7 @@ export default function ConversationalAssistantModal({
 
             <div>
               <div className="flex items-center gap-2">
-                <h3 className="text-sm font-black text-white tracking-tight">Doby</h3>
+                <h3 className="text-sm font-black text-white tracking-tight">Dobby</h3>
                 <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-bold">
                   Copiloto Ejecutivo
                 </span>
@@ -420,7 +451,7 @@ export default function ConversationalAssistantModal({
           </div>
         )}
 
-        {/* PANEL DE CONTROL DEL NAVEGADOR EN VIVO (DOBY WEB AGENT) */}
+        {/* PANEL DE CONTROL DEL NAVEGADOR EN VIVO (DOBBY WEB AGENT) */}
         {browserSession.active && (
           <div className="p-3.5 mx-4 mt-2 rounded-2xl bg-slate-950 border border-sky-500/30 space-y-2.5 shadow-xl shrink-0 animate-fade-in">
             <div className="flex items-center justify-between">
@@ -430,6 +461,11 @@ export default function ConversationalAssistantModal({
                   <Globe className="w-4 h-4 text-sky-400" />
                   Google Chrome En Pantalla • EDUS CCSS
                 </span>
+                {browserSession.solvedCaptcha && (
+                  <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 border border-emerald-500/30 text-emerald-300 font-mono text-[10px] font-bold">
+                    Captcha IA: {browserSession.solvedCaptcha}
+                  </span>
+                )}
               </div>
               <button
                 type="button"
@@ -454,26 +490,36 @@ export default function ConversationalAssistantModal({
               </div>
             )}
 
-            {/* Formulario de Captcha / Código de Seguridad */}
+            {/* Acciones y Autoresolución de Captcha */}
             <div className="flex items-center gap-2">
               <input
                 type="text"
                 value={captchaInput}
                 onChange={(e) => setCaptchaInput(e.target.value)}
-                placeholder="Digita el Código de Seguridad (Captcha)..."
+                placeholder="Código captcha (resuelto por Dobby)..."
                 className="flex-1 bg-slate-900 border border-white/10 rounded-xl px-3 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-sky-500 font-mono tracking-wider uppercase"
               />
               <button
                 type="button"
+                onClick={handleAutoSolveCaptcha}
+                disabled={isSolvingCaptcha}
+                className="px-2.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-sky-300 border border-sky-500/30 font-semibold text-xs flex items-center gap-1 shrink-0 transition-all"
+                title="Volver a leer el código con visión IA"
+              >
+                <Sparkles className="w-3.5 h-3.5 text-sky-400" />
+                <span>{isSolvingCaptcha ? 'Leyendo...' : 'Descifrar con IA'}</span>
+              </button>
+              <button
+                type="button"
                 onClick={handleSendCaptcha}
                 disabled={!captchaInput.trim()}
-                className="px-3 py-1.5 rounded-xl bg-gradient-to-r from-sky-600 to-indigo-600 hover:from-sky-500 hover:to-indigo-500 text-white font-bold text-xs disabled:opacity-50 transition-all shrink-0 shadow-md"
+                className="px-3 py-1.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-xs disabled:opacity-50 transition-all shrink-0 shadow-md"
               >
-                Enviar a Chrome
+                Ingresar a EDUS
               </button>
             </div>
             <p className="text-[10px] text-slate-400">
-              💡 Chrome está abierto en tu escritorio. Puedes interactuar en él directamente o ingresar el código captcha aquí para que Doby lo envíe.
+              💡 Dobby gestiona Chrome en tu escritorio de forma autónoma: lee el captcha con visión IA, lo digita y mantiene tu sesión activa.
             </p>
           </div>
         )}
@@ -511,7 +557,7 @@ export default function ConversationalAssistantModal({
                       {m.action === 'EDUS_MONITORING' && (
                         <button
                           type="button"
-                          onClick={handleLaunchDobyBrowser}
+                          onClick={handleLaunchDobbyBrowser}
                           disabled={isLaunchingBrowser}
                           className="px-2.5 py-1 rounded-lg bg-sky-600 hover:bg-sky-500 text-white font-bold text-[10px] flex items-center gap-1 shadow-sm transition-all"
                         >
