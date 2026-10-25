@@ -757,7 +757,7 @@ const handleNewNote = (linkedMeeting = null) => {
         {/* =================================================================== */}
         {activeTab === 'finance' && (
           <div className="w-full">
-            {isCompact ? <MobileFinanceView /> : <FinanceView />}
+            <FinanceView />
           </div>
         )}
 

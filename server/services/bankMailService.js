@@ -384,10 +384,18 @@ class BankMailService {
     const accounts = summary.accounts || [];
     const transactions = summary.transactions || [];
 
+    // Helper para obtener los 4 dígitos de la cuenta (de la propiedad last4 o extrayéndolos del nombre ej. "BAC Débito 0095")
+    const getAccountLast4 = (a) => {
+      if (a.last4) return String(a.last4).trim();
+      const match = (a.name || '').match(/\b\d{4}\b/);
+      return match ? match[0] : null;
+    };
+
     // Buscar la cuenta que coincide con los últimos 4 dígitos (priorizando coincidencia de moneda USD vs CRC)
     let targetAccount = null;
     if (parsed.last4) {
-      const matchingLast4 = accounts.filter(a => a.last4 === parsed.last4);
+      const cleanLast4 = String(parsed.last4).trim();
+      const matchingLast4 = accounts.filter(a => getAccountLast4(a) === cleanLast4);
       if (matchingLast4.length > 1) {
         targetAccount = matchingLast4.find(a => (a.currency || 'CRC') === (parsed.currency || 'CRC')) || matchingLast4[0];
       } else if (matchingLast4.length === 1) {
@@ -407,15 +415,18 @@ class BankMailService {
       targetAccount = accounts[0];
     }
 
-    // CONTROL ESTRICTO DE DUPLICADOS:
-    // Si ya existe una transacción con el mismo monto, cuenta y comercio/fecha registrada automáticamente, omitir
+    // CONTROL ESTRICTO Y UNIVERSAL DE DUPLICADOS:
+    // Una compra real (mismo monto, misma moneda, mismo comercio o fecha) jamás debe registrarse más de una vez
     const isDuplicate = transactions.some(tx => {
-      const sameAcc = tx.accountId === targetAccount.id;
       const sameAmount = Math.abs(Number(tx.amount) - Number(parsed.amount)) < 0.01;
-      const sameCurrency = (tx.currency || 'CRC') === (parsed.currency || 'CRC');
-      const sameMerchant = tx.merchant && parsed.merchant && tx.merchant.toLowerCase().trim() === parsed.merchant.toLowerCase().trim();
+      const sameCurrency = (tx.currency || 'CRC').toUpperCase() === (parsed.currency || 'CRC').toUpperCase();
+      const txNote = (tx.merchant || tx.note || '').toLowerCase();
+      const parseNote = (parsed.merchant || parsed.note || '').toLowerCase();
+      const sameMerchant = txNote.includes(parseNote) || parseNote.includes(txNote);
       const sameDate = tx.date && parsed.date && tx.date.slice(0, 10) === parsed.date.slice(0, 10);
-      return sameAcc && sameAmount && sameCurrency && (sameMerchant || sameDate);
+
+      // Si coincide en monto y moneda con mismo comercio o misma fecha en cualquier cuenta
+      return sameAmount && sameCurrency && (sameMerchant || sameDate);
     });
 
     if (isDuplicate) {

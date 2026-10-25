@@ -542,30 +542,30 @@ export default function FinanceView() {
           </div>
         </div>
 
-        {/* NAVEGADOR DE PESTAÑAS DIRECTAS (CERO TÍTULOS ACADÉMICOS) */}
-        <div className="inline-flex items-center p-1.5 bg-slate-900/90 backdrop-blur-md rounded-2xl border border-white/10 shadow-xl">
+        {/* NAVEGADOR DE PESTAÑAS DIRECTAS (100% IDÉNTICO EN PC Y MÓVIL) */}
+        <div className="flex items-center gap-1.5 p-1.5 bg-slate-900/90 backdrop-blur-md rounded-2xl border border-white/10 shadow-xl overflow-x-auto max-w-full scrollbar-none">
           <button
             onClick={() => setActiveTab('cuentas')}
-            className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-semibold transition-all ${
+            className={`flex items-center gap-2 px-3.5 sm:px-5 py-2 sm:py-2.5 rounded-xl text-xs font-semibold transition-all whitespace-nowrap shrink-0 ${
               activeTab === 'cuentas'
                 ? 'bg-gradient-to-r from-sky-600 to-indigo-600 text-white shadow-md shadow-sky-600/30'
                 : 'text-slate-400 hover:text-white hover:bg-white/5'
             }`}
           >
-            <CreditCard className="w-4 h-4" />
-            Cuentas
+            <CreditCard className="w-4 h-4 shrink-0" />
+            <span>Cuentas</span>
           </button>
 
           <button
             onClick={() => setActiveTab('prestamos')}
-            className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-semibold transition-all ${
+            className={`flex items-center gap-2 px-3.5 sm:px-5 py-2 sm:py-2.5 rounded-xl text-xs font-semibold transition-all whitespace-nowrap shrink-0 ${
               activeTab === 'prestamos'
                 ? 'bg-gradient-to-r from-sky-600 to-indigo-600 text-white shadow-md shadow-sky-600/30'
                 : 'text-slate-400 hover:text-white hover:bg-white/5'
             }`}
           >
-            <Banknote className="w-4 h-4" />
-            Créditos y Préstamos
+            <Banknote className="w-4 h-4 shrink-0" />
+            <span>Créditos y Préstamos</span>
             {financeData.loans?.some(l => l.isUrgent) && (
               <span className="w-2 h-2 rounded-full bg-rose-500 animate-pulse" />
             )}
@@ -573,26 +573,26 @@ export default function FinanceView() {
 
           <button
             onClick={() => setActiveTab('contabilidad')}
-            className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-semibold transition-all ${
+            className={`flex items-center gap-2 px-3.5 sm:px-5 py-2 sm:py-2.5 rounded-xl text-xs font-semibold transition-all whitespace-nowrap shrink-0 ${
               activeTab === 'contabilidad'
                 ? 'bg-gradient-to-r from-sky-600 to-indigo-600 text-white shadow-md shadow-sky-600/30'
                 : 'text-slate-400 hover:text-white hover:bg-white/5'
             }`}
           >
-            <FileSpreadsheet className="w-4 h-4" />
-            Contabilidad
+            <FileSpreadsheet className="w-4 h-4 shrink-0" />
+            <span>Contabilidad</span>
           </button>
 
           <button
             onClick={() => setActiveTab('gmail')}
-            className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-semibold transition-all ${
+            className={`flex items-center gap-2 px-3.5 sm:px-5 py-2 sm:py-2.5 rounded-xl text-xs font-semibold transition-all whitespace-nowrap shrink-0 ${
               activeTab === 'gmail'
                 ? 'bg-gradient-to-r from-sky-600 to-indigo-600 text-white shadow-md shadow-sky-600/30'
                 : 'text-slate-400 hover:text-white hover:bg-white/5'
             }`}
           >
-            <Mail className="w-4 h-4" />
-            Buzón Gmail
+            <Mail className="w-4 h-4 shrink-0" />
+            <span>Buzón Gmail</span>
           </button>
         </div>
       </div>
@@ -740,16 +740,20 @@ export default function FinanceView() {
                               <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
                                 isCash
                                   ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
+                                  : acc.type === 'ahorro'
+                                  ? 'bg-indigo-500/10 text-indigo-400 border border-indigo-500/20'
+                                  : acc.type === 'objetivo'
+                                  ? 'bg-purple-500/10 text-purple-400 border border-purple-500/20'
                                   : 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
                               }`}>
-                                {isCash ? 'Efectivo' : 'Débito'}
+                                {isCash ? 'Efectivo' : acc.type === 'ahorro' ? 'Ahorro' : acc.type === 'objetivo' ? 'Meta/Objetivo' : 'Débito'}
                               </span>
                               <button
                                 onClick={(e) => {
                                   e.stopPropagation();
                                   handleOpenAccountModal(acc);
                                 }}
-                                className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-white/10 opacity-0 group-hover:opacity-100 transition-all"
+                                className="p-1.5 rounded-lg text-slate-300 hover:text-white bg-slate-950/60 hover:bg-white/10 transition-all border border-white/10"
                                 title="Editar Saldo o Parámetros"
                               >
                                 <Edit3 className="w-3.5 h-3.5" />
@@ -763,7 +767,7 @@ export default function FinanceView() {
                               {acc.name}
                             </div>
                             <div className="text-[11px] text-slate-400 font-mono mt-0.5">
-                              {isCash ? 'Billetes / Monedas' : `•••• ${acc.last4 || '----'}`}
+                              {isCash ? 'Billetes / Monedas' : acc.last4 ? `•••• ${acc.last4}` : 'Sin tarjeta asociada'}
                             </div>
                           </div>
                         </div>
@@ -850,7 +854,69 @@ export default function FinanceView() {
               </div>
             </div>
 
-            <div className="overflow-x-auto">
+            {/* VISTA MÓVIL: TARJETAS COMPACTAS EJECUTIVAS */}
+            <div className="space-y-3 sm:hidden">
+              {filteredTransactions.length === 0 ? (
+                <div className="py-8 text-center text-slate-500 text-xs">
+                  No hay movimientos registrados.
+                </div>
+              ) : (
+                filteredTransactions.map(tx => {
+                  const accId = tx.accountId || tx.account_id;
+                  const account = (financeData.accounts || []).find(a => String(a.id) === String(accId));
+                  const isExpense = tx.type === 'gasto';
+                  const symbol = tx.currency === 'USD' ? '$' : '₡';
+                  const isAuto = tx.source === 'gmail_auto' || (tx.note && (tx.note.includes('BAC') || tx.note.includes('SINPE') || tx.note.includes('Wink')));
+
+                  return (
+                    <div key={tx.id} className="p-4 rounded-2xl bg-slate-950/60 border border-white/10 space-y-2">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <h4 className="font-semibold text-white text-xs leading-snug line-clamp-2">
+                            {tx.note || tx.merchant || 'Movimiento'}
+                          </h4>
+                          <div className="flex items-center gap-2 mt-1 text-[11px] text-slate-400">
+                            <span>{new Date(tx.date).toLocaleDateString('es-CR')}</span>
+                            <span>•</span>
+                            <span className="px-2 py-0.5 rounded bg-slate-800 text-[10px] text-slate-300">
+                              {tx.category}
+                            </span>
+                          </div>
+                        </div>
+                        <div className="text-right shrink-0">
+                          <div className={`font-bold font-mono text-sm ${isExpense ? 'text-rose-400' : 'text-emerald-400'}`}>
+                            {isExpense ? '-' : '+'} {symbol}{(tx.amount || 0).toLocaleString()}
+                          </div>
+                          {isAuto ? (
+                            <span className="inline-flex items-center gap-1 text-[9px] font-semibold px-1.5 py-0.5 rounded-full bg-sky-500/10 text-sky-400 border border-sky-500/20 mt-1">
+                              <Zap className="w-2.5 h-2.5" /> IMAP Auto
+                            </span>
+                          ) : (
+                            <span className="text-[10px] text-slate-500">Manual</span>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="pt-2 border-t border-white/5 flex items-center justify-between text-xs">
+                        <span className="flex items-center gap-1.5 text-slate-300 text-[11px]">
+                          <span className="w-2 h-2 rounded-full" style={{ backgroundColor: account?.color || '#0ea5e9' }} />
+                          {account ? account.name : 'Cuenta Principal'}
+                        </span>
+                        <button
+                          onClick={() => handleDeleteTx(tx.id)}
+                          className="text-[11px] text-rose-400/80 hover:text-rose-300 font-medium"
+                        >
+                          Eliminar
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+
+            {/* VISTA ESCRITORIO: TABLA COMPLETA */}
+            <div className="overflow-x-auto hidden sm:block">
               <table className="w-full text-left text-xs">
                 <thead>
                   <tr className="border-b border-white/10 text-slate-400">
@@ -1763,6 +1829,8 @@ export default function FinanceView() {
                     className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-white/10 text-white focus:outline-none focus:border-sky-500"
                   >
                     <option value="debito">Cuenta Bancaria (Débito)</option>
+                    <option value="ahorro">Cuenta de Ahorros</option>
+                    <option value="objetivo">Objetivo / Meta de Ahorro</option>
                     <option value="credito">Tarjeta de Crédito</option>
                     <option value="efectivo">Efectivo Físico / Caja</option>
                   </select>
@@ -1775,7 +1843,7 @@ export default function FinanceView() {
                     disabled={accountForm.type === 'efectivo'}
                     value={accountForm.type === 'efectivo' ? 'Efectivo' : accountForm.entity}
                     onChange={(e) => setAccountForm(prev => ({ ...prev, entity: e.target.value }))}
-                    placeholder="BAC, Popular, Coopeande"
+                    placeholder="BAC, Popular, Wink, Scotia"
                     className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-white/10 text-white disabled:opacity-50"
                   />
                 </div>
@@ -1788,7 +1856,15 @@ export default function FinanceView() {
                   required
                   value={accountForm.name}
                   onChange={(e) => setAccountForm(prev => ({ ...prev, name: e.target.value }))}
-                  placeholder={accountForm.type === 'efectivo' ? 'ej. Efectivo Personal o Billetera' : 'ej. BAC Débito o Tarjeta Titular'}
+                  placeholder={
+                    accountForm.type === 'efectivo'
+                      ? 'ej. Efectivo Personal o Billetera'
+                      : accountForm.type === 'ahorro'
+                      ? 'ej. BAC Ahorro Emergencias'
+                      : accountForm.type === 'objetivo'
+                      ? 'ej. Meta Vacaciones o Auto'
+                      : 'ej. BAC Débito Principal'
+                  }
                   className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-white/10 text-white focus:outline-none focus:border-sky-500"
                 />
               </div>
@@ -1813,7 +1889,7 @@ export default function FinanceView() {
                     disabled={accountForm.type === 'efectivo'}
                     value={accountForm.type === 'efectivo' ? 'N/A' : accountForm.last4}
                     onChange={(e) => setAccountForm(prev => ({ ...prev, last4: e.target.value }))}
-                    placeholder="1234"
+                    placeholder={accountForm.type === 'ahorro' || accountForm.type === 'objetivo' ? 'Opcional' : '1234'}
                     className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-white/10 text-white font-mono disabled:opacity-50"
                   />
                 </div>
