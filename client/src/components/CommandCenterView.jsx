@@ -207,19 +207,23 @@ export default function CommandCenterView({
             </div>
 
             {/* Tarjeta de Saldo */}
-            <div className="p-4 rounded-2xl bg-slate-950/80 border border-slate-800/80 flex items-center justify-between">
+            <div className="p-4 rounded-2xl bg-slate-950/80 border border-slate-800/80 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div>
                 <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Saldo Total Disponible</span>
                 <div className="text-2xl sm:text-3xl font-black text-white mt-0.5">
-                  ${Number(financeSummary.balance || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })} <span className="text-xs text-slate-400 font-normal">USD</span>
+                  ₡{Number(financeSummary.balanceCRC ?? financeSummary.balance ?? 0).toLocaleString('es-CR', { minimumFractionDigits: 2 })} <span className="text-xs text-emerald-400 font-bold">CRC</span>
+                </div>
+                <div className="text-xs font-semibold text-slate-400 mt-1 flex items-center gap-1.5">
+                  <span>Dólares:</span>
+                  <span className="font-bold text-slate-300 font-mono">${Number(financeSummary.balanceUSD || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })} USD</span>
                 </div>
               </div>
-              <div className="text-right">
+              <div className="text-left sm:text-right">
                 <span className="text-[11px] text-slate-400">Presupuesto Mes</span>
-                <div className="text-xs font-bold text-slate-200 mt-1">
-                  ${Number(financeSummary.monthExpense || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })} / ${Number(financeSummary.budgetLimit || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                <div className="text-xs font-bold text-slate-200 mt-1 font-mono">
+                  ₡{Number(financeSummary.monthExpense || 0).toLocaleString('es-CR', { minimumFractionDigits: 0 })} / ₡{Number(financeSummary.budgetLimit || 0).toLocaleString('es-CR', { minimumFractionDigits: 0 })}
                 </div>
-                <div className="w-28 bg-slate-800 h-2 rounded-full overflow-hidden mt-1.5 ml-auto">
+                <div className="w-28 bg-slate-800 h-2 rounded-full overflow-hidden mt-1.5 sm:ml-auto">
                   <div 
                     className={`h-full rounded-full ${budgetPercent > 85 ? 'bg-rose-500' : 'bg-amber-400'}`}
                     style={{ width: `${budgetPercent}%` }}
@@ -232,24 +236,40 @@ export default function CommandCenterView({
             <div className="space-y-2">
               <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Últimos Movimientos</span>
               <div className="divide-y divide-slate-800/60">
-                {financeSummary.recentTransactions.map(tx => (
-                  <div key={tx.id} className="py-2.5 flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className={`w-7 h-7 rounded-lg flex items-center justify-center text-xs ${
-                        tx.type === 'income' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-slate-800 text-slate-300'
-                      }`}>
-                        {tx.type === 'income' ? <TrendingUp className="w-3.5 h-3.5" /> : <TrendingDown className="w-3.5 h-3.5" />}
+                {financeSummary.recentTransactions.map(tx => {
+                  const isUSD = (tx.currency || '').toUpperCase() === 'USD';
+                  const symbol = isUSD ? '$' : '₡';
+                  const formattedAmt = Number(tx.amount || 0).toLocaleString(isUSD ? 'en-US' : 'es-CR', { minimumFractionDigits: 2 });
+                  const formattedDate = (() => {
+                    if (!tx.date) return '';
+                    try {
+                      const d = new Date(tx.date);
+                      if (isNaN(d.getTime())) return tx.date;
+                      return d.toLocaleDateString('es-CR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
+                    } catch (_) {
+                      return tx.date;
+                    }
+                  })();
+
+                  return (
+                    <div key={tx.id} className="py-2.5 flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className={`w-7 h-7 rounded-lg flex items-center justify-center text-xs ${
+                          tx.type === 'income' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-slate-800 text-slate-300'
+                        }`}>
+                          {tx.type === 'income' ? <TrendingUp className="w-3.5 h-3.5" /> : <TrendingDown className="w-3.5 h-3.5" />}
+                        </div>
+                        <div>
+                          <div className="text-xs font-bold text-slate-200">{tx.category}</div>
+                          <div className="text-[10px] text-slate-400">{tx.note} · {formattedDate}</div>
+                        </div>
                       </div>
-                      <div>
-                        <div className="text-xs font-bold text-slate-200">{tx.category}</div>
-                        <div className="text-[10px] text-slate-400">{tx.note} · {tx.date}</div>
+                      <div className={`text-xs font-bold font-mono ${tx.type === 'income' ? 'text-emerald-400' : 'text-slate-200'}`}>
+                        {tx.type === 'income' ? '+' : '-'}{symbol}{formattedAmt}
                       </div>
                     </div>
-                    <div className={`text-xs font-bold ${tx.type === 'income' ? 'text-emerald-400' : 'text-slate-200'}`}>
-                      {tx.type === 'income' ? '+' : '-'}${Number(tx.amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           </div>

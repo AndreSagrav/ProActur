@@ -160,12 +160,20 @@ class FinanceService {
       };
     });
 
-    const totalBalance = enrichedAccounts
-      .filter(a => a.type === 'debito' || a.type === 'efectivo')
+    const liquidAccounts = enrichedAccounts.filter(a => a.type === 'debito' || a.type === 'efectivo' || a.type === 'ahorro');
+    const balanceCRC = liquidAccounts
+      .filter(a => (a.currency || 'CRC').toUpperCase() === 'CRC')
+      .reduce((sum, a) => sum + (Number(a.balance) || 0), 0);
+    const balanceUSD = liquidAccounts
+      .filter(a => (a.currency || '').toUpperCase() === 'USD')
       .reduce((sum, a) => sum + (Number(a.balance) || 0), 0);
 
-    const totalCreditDebt = enrichedAccounts
-      .filter(a => a.type === 'credito')
+    const creditAccounts = enrichedAccounts.filter(a => a.type === 'credito');
+    const creditDebtCRC = creditAccounts
+      .filter(a => (a.currency || 'CRC').toUpperCase() === 'CRC')
+      .reduce((sum, a) => sum + (Number(a.balance) || 0), 0);
+    const creditDebtUSD = creditAccounts
+      .filter(a => (a.currency || '').toUpperCase() === 'USD')
       .reduce((sum, a) => sum + (Number(a.balance) || 0), 0);
 
     const expenses = (data.transactions || []).filter(t => t.type === 'gasto');
@@ -191,8 +199,12 @@ class FinanceService {
     });
 
     return {
-      balance: totalBalance,
-      creditDebt: totalCreditDebt,
+      balance: balanceCRC,
+      balanceCRC,
+      balanceUSD,
+      creditDebt: creditDebtCRC,
+      creditDebtCRC,
+      creditDebtUSD,
       monthExpense,
       monthIncome,
       budgetLimit,
