@@ -1,5 +1,645 @@
 [
   {
+    "id": "log_1792899242562_if7f",
+    "timestamp": "2026-10-25T03:34:02.562Z",
+    "status": "discarded",
+    "subject": "=?UTF-8?Q?Notificaci=C3=B3n_de_transacci=C3=B3n_LITTLE?=",
+    "from": "=?UTF-8?Q?Notificaci=C3=B3n_BAC?= <NotificacionBAC@baccredomatic.cr>",
+    "reason": "Descartado: correo anterior a la fecha de inicio contable (2026-10-25)"
+  },
+  {
+    "id": "log_1792899242316_oss0",
+    "timestamp": "2026-10-25T03:34:02.316Z",
+    "status": "discarded",
+    "subject": "=?UTF-8?Q?Notificaci=C3=B3n_de_transacci=C3=B3n?=",
+    "from": "=?UTF-8?Q?Notificaci=C3=B3n_BAC?= <NotificacionBAC@baccredomatic.cr>",
+    "reason": "Descartado: correo anterior a la fecha de inicio contable (2026-10-25)"
+  },
+  {
+    "id": "log_1792899242073_34v6",
+    "timestamp": "2026-10-25T03:34:02.073Z",
+    "status": "discarded",
+    "subject": "=?UTF-8?Q?Notificaci=C3=B3n_de_transacci=C3=B3n_CA?=",
+    "from": "=?UTF-8?Q?Notificaci=C3=B3n_BAC?= <NotificacionBAC@baccredomatic.cr>",
+    "reason": "Descartado: correo anterior a la fecha de inicio contable (2026-10-25)"
+  },
+  {
+    "id": "log_1792899241839_c6c2",
+    "timestamp": "2026-10-25T03:34:01.839Z",
+    "status": "discarded",
+    "subject": "=?UTF-8?Q?Notificaci=C3=B3n_de_transacci=C3=B3n_?=",
+    "from": "=?UTF-8?Q?Notificaci=C3=B3n_BAC?= <NotificacionBAC@baccredomatic.cr>",
+    "reason": "Descartado: correo anterior a la fecha de inicio contable (2026-10-25)"
+  },
+  {
+    "id": "log_1792899241604_tf7h",
+    "timestamp": "2026-10-25T03:34:01.604Z",
+    "status": "discarded",
+    "subject": "=?UTF-8?Q?Notificaci=C3=B3n_de_transacci=C3=B3n_M?=",
+    "from": "=?UTF-8?Q?Notificaci=C3=B3n_BAC?= <NotificacionBAC@baccredomatic.cr>",
+    "reason": "Descartado: correo anterior a la fecha de inicio contable (2026-10-25)"
+  },
+  {
+    "id": "log_1792899241359_6dk6",
+    "timestamp": "2026-10-25T03:34:01.359Z",
+    "status": "discarded",
+    "subject": "=?UTF-8?Q?Notificaci=C3=B3n_de_transacci=C3=B3n_COBRO_?=",
+    "from": "=?UTF-8?Q?Notificaci=C3=B3n_BAC?= <NotificacionBAC@baccredomatic.cr>",
+    "reason": "Descartado: correo anterior a la fecha de inicio contable (2026-10-25)"
+  },
+  {
+    "id": "log_1792899241099_a11f",
+    "timestamp": "2026-10-25T03:34:01.099Z",
+    "status": "discarded",
+    "subject": "=?UTF-8?Q?Notificaci=C3=B3n_Transferencia_SIN?=",
+    "from": "BAC - SINPE <notificaciones@baccredomatic.cr>",
+    "reason": "No se detectó un monto financiero ejecutable"
+  },
+  {
+    "id": "log_1792899240891_xgf1",
+    "timestamp": "2026-10-25T03:34:00.891Z",
+    "status": "discarded",
+    "subject": "=?UTF-8?Q?Notificaci=C3=B3n_de_transacci=C3=B3n_?=",
+    "from": "=?UTF-8?Q?Notificaci=C3=B3n_BAC?= <NotificacionBAC@baccredomatic.cr>",
+    "reason": "Descartado: correo anterior a la fecha de inicio contable (2026-10-25)"
+  },
+  {
+    "id": "log_1792899240644_ph7k",
+    "timestamp": "2026-10-25T03:34:00.644Z",
+    "status": "discarded",
+    "subject": "=?UTF-8?Q?Notificaci=C3=B3n_de_transacci=C3=B3n_MINI?=",
+    "from": "=?UTF-8?Q?Notificaci=C3=B3n_BAC?= <NotificacionBAC@baccredomatic.cr>",
+    "reason": "Descartado: correo anterior a la fecha de inicio contable (2026-10-25)"
+  },
+  {
+    "id": "log_1792899240394_e1rj",
+    "timestamp": "2026-10-25T03:34:00.394Z",
+    "status": "discarded",
+    "subject": "=?UTF-8?Q?Notificaci=C3=B3n_de_transacci=C3=B3n_SO?=",
+    "from": "=?UTF-8?Q?Notificaci=C3=B3n_BAC?= <NotificacionBAC@baccredomatic.cr>",
+    "reason": "Descartado: correo anterior a la fecha de inicio contable (2026-10-25)"
+  },
+  {
+    "id": "log_1792899240102_1tw1",
+    "timestamp": "2026-10-25T03:34:00.102Z",
+    "status": "discarded",
+    "subject": "=?UTF-8?Q?Notificaci=C3=B3n_de_transacci=C3=B3n_SO?=",
+    "from": "=?UTF-8?Q?Notificaci=C3=B3n_BAC?= <NotificacionBAC@baccredomatic.cr>",
+    "reason": "Descartado: correo anterior a la fecha de inicio contable (2026-10-25)"
+  },
+  {
+    "id": "log_1792899239628_2qxm",
+    "timestamp": "2026-10-25T03:33:59.628Z",
+    "status": "discarded",
+    "subject": "=?UTF-8?Q?Notificaci=C3=B3n_de_Transferencia?=",
+    "from": "BAC - SINPE <notificaciones@baccredomatic.cr>",
+    "reason": "No se detectó un monto financiero ejecutable"
+  },
+  {
+    "id": "log_1792899239135_xn8j",
+    "timestamp": "2026-10-25T03:33:59.135Z",
+    "status": "discarded",
+    "subject": "Su documento: 50622102600310119109500100002010000440540100000551",
+    "from": "no-reply@dfr.cloud",
+    "reason": "No se detectó un monto financiero ejecutable"
+  },
+  {
+    "id": "log_1792899238719_pg49",
+    "timestamp": "2026-10-25T03:33:58.719Z",
+    "status": "discarded",
+    "subject": "=?UTF-8?q?Su_validaci=C3=B3n_para_el_documento:_5062210260031011910950010?=",
+    "from": "no-reply@dfr.cloud",
+    "reason": "No se detectó un monto financiero ejecutable"
+  },
+  {
+    "id": "log_1792899238467_imxi",
+    "timestamp": "2026-10-25T03:33:58.467Z",
+    "status": "discarded",
+    "subject": "=?UTF-8?Q?Notificaci=C3=B3n_de_transacci=C3=B3n_GESS?=",
+    "from": "=?UTF-8?Q?Notificaci=C3=B3n_BAC?= <NotificacionBAC@baccredomatic.cr>",
+    "reason": "Descartado: correo anterior a la fecha de inicio contable (2026-10-25)"
+  },
+  {
+    "id": "log_1792899238199_8mnj",
+    "timestamp": "2026-10-25T03:33:58.199Z",
+    "status": "discarded",
+    "subject": "=?UTF-8?Q?Notificaci=C3=B3n_de_transacci=C3=B3n_?=",
+    "from": "=?UTF-8?Q?Notificaci=C3=B3n_BAC?= <NotificacionBAC@baccredomatic.cr>",
+    "reason": "Descartado: correo anterior a la fecha de inicio contable (2026-10-25)"
+  },
+  {
+    "id": "log_1792899237961_z2fg",
+    "timestamp": "2026-10-25T03:33:57.961Z",
+    "status": "discarded",
+    "subject": "=?UTF-8?Q?Notificaci=C3=B3n_de_transacci=C3=B3n_K?=",
+    "from": "=?UTF-8?Q?Notificaci=C3=B3n_BAC?= <NotificacionBAC@baccredomatic.cr>",
+    "reason": "Descartado: correo anterior a la fecha de inicio contable (2026-10-25)"
+  },
+  {
+    "id": "log_1792899237721_07aa",
+    "timestamp": "2026-10-25T03:33:57.721Z",
+    "status": "discarded",
+    "subject": "=?UTF-8?Q?Confirmaci=C3=B3n_de_reenv=C3=ADo_de_Gmail=3A_recibir_correo_d?=",
+    "from": "Equipo de Gmail <forwarding-noreply@google.com>",
+    "reason": "No se detectó un monto financiero ejecutable"
+  },
+  {
+    "id": "log_1792899237532_zdbv",
+    "timestamp": "2026-10-25T03:33:57.532Z",
+    "status": "discarded",
+    "subject": "=?UTF-8?Q?Confirmaci=C3=B3n_de_reenv=C3=ADo_de_Gmail=3A_recibir_correo_d?=",
+    "from": "Equipo de Gmail <forwarding-noreply@google.com>",
+    "reason": "No se detectó un monto financiero ejecutable"
+  },
+  {
+    "id": "log_1792899237334_qf2l",
+    "timestamp": "2026-10-25T03:33:57.334Z",
+    "status": "discarded",
+    "subject": "=?UTF-8?Q?Confirmaci=C3=B3n_de_reenv=C3=ADo_de_Gmail=3A_recibir_correo_d?=",
+    "from": "Equipo de Gmail <forwarding-noreply@google.com>",
+    "reason": "No se detectó un monto financiero ejecutable"
+  },
+  {
+    "id": "log_1792898479010_zb54",
+    "timestamp": "2026-10-25T03:21:19.010Z",
+    "status": "discarded",
+    "subject": "=?UTF-8?Q?Notificaci=C3=B3n_de_transacci=C3=B3n_LITTLE?=",
+    "from": "=?UTF-8?Q?Notificaci=C3=B3n_BAC?= <NotificacionBAC@baccredomatic.cr>",
+    "reason": "Descartado: correo anterior a la fecha de inicio contable (2026-10-25)"
+  },
+  {
+    "id": "log_1792898478706_bd3l",
+    "timestamp": "2026-10-25T03:21:18.706Z",
+    "status": "discarded",
+    "subject": "=?UTF-8?Q?Notificaci=C3=B3n_de_transacci=C3=B3n?=",
+    "from": "=?UTF-8?Q?Notificaci=C3=B3n_BAC?= <NotificacionBAC@baccredomatic.cr>",
+    "reason": "Descartado: correo anterior a la fecha de inicio contable (2026-10-25)"
+  },
+  {
+    "id": "log_1792898478417_4d0k",
+    "timestamp": "2026-10-25T03:21:18.417Z",
+    "status": "discarded",
+    "subject": "=?UTF-8?Q?Notificaci=C3=B3n_de_transacci=C3=B3n_CA?=",
+    "from": "=?UTF-8?Q?Notificaci=C3=B3n_BAC?= <NotificacionBAC@baccredomatic.cr>",
+    "reason": "Descartado: correo anterior a la fecha de inicio contable (2026-10-25)"
+  },
+  {
+    "id": "log_1792898478181_fddy",
+    "timestamp": "2026-10-25T03:21:18.181Z",
+    "status": "discarded",
+    "subject": "=?UTF-8?Q?Notificaci=C3=B3n_de_transacci=C3=B3n_?=",
+    "from": "=?UTF-8?Q?Notificaci=C3=B3n_BAC?= <NotificacionBAC@baccredomatic.cr>",
+    "reason": "Descartado: correo anterior a la fecha de inicio contable (2026-10-25)"
+  },
+  {
+    "id": "log_1792898477950_amjb",
+    "timestamp": "2026-10-25T03:21:17.950Z",
+    "status": "discarded",
+    "subject": "=?UTF-8?Q?Notificaci=C3=B3n_de_transacci=C3=B3n_M?=",
+    "from": "=?UTF-8?Q?Notificaci=C3=B3n_BAC?= <NotificacionBAC@baccredomatic.cr>",
+    "reason": "Descartado: correo anterior a la fecha de inicio contable (2026-10-25)"
+  },
+  {
+    "id": "log_1792898477714_zv46",
+    "timestamp": "2026-10-25T03:21:17.714Z",
+    "status": "discarded",
+    "subject": "=?UTF-8?Q?Notificaci=C3=B3n_de_transacci=C3=B3n_COBRO_?=",
+    "from": "=?UTF-8?Q?Notificaci=C3=B3n_BAC?= <NotificacionBAC@baccredomatic.cr>",
+    "reason": "Descartado: correo anterior a la fecha de inicio contable (2026-10-25)"
+  },
+  {
+    "id": "log_1792898476423_3a0w",
+    "timestamp": "2026-10-25T03:21:16.423Z",
+    "status": "discarded",
+    "subject": "=?UTF-8?Q?Notificaci=C3=B3n_Transferencia_SIN?=",
+    "from": "BAC - SINPE <notificaciones@baccredomatic.cr>",
+    "reason": "No se detectó un monto financiero ejecutable"
+  },
+  {
+    "id": "log_1792898475501_jxd0",
+    "timestamp": "2026-10-25T03:21:15.501Z",
+    "status": "discarded",
+    "subject": "=?UTF-8?Q?Notificaci=C3=B3n_de_transacci=C3=B3n_?=",
+    "from": "=?UTF-8?Q?Notificaci=C3=B3n_BAC?= <NotificacionBAC@baccredomatic.cr>",
+    "reason": "Descartado: correo anterior a la fecha de inicio contable (2026-10-25)"
+  },
+  {
+    "id": "log_1792898475059_2a3n",
+    "timestamp": "2026-10-25T03:21:15.059Z",
+    "status": "discarded",
+    "subject": "=?UTF-8?Q?Notificaci=C3=B3n_de_transacci=C3=B3n_MINI?=",
+    "from": "=?UTF-8?Q?Notificaci=C3=B3n_BAC?= <NotificacionBAC@baccredomatic.cr>",
+    "reason": "Descartado: correo anterior a la fecha de inicio contable (2026-10-25)"
+  },
+  {
+    "id": "log_1792898474816_wrxw",
+    "timestamp": "2026-10-25T03:21:14.816Z",
+    "status": "discarded",
+    "subject": "=?UTF-8?Q?Notificaci=C3=B3n_de_transacci=C3=B3n_SO?=",
+    "from": "=?UTF-8?Q?Notificaci=C3=B3n_BAC?= <NotificacionBAC@baccredomatic.cr>",
+    "reason": "Descartado: correo anterior a la fecha de inicio contable (2026-10-25)"
+  },
+  {
+    "id": "log_1792898474583_8djp",
+    "timestamp": "2026-10-25T03:21:14.583Z",
+    "status": "discarded",
+    "subject": "=?UTF-8?Q?Notificaci=C3=B3n_de_transacci=C3=B3n_SO?=",
+    "from": "=?UTF-8?Q?Notificaci=C3=B3n_BAC?= <NotificacionBAC@baccredomatic.cr>",
+    "reason": "Descartado: correo anterior a la fecha de inicio contable (2026-10-25)"
+  },
+  {
+    "id": "log_1792898474348_fktk",
+    "timestamp": "2026-10-25T03:21:14.348Z",
+    "status": "discarded",
+    "subject": "=?UTF-8?Q?Notificaci=C3=B3n_de_Transferencia?=",
+    "from": "BAC - SINPE <notificaciones@baccredomatic.cr>",
+    "reason": "No se detectó un monto financiero ejecutable"
+  },
+  {
+    "id": "log_1792898474039_gxjm",
+    "timestamp": "2026-10-25T03:21:14.039Z",
+    "status": "discarded",
+    "subject": "Su documento: 50622102600310119109500100002010000440540100000551",
+    "from": "no-reply@dfr.cloud",
+    "reason": "No se detectó un monto financiero ejecutable"
+  },
+  {
+    "id": "log_1792898473775_g0yc",
+    "timestamp": "2026-10-25T03:21:13.775Z",
+    "status": "discarded",
+    "subject": "=?UTF-8?q?Su_validaci=C3=B3n_para_el_documento:_5062210260031011910950010?=",
+    "from": "no-reply@dfr.cloud",
+    "reason": "No se detectó un monto financiero ejecutable"
+  },
+  {
+    "id": "log_1792898473385_2cj7",
+    "timestamp": "2026-10-25T03:21:13.385Z",
+    "status": "discarded",
+    "subject": "=?UTF-8?Q?Notificaci=C3=B3n_de_transacci=C3=B3n_GESS?=",
+    "from": "=?UTF-8?Q?Notificaci=C3=B3n_BAC?= <NotificacionBAC@baccredomatic.cr>",
+    "reason": "Descartado: correo anterior a la fecha de inicio contable (2026-10-25)"
+  },
+  {
+    "id": "log_1792898473145_7p2h",
+    "timestamp": "2026-10-25T03:21:13.145Z",
+    "status": "discarded",
+    "subject": "=?UTF-8?Q?Notificaci=C3=B3n_de_transacci=C3=B3n_?=",
+    "from": "=?UTF-8?Q?Notificaci=C3=B3n_BAC?= <NotificacionBAC@baccredomatic.cr>",
+    "reason": "Descartado: correo anterior a la fecha de inicio contable (2026-10-25)"
+  },
+  {
+    "id": "log_1792898472864_jhrp",
+    "timestamp": "2026-10-25T03:21:12.864Z",
+    "status": "discarded",
+    "subject": "=?UTF-8?Q?Notificaci=C3=B3n_de_transacci=C3=B3n_K?=",
+    "from": "=?UTF-8?Q?Notificaci=C3=B3n_BAC?= <NotificacionBAC@baccredomatic.cr>",
+    "reason": "Descartado: correo anterior a la fecha de inicio contable (2026-10-25)"
+  },
+  {
+    "id": "log_1792898472621_oaas",
+    "timestamp": "2026-10-25T03:21:12.621Z",
+    "status": "discarded",
+    "subject": "=?UTF-8?Q?Confirmaci=C3=B3n_de_reenv=C3=ADo_de_Gmail=3A_recibir_correo_d?=",
+    "from": "Equipo de Gmail <forwarding-noreply@google.com>",
+    "reason": "No se detectó un monto financiero ejecutable"
+  },
+  {
+    "id": "log_1792898472284_vkfw",
+    "timestamp": "2026-10-25T03:21:12.284Z",
+    "status": "discarded",
+    "subject": "=?UTF-8?Q?Confirmaci=C3=B3n_de_reenv=C3=ADo_de_Gmail=3A_recibir_correo_d?=",
+    "from": "Equipo de Gmail <forwarding-noreply@google.com>",
+    "reason": "No se detectó un monto financiero ejecutable"
+  },
+  {
+    "id": "log_1792898472097_wsnu",
+    "timestamp": "2026-10-25T03:21:12.097Z",
+    "status": "discarded",
+    "subject": "=?UTF-8?Q?Confirmaci=C3=B3n_de_reenv=C3=ADo_de_Gmail=3A_recibir_correo_d?=",
+    "from": "Equipo de Gmail <forwarding-noreply@google.com>",
+    "reason": "No se detectó un monto financiero ejecutable"
+  },
+  {
+    "id": "log_1792898441018_cgng",
+    "timestamp": "2026-10-25T03:20:41.018Z",
+    "status": "discarded",
+    "subject": "=?UTF-8?Q?Notificaci=C3=B3n_de_transacci=C3=B3n_LITTLE?=",
+    "from": "=?UTF-8?Q?Notificaci=C3=B3n_BAC?= <NotificacionBAC@baccredomatic.cr>",
+    "reason": "Descartado: correo anterior a la fecha de inicio contable (2026-10-25)"
+  },
+  {
+    "id": "log_1792898440781_wxvg",
+    "timestamp": "2026-10-25T03:20:40.781Z",
+    "status": "discarded",
+    "subject": "=?UTF-8?Q?Notificaci=C3=B3n_de_transacci=C3=B3n?=",
+    "from": "=?UTF-8?Q?Notificaci=C3=B3n_BAC?= <NotificacionBAC@baccredomatic.cr>",
+    "reason": "Descartado: correo anterior a la fecha de inicio contable (2026-10-25)"
+  },
+  {
+    "id": "log_1792898440738_cqeg",
+    "timestamp": "2026-10-25T03:20:40.738Z",
+    "status": "discarded",
+    "subject": "=?UTF-8?Q?Notificaci=C3=B3n_de_transacci=C3=B3n_LITTLE?=",
+    "from": "=?UTF-8?Q?Notificaci=C3=B3n_BAC?= <NotificacionBAC@baccredomatic.cr>",
+    "reason": "Descartado: correo anterior a la fecha de inicio contable (2026-10-25)"
+  },
+  {
+    "id": "log_1792898440548_0kwr",
+    "timestamp": "2026-10-25T03:20:40.548Z",
+    "status": "discarded",
+    "subject": "=?UTF-8?Q?Notificaci=C3=B3n_de_transacci=C3=B3n_CA?=",
+    "from": "=?UTF-8?Q?Notificaci=C3=B3n_BAC?= <NotificacionBAC@baccredomatic.cr>",
+    "reason": "Descartado: correo anterior a la fecha de inicio contable (2026-10-25)"
+  },
+  {
+    "id": "log_1792898440499_3rt1",
+    "timestamp": "2026-10-25T03:20:40.499Z",
+    "status": "discarded",
+    "subject": "=?UTF-8?Q?Notificaci=C3=B3n_de_transacci=C3=B3n?=",
+    "from": "=?UTF-8?Q?Notificaci=C3=B3n_BAC?= <NotificacionBAC@baccredomatic.cr>",
+    "reason": "Descartado: correo anterior a la fecha de inicio contable (2026-10-25)"
+  },
+  {
+    "id": "log_1792898440327_9ygx",
+    "timestamp": "2026-10-25T03:20:40.327Z",
+    "status": "discarded",
+    "subject": "=?UTF-8?Q?Notificaci=C3=B3n_de_transacci=C3=B3n_?=",
+    "from": "=?UTF-8?Q?Notificaci=C3=B3n_BAC?= <NotificacionBAC@baccredomatic.cr>",
+    "reason": "Descartado: correo anterior a la fecha de inicio contable (2026-10-25)"
+  },
+  {
+    "id": "log_1792898440276_2be9",
+    "timestamp": "2026-10-25T03:20:40.276Z",
+    "status": "discarded",
+    "subject": "=?UTF-8?Q?Notificaci=C3=B3n_de_transacci=C3=B3n_CA?=",
+    "from": "=?UTF-8?Q?Notificaci=C3=B3n_BAC?= <NotificacionBAC@baccredomatic.cr>",
+    "reason": "Descartado: correo anterior a la fecha de inicio contable (2026-10-25)"
+  },
+  {
+    "id": "log_1792898440093_hh4w",
+    "timestamp": "2026-10-25T03:20:40.093Z",
+    "status": "discarded",
+    "subject": "=?UTF-8?Q?Notificaci=C3=B3n_de_transacci=C3=B3n_M?=",
+    "from": "=?UTF-8?Q?Notificaci=C3=B3n_BAC?= <NotificacionBAC@baccredomatic.cr>",
+    "reason": "Descartado: correo anterior a la fecha de inicio contable (2026-10-25)"
+  },
+  {
+    "id": "log_1792898440041_e76x",
+    "timestamp": "2026-10-25T03:20:40.041Z",
+    "status": "discarded",
+    "subject": "=?UTF-8?Q?Notificaci=C3=B3n_de_transacci=C3=B3n_?=",
+    "from": "=?UTF-8?Q?Notificaci=C3=B3n_BAC?= <NotificacionBAC@baccredomatic.cr>",
+    "reason": "Descartado: correo anterior a la fecha de inicio contable (2026-10-25)"
+  },
+  {
+    "id": "log_1792898439865_cfos",
+    "timestamp": "2026-10-25T03:20:39.865Z",
+    "status": "discarded",
+    "subject": "=?UTF-8?Q?Notificaci=C3=B3n_de_transacci=C3=B3n_COBRO_?=",
+    "from": "=?UTF-8?Q?Notificaci=C3=B3n_BAC?= <NotificacionBAC@baccredomatic.cr>",
+    "reason": "Descartado: correo anterior a la fecha de inicio contable (2026-10-25)"
+  },
+  {
+    "id": "log_1792898439813_fo9z",
+    "timestamp": "2026-10-25T03:20:39.813Z",
+    "status": "discarded",
+    "subject": "=?UTF-8?Q?Notificaci=C3=B3n_de_transacci=C3=B3n_M?=",
+    "from": "=?UTF-8?Q?Notificaci=C3=B3n_BAC?= <NotificacionBAC@baccredomatic.cr>",
+    "reason": "Descartado: correo anterior a la fecha de inicio contable (2026-10-25)"
+  },
+  {
+    "id": "log_1792898439603_xl3k",
+    "timestamp": "2026-10-25T03:20:39.603Z",
+    "status": "discarded",
+    "subject": "=?UTF-8?Q?Notificaci=C3=B3n_Transferencia_SIN?=",
+    "from": "BAC - SINPE <notificaciones@baccredomatic.cr>",
+    "reason": "No se detectó un monto financiero ejecutable"
+  },
+  {
+    "id": "log_1792898439565_9zsf",
+    "timestamp": "2026-10-25T03:20:39.565Z",
+    "status": "discarded",
+    "subject": "=?UTF-8?Q?Notificaci=C3=B3n_de_transacci=C3=B3n_COBRO_?=",
+    "from": "=?UTF-8?Q?Notificaci=C3=B3n_BAC?= <NotificacionBAC@baccredomatic.cr>",
+    "reason": "Descartado: correo anterior a la fecha de inicio contable (2026-10-25)"
+  },
+  {
+    "id": "log_1792898439414_iend",
+    "timestamp": "2026-10-25T03:20:39.414Z",
+    "status": "discarded",
+    "subject": "=?UTF-8?Q?Notificaci=C3=B3n_de_transacci=C3=B3n_?=",
+    "from": "=?UTF-8?Q?Notificaci=C3=B3n_BAC?= <NotificacionBAC@baccredomatic.cr>",
+    "reason": "Descartado: correo anterior a la fecha de inicio contable (2026-10-25)"
+  },
+  {
+    "id": "log_1792898439324_znnh",
+    "timestamp": "2026-10-25T03:20:39.324Z",
+    "status": "discarded",
+    "subject": "=?UTF-8?Q?Notificaci=C3=B3n_Transferencia_SIN?=",
+    "from": "BAC - SINPE <notificaciones@baccredomatic.cr>",
+    "reason": "No se detectó un monto financiero ejecutable"
+  },
+  {
+    "id": "log_1792898439167_t337",
+    "timestamp": "2026-10-25T03:20:39.167Z",
+    "status": "discarded",
+    "subject": "=?UTF-8?Q?Notificaci=C3=B3n_de_transacci=C3=B3n_MINI?=",
+    "from": "=?UTF-8?Q?Notificaci=C3=B3n_BAC?= <NotificacionBAC@baccredomatic.cr>",
+    "reason": "Descartado: correo anterior a la fecha de inicio contable (2026-10-25)"
+  },
+  {
+    "id": "log_1792898439113_3u19",
+    "timestamp": "2026-10-25T03:20:39.113Z",
+    "status": "discarded",
+    "subject": "=?UTF-8?Q?Notificaci=C3=B3n_de_transacci=C3=B3n_?=",
+    "from": "=?UTF-8?Q?Notificaci=C3=B3n_BAC?= <NotificacionBAC@baccredomatic.cr>",
+    "reason": "Descartado: correo anterior a la fecha de inicio contable (2026-10-25)"
+  },
+  {
+    "id": "log_1792898438931_vrmd",
+    "timestamp": "2026-10-25T03:20:38.931Z",
+    "status": "discarded",
+    "subject": "=?UTF-8?Q?Notificaci=C3=B3n_de_transacci=C3=B3n_SO?=",
+    "from": "=?UTF-8?Q?Notificaci=C3=B3n_BAC?= <NotificacionBAC@baccredomatic.cr>",
+    "reason": "Descartado: correo anterior a la fecha de inicio contable (2026-10-25)"
+  },
+  {
+    "id": "log_1792898438896_sjsf",
+    "timestamp": "2026-10-25T03:20:38.896Z",
+    "status": "discarded",
+    "subject": "=?UTF-8?Q?Notificaci=C3=B3n_de_transacci=C3=B3n_MINI?=",
+    "from": "=?UTF-8?Q?Notificaci=C3=B3n_BAC?= <NotificacionBAC@baccredomatic.cr>",
+    "reason": "Descartado: correo anterior a la fecha de inicio contable (2026-10-25)"
+  },
+  {
+    "id": "log_1792898438697_ewtu",
+    "timestamp": "2026-10-25T03:20:38.697Z",
+    "status": "discarded",
+    "subject": "=?UTF-8?Q?Notificaci=C3=B3n_de_transacci=C3=B3n_SO?=",
+    "from": "=?UTF-8?Q?Notificaci=C3=B3n_BAC?= <NotificacionBAC@baccredomatic.cr>",
+    "reason": "Descartado: correo anterior a la fecha de inicio contable (2026-10-25)"
+  },
+  {
+    "id": "log_1792898438660_lut4",
+    "timestamp": "2026-10-25T03:20:38.660Z",
+    "status": "discarded",
+    "subject": "=?UTF-8?Q?Notificaci=C3=B3n_de_transacci=C3=B3n_SO?=",
+    "from": "=?UTF-8?Q?Notificaci=C3=B3n_BAC?= <NotificacionBAC@baccredomatic.cr>",
+    "reason": "Descartado: correo anterior a la fecha de inicio contable (2026-10-25)"
+  },
+  {
+    "id": "log_1792898438467_y29t",
+    "timestamp": "2026-10-25T03:20:38.467Z",
+    "status": "discarded",
+    "subject": "=?UTF-8?Q?Notificaci=C3=B3n_de_Transferencia?=",
+    "from": "BAC - SINPE <notificaciones@baccredomatic.cr>",
+    "reason": "No se detectó un monto financiero ejecutable"
+  },
+  {
+    "id": "log_1792898438441_yodw",
+    "timestamp": "2026-10-25T03:20:38.441Z",
+    "status": "discarded",
+    "subject": "=?UTF-8?Q?Notificaci=C3=B3n_de_transacci=C3=B3n_SO?=",
+    "from": "=?UTF-8?Q?Notificaci=C3=B3n_BAC?= <NotificacionBAC@baccredomatic.cr>",
+    "reason": "Descartado: correo anterior a la fecha de inicio contable (2026-10-25)"
+  },
+  {
+    "id": "log_1792898438267_66s3",
+    "timestamp": "2026-10-25T03:20:38.267Z",
+    "status": "discarded",
+    "subject": "Su documento: 50622102600310119109500100002010000440540100000551",
+    "from": "no-reply@dfr.cloud",
+    "reason": "No se detectó un monto financiero ejecutable"
+  },
+  {
+    "id": "log_1792898438224_uffh",
+    "timestamp": "2026-10-25T03:20:38.224Z",
+    "status": "discarded",
+    "subject": "=?UTF-8?Q?Notificaci=C3=B3n_de_Transferencia?=",
+    "from": "BAC - SINPE <notificaciones@baccredomatic.cr>",
+    "reason": "No se detectó un monto financiero ejecutable"
+  },
+  {
+    "id": "log_1792898438027_g767",
+    "timestamp": "2026-10-25T03:20:38.027Z",
+    "status": "discarded",
+    "subject": "Su documento: 50622102600310119109500100002010000440540100000551",
+    "from": "no-reply@dfr.cloud",
+    "reason": "No se detectó un monto financiero ejecutable"
+  },
+  {
+    "id": "log_1792898437974_9jcc",
+    "timestamp": "2026-10-25T03:20:37.974Z",
+    "status": "discarded",
+    "subject": "=?UTF-8?q?Su_validaci=C3=B3n_para_el_documento:_5062210260031011910950010?=",
+    "from": "no-reply@dfr.cloud",
+    "reason": "No se detectó un monto financiero ejecutable"
+  },
+  {
+    "id": "log_1792898437751_6wd5",
+    "timestamp": "2026-10-25T03:20:37.751Z",
+    "status": "discarded",
+    "subject": "=?UTF-8?Q?Notificaci=C3=B3n_de_transacci=C3=B3n_GESS?=",
+    "from": "=?UTF-8?Q?Notificaci=C3=B3n_BAC?= <NotificacionBAC@baccredomatic.cr>",
+    "reason": "Descartado: correo anterior a la fecha de inicio contable (2026-10-25)"
+  },
+  {
+    "id": "log_1792898437668_hu7t",
+    "timestamp": "2026-10-25T03:20:37.668Z",
+    "status": "discarded",
+    "subject": "=?UTF-8?q?Su_validaci=C3=B3n_para_el_documento:_5062210260031011910950010?=",
+    "from": "no-reply@dfr.cloud",
+    "reason": "No se detectó un monto financiero ejecutable"
+  },
+  {
+    "id": "log_1792898437520_alzv",
+    "timestamp": "2026-10-25T03:20:37.520Z",
+    "status": "discarded",
+    "subject": "=?UTF-8?Q?Notificaci=C3=B3n_de_transacci=C3=B3n_?=",
+    "from": "=?UTF-8?Q?Notificaci=C3=B3n_BAC?= <NotificacionBAC@baccredomatic.cr>",
+    "reason": "Descartado: correo anterior a la fecha de inicio contable (2026-10-25)"
+  },
+  {
+    "id": "log_1792898437410_glgg",
+    "timestamp": "2026-10-25T03:20:37.410Z",
+    "status": "discarded",
+    "subject": "=?UTF-8?Q?Notificaci=C3=B3n_de_transacci=C3=B3n_GESS?=",
+    "from": "=?UTF-8?Q?Notificaci=C3=B3n_BAC?= <NotificacionBAC@baccredomatic.cr>",
+    "reason": "Descartado: correo anterior a la fecha de inicio contable (2026-10-25)"
+  },
+  {
+    "id": "log_1792898437283_tser",
+    "timestamp": "2026-10-25T03:20:37.283Z",
+    "status": "discarded",
+    "subject": "=?UTF-8?Q?Notificaci=C3=B3n_de_transacci=C3=B3n_K?=",
+    "from": "=?UTF-8?Q?Notificaci=C3=B3n_BAC?= <NotificacionBAC@baccredomatic.cr>",
+    "reason": "Descartado: correo anterior a la fecha de inicio contable (2026-10-25)"
+  },
+  {
+    "id": "log_1792898437173_xg3q",
+    "timestamp": "2026-10-25T03:20:37.174Z",
+    "status": "discarded",
+    "subject": "=?UTF-8?Q?Notificaci=C3=B3n_de_transacci=C3=B3n_?=",
+    "from": "=?UTF-8?Q?Notificaci=C3=B3n_BAC?= <NotificacionBAC@baccredomatic.cr>",
+    "reason": "Descartado: correo anterior a la fecha de inicio contable (2026-10-25)"
+  },
+  {
+    "id": "log_1792898437027_pnhg",
+    "timestamp": "2026-10-25T03:20:37.027Z",
+    "status": "discarded",
+    "subject": "=?UTF-8?Q?Confirmaci=C3=B3n_de_reenv=C3=ADo_de_Gmail=3A_recibir_correo_d?=",
+    "from": "Equipo de Gmail <forwarding-noreply@google.com>",
+    "reason": "No se detectó un monto financiero ejecutable"
+  },
+  {
+    "id": "log_1792898436950_e4gm",
+    "timestamp": "2026-10-25T03:20:36.950Z",
+    "status": "discarded",
+    "subject": "=?UTF-8?Q?Notificaci=C3=B3n_de_transacci=C3=B3n_K?=",
+    "from": "=?UTF-8?Q?Notificaci=C3=B3n_BAC?= <NotificacionBAC@baccredomatic.cr>",
+    "reason": "Descartado: correo anterior a la fecha de inicio contable (2026-10-25)"
+  },
+  {
+    "id": "log_1792898436827_cteu",
+    "timestamp": "2026-10-25T03:20:36.827Z",
+    "status": "discarded",
+    "subject": "=?UTF-8?Q?Confirmaci=C3=B3n_de_reenv=C3=ADo_de_Gmail=3A_recibir_correo_d?=",
+    "from": "Equipo de Gmail <forwarding-noreply@google.com>",
+    "reason": "No se detectó un monto financiero ejecutable"
+  },
+  {
+    "id": "log_1792898436705_qx6q",
+    "timestamp": "2026-10-25T03:20:36.705Z",
+    "status": "discarded",
+    "subject": "=?UTF-8?Q?Confirmaci=C3=B3n_de_reenv=C3=ADo_de_Gmail=3A_recibir_correo_d?=",
+    "from": "Equipo de Gmail <forwarding-noreply@google.com>",
+    "reason": "No se detectó un monto financiero ejecutable"
+  },
+  {
+    "id": "log_1792898436524_p2vv",
+    "timestamp": "2026-10-25T03:20:36.524Z",
+    "status": "discarded",
+    "subject": "=?UTF-8?Q?Confirmaci=C3=B3n_de_reenv=C3=ADo_de_Gmail=3A_recibir_correo_d?=",
+    "from": "Equipo de Gmail <forwarding-noreply@google.com>",
+    "reason": "No se detectó un monto financiero ejecutable"
+  },
+  {
+    "id": "log_1792898436513_2i7y",
+    "timestamp": "2026-10-25T03:20:36.513Z",
+    "status": "discarded",
+    "subject": "=?UTF-8?Q?Confirmaci=C3=B3n_de_reenv=C3=ADo_de_Gmail=3A_recibir_correo_d?=",
+    "from": "Equipo de Gmail <forwarding-noreply@google.com>",
+    "reason": "No se detectó un monto financiero ejecutable"
+  },
+  {
+    "id": "log_1792898436333_evyz",
+    "timestamp": "2026-10-25T03:20:36.333Z",
+    "status": "discarded",
+    "subject": "=?UTF-8?Q?Confirmaci=C3=B3n_de_reenv=C3=ADo_de_Gmail=3A_recibir_correo_d?=",
+    "from": "Equipo de Gmail <forwarding-noreply@google.com>",
+    "reason": "No se detectó un monto financiero ejecutable"
+  },
+  {
     "id": "log_1792897624480_ocv8",
     "timestamp": "2026-10-25T03:07:04.480Z",
     "status": "discarded",
@@ -158,1129 +798,5 @@
     "subject": "=?UTF-8?Q?Notificaci=C3=B3n_de_transacci=C3=B3n_CA?=",
     "from": "=?UTF-8?Q?Notificaci=C3=B3n_BAC?= <NotificacionBAC@baccredomatic.cr>",
     "reason": "Descartado: correo anterior a la fecha de inicio contable (2026-10-25)"
-  },
-  {
-    "id": "log_1792897604283_2oma",
-    "timestamp": "2026-10-25T03:06:44.283Z",
-    "status": "discarded",
-    "subject": "=?UTF-8?Q?Confirmaci=C3=B3n_de_reenv=C3=ADo_de_Gmail=3A_recibir_correo_d?=",
-    "from": "Equipo de Gmail <forwarding-noreply@google.com>",
-    "reason": "No se detectó un monto financiero ejecutable"
-  },
-  {
-    "id": "log_1792897604276_0mwj",
-    "timestamp": "2026-10-25T03:06:44.276Z",
-    "status": "discarded",
-    "subject": "=?UTF-8?Q?Notificaci=C3=B3n_de_transacci=C3=B3n_?=",
-    "from": "=?UTF-8?Q?Notificaci=C3=B3n_BAC?= <NotificacionBAC@baccredomatic.cr>",
-    "reason": "Descartado: correo anterior a la fecha de inicio contable (2026-10-25)"
-  },
-  {
-    "id": "log_1792897604052_u2r0",
-    "timestamp": "2026-10-25T03:06:44.052Z",
-    "status": "discarded",
-    "subject": "=?UTF-8?Q?Notificaci=C3=B3n_de_transacci=C3=B3n_M?=",
-    "from": "=?UTF-8?Q?Notificaci=C3=B3n_BAC?= <NotificacionBAC@baccredomatic.cr>",
-    "reason": "Descartado: correo anterior a la fecha de inicio contable (2026-10-25)"
-  },
-  {
-    "id": "log_1792897603850_0ci8",
-    "timestamp": "2026-10-25T03:06:43.850Z",
-    "status": "discarded",
-    "subject": "=?UTF-8?Q?Confirmaci=C3=B3n_de_reenv=C3=ADo_de_Gmail=3A_recibir_correo_d?=",
-    "from": "Equipo de Gmail <forwarding-noreply@google.com>",
-    "reason": "No se detectó un monto financiero ejecutable"
-  },
-  {
-    "id": "log_1792897603777_gff9",
-    "timestamp": "2026-10-25T03:06:43.777Z",
-    "status": "discarded",
-    "subject": "=?UTF-8?Q?Notificaci=C3=B3n_de_transacci=C3=B3n_COBRO_?=",
-    "from": "=?UTF-8?Q?Notificaci=C3=B3n_BAC?= <NotificacionBAC@baccredomatic.cr>",
-    "reason": "Descartado: correo anterior a la fecha de inicio contable (2026-10-25)"
-  },
-  {
-    "id": "log_1792897603514_hjub",
-    "timestamp": "2026-10-25T03:06:43.514Z",
-    "status": "discarded",
-    "subject": "=?UTF-8?Q?Notificaci=C3=B3n_Transferencia_SIN?=",
-    "from": "BAC - SINPE <notificaciones@baccredomatic.cr>",
-    "reason": "No se detectó un monto financiero ejecutable"
-  },
-  {
-    "id": "log_1792897603379_6h3r",
-    "timestamp": "2026-10-25T03:06:43.379Z",
-    "status": "discarded",
-    "subject": "=?UTF-8?Q?Confirmaci=C3=B3n_de_reenv=C3=ADo_de_Gmail=3A_recibir_correo_d?=",
-    "from": "Equipo de Gmail <forwarding-noreply@google.com>",
-    "reason": "No se detectó un monto financiero ejecutable"
-  },
-  {
-    "id": "log_1792897603277_4zzl",
-    "timestamp": "2026-10-25T03:06:43.277Z",
-    "status": "discarded",
-    "subject": "=?UTF-8?Q?Notificaci=C3=B3n_de_transacci=C3=B3n_?=",
-    "from": "=?UTF-8?Q?Notificaci=C3=B3n_BAC?= <NotificacionBAC@baccredomatic.cr>",
-    "reason": "Descartado: correo anterior a la fecha de inicio contable (2026-10-25)"
-  },
-  {
-    "id": "log_1792897603002_6jjk",
-    "timestamp": "2026-10-25T03:06:43.002Z",
-    "status": "discarded",
-    "subject": "=?UTF-8?Q?Notificaci=C3=B3n_de_transacci=C3=B3n_MINI?=",
-    "from": "=?UTF-8?Q?Notificaci=C3=B3n_BAC?= <NotificacionBAC@baccredomatic.cr>",
-    "reason": "Descartado: correo anterior a la fecha de inicio contable (2026-10-25)"
-  },
-  {
-    "id": "log_1792897602720_6lpf",
-    "timestamp": "2026-10-25T03:06:42.720Z",
-    "status": "discarded",
-    "subject": "=?UTF-8?Q?Notificaci=C3=B3n_de_transacci=C3=B3n_SO?=",
-    "from": "=?UTF-8?Q?Notificaci=C3=B3n_BAC?= <NotificacionBAC@baccredomatic.cr>",
-    "reason": "Descartado: correo anterior a la fecha de inicio contable (2026-10-25)"
-  },
-  {
-    "id": "log_1792897602488_kwhr",
-    "timestamp": "2026-10-25T03:06:42.488Z",
-    "status": "discarded",
-    "subject": "=?UTF-8?Q?Notificaci=C3=B3n_de_transacci=C3=B3n_SO?=",
-    "from": "=?UTF-8?Q?Notificaci=C3=B3n_BAC?= <NotificacionBAC@baccredomatic.cr>",
-    "reason": "Descartado: correo anterior a la fecha de inicio contable (2026-10-25)"
-  },
-  {
-    "id": "log_1792897602250_yyhy",
-    "timestamp": "2026-10-25T03:06:42.250Z",
-    "status": "discarded",
-    "subject": "=?UTF-8?Q?Notificaci=C3=B3n_de_Transferencia?=",
-    "from": "BAC - SINPE <notificaciones@baccredomatic.cr>",
-    "reason": "No se detectó un monto financiero ejecutable"
-  },
-  {
-    "id": "log_1792897602046_744b",
-    "timestamp": "2026-10-25T03:06:42.046Z",
-    "status": "discarded",
-    "subject": "Su documento: 50622102600310119109500100002010000440540100000551",
-    "from": "no-reply@dfr.cloud",
-    "reason": "No se detectó un monto financiero ejecutable"
-  },
-  {
-    "id": "log_1792897601730_tzdu",
-    "timestamp": "2026-10-25T03:06:41.730Z",
-    "status": "discarded",
-    "subject": "=?UTF-8?q?Su_validaci=C3=B3n_para_el_documento:_5062210260031011910950010?=",
-    "from": "no-reply@dfr.cloud",
-    "reason": "No se detectó un monto financiero ejecutable"
-  },
-  {
-    "id": "log_1792897601482_csid",
-    "timestamp": "2026-10-25T03:06:41.482Z",
-    "status": "discarded",
-    "subject": "=?UTF-8?Q?Notificaci=C3=B3n_de_transacci=C3=B3n_GESS?=",
-    "from": "=?UTF-8?Q?Notificaci=C3=B3n_BAC?= <NotificacionBAC@baccredomatic.cr>",
-    "reason": "Descartado: correo anterior a la fecha de inicio contable (2026-10-25)"
-  },
-  {
-    "id": "log_1792897601220_20kq",
-    "timestamp": "2026-10-25T03:06:41.220Z",
-    "status": "discarded",
-    "subject": "=?UTF-8?Q?Notificaci=C3=B3n_de_transacci=C3=B3n_?=",
-    "from": "=?UTF-8?Q?Notificaci=C3=B3n_BAC?= <NotificacionBAC@baccredomatic.cr>",
-    "reason": "Descartado: correo anterior a la fecha de inicio contable (2026-10-25)"
-  },
-  {
-    "id": "log_1792897600959_3gcq",
-    "timestamp": "2026-10-25T03:06:40.959Z",
-    "status": "discarded",
-    "subject": "=?UTF-8?Q?Notificaci=C3=B3n_de_transacci=C3=B3n_K?=",
-    "from": "=?UTF-8?Q?Notificaci=C3=B3n_BAC?= <NotificacionBAC@baccredomatic.cr>",
-    "reason": "Descartado: correo anterior a la fecha de inicio contable (2026-10-25)"
-  },
-  {
-    "id": "log_1792897600699_b53m",
-    "timestamp": "2026-10-25T03:06:40.699Z",
-    "status": "discarded",
-    "subject": "=?UTF-8?Q?Confirmaci=C3=B3n_de_reenv=C3=ADo_de_Gmail=3A_recibir_correo_d?=",
-    "from": "Equipo de Gmail <forwarding-noreply@google.com>",
-    "reason": "No se detectó un monto financiero ejecutable"
-  },
-  {
-    "id": "log_1792897600502_lebg",
-    "timestamp": "2026-10-25T03:06:40.502Z",
-    "status": "discarded",
-    "subject": "=?UTF-8?Q?Confirmaci=C3=B3n_de_reenv=C3=ADo_de_Gmail=3A_recibir_correo_d?=",
-    "from": "Equipo de Gmail <forwarding-noreply@google.com>",
-    "reason": "No se detectó un monto financiero ejecutable"
-  },
-  {
-    "id": "log_1792897600296_f019",
-    "timestamp": "2026-10-25T03:06:40.296Z",
-    "status": "discarded",
-    "subject": "=?UTF-8?Q?Confirmaci=C3=B3n_de_reenv=C3=ADo_de_Gmail=3A_recibir_correo_d?=",
-    "from": "Equipo de Gmail <forwarding-noreply@google.com>",
-    "reason": "No se detectó un monto financiero ejecutable"
-  },
-  {
-    "id": "log_1792896898609_skzf",
-    "timestamp": "2026-10-25T02:54:58.609Z",
-    "status": "pending_confirmation",
-    "subject": "=?UTF-8?Q?Notificaci=C3=B3n_de_transacci=C3=B3n_LITTLE?=",
-    "parsed": {
-      "matched": true,
-      "entity": "BAC Credomatic",
-      "amount": 7300,
-      "currency": "CRC",
-      "type": "gasto",
-      "last4": "0095",
-      "merchant": "LITTLE CAESARS PIZZA G",
-      "note": "Compra: LITTLE CAESARS PIZZA G (BAC Credomatic)",
-      "category": "Varios",
-      "date": "2026-10-17T23:16:00.000Z"
-    },
-    "suggestedAccount": "No asignada"
-  },
-  {
-    "id": "log_1792896898016_1ubm",
-    "timestamp": "2026-10-25T02:54:58.016Z",
-    "status": "pending_confirmation",
-    "subject": "=?UTF-8?Q?Notificaci=C3=B3n_de_transacci=C3=B3n?=",
-    "parsed": {
-      "matched": true,
-      "entity": "BAC Credomatic",
-      "amount": 25,
-      "currency": "USD",
-      "type": "gasto",
-      "last4": "8177",
-      "merchant": "SUPABASE",
-      "note": "Compra: SUPABASE (BAC Credomatic)",
-      "category": "Varios",
-      "date": "2026-10-18T00:33:00.000Z"
-    },
-    "suggestedAccount": "No asignada"
-  },
-  {
-    "id": "log_1792896897455_o3y8",
-    "timestamp": "2026-10-25T02:54:57.455Z",
-    "status": "pending_confirmation",
-    "subject": "=?UTF-8?Q?Notificaci=C3=B3n_de_transacci=C3=B3n_CA?=",
-    "parsed": {
-      "matched": true,
-      "entity": "BAC Credomatic",
-      "amount": 7013,
-      "currency": "CRC",
-      "type": "gasto",
-      "last4": "0095",
-      "merchant": "CARNES ABARCA",
-      "note": "Compra: CARNES ABARCA (BAC Credomatic)",
-      "category": "Varios",
-      "date": "2026-10-18T19:02:00.000Z"
-    },
-    "suggestedAccount": "No asignada"
-  },
-  {
-    "id": "log_1792896896891_26xe",
-    "timestamp": "2026-10-25T02:54:56.891Z",
-    "status": "pending_confirmation",
-    "subject": "=?UTF-8?Q?Notificaci=C3=B3n_de_transacci=C3=B3n_?=",
-    "parsed": {
-      "matched": true,
-      "entity": "BAC Credomatic",
-      "amount": 3150,
-      "currency": "CRC",
-      "type": "gasto",
-      "last4": "0095",
-      "merchant": "SUPER ASIA",
-      "note": "Compra: SUPER ASIA (BAC Credomatic)",
-      "category": "Varios",
-      "date": "2026-10-18T19:26:00.000Z"
-    },
-    "suggestedAccount": "No asignada"
-  },
-  {
-    "id": "log_1792896896263_y853",
-    "timestamp": "2026-10-25T02:54:56.263Z",
-    "status": "pending_confirmation",
-    "subject": "=?UTF-8?Q?Notificaci=C3=B3n_de_transacci=C3=B3n_M?=",
-    "parsed": {
-      "matched": true,
-      "entity": "BAC Credomatic",
-      "amount": 800,
-      "currency": "CRC",
-      "type": "gasto",
-      "last4": "0095",
-      "merchant": "MUSI UCIMED",
-      "note": "Compra: MUSI UCIMED (BAC Credomatic)",
-      "category": "Varios",
-      "date": "2026-10-20T12:51:00.000Z"
-    },
-    "suggestedAccount": "No asignada"
-  },
-  {
-    "id": "log_1792896895664_uukc",
-    "timestamp": "2026-10-25T02:54:55.664Z",
-    "status": "pending_confirmation",
-    "subject": "=?UTF-8?Q?Notificaci=C3=B3n_de_transacci=C3=B3n_COBRO_?=",
-    "parsed": {
-      "matched": true,
-      "entity": "BAC Credomatic",
-      "amount": 2448.38,
-      "currency": "CRC",
-      "type": "gasto",
-      "last4": "0095",
-      "merchant": "COBRO ADMINISTRACION C",
-      "note": "Compra: COBRO ADMINISTRACION C (BAC Credomatic)",
-      "category": "Varios",
-      "date": "2026-10-20T16:22:00.000Z"
-    },
-    "suggestedAccount": "No asignada"
-  },
-  {
-    "id": "log_1792896895085_rq39",
-    "timestamp": "2026-10-25T02:54:55.085Z",
-    "status": "discarded",
-    "subject": "=?UTF-8?Q?Notificaci=C3=B3n_Transferencia_SIN?=",
-    "from": "BAC - SINPE <notificaciones@baccredomatic.cr>",
-    "reason": "No se detectó un monto financiero ejecutable"
-  },
-  {
-    "id": "log_1792896894887_uoy3",
-    "timestamp": "2026-10-25T02:54:54.887Z",
-    "status": "pending_confirmation",
-    "subject": "=?UTF-8?Q?Notificaci=C3=B3n_de_transacci=C3=B3n_?=",
-    "parsed": {
-      "matched": true,
-      "entity": "BAC Credomatic",
-      "amount": 2800,
-      "currency": "CRC",
-      "type": "gasto",
-      "last4": "0095",
-      "merchant": "BAGUETONI",
-      "note": "Compra: BAGUETONI (BAC Credomatic)",
-      "category": "Varios",
-      "date": "2026-10-21T18:40:00.000Z"
-    },
-    "suggestedAccount": "No asignada"
-  },
-  {
-    "id": "log_1792896894336_00o2",
-    "timestamp": "2026-10-25T02:54:54.336Z",
-    "status": "pending_confirmation",
-    "subject": "=?UTF-8?Q?Notificaci=C3=B3n_de_transacci=C3=B3n_MINI?=",
-    "parsed": {
-      "matched": true,
-      "entity": "BAC Credomatic",
-      "amount": 2450,
-      "currency": "CRC",
-      "type": "gasto",
-      "last4": "0095",
-      "merchant": "MINI SUPER COLIBRI",
-      "note": "Compra: MINI SUPER COLIBRI (BAC Credomatic)",
-      "category": "Varios",
-      "date": "2026-10-21T18:44:00.000Z"
-    },
-    "suggestedAccount": "No asignada"
-  },
-  {
-    "id": "log_1792896893754_dqdr",
-    "timestamp": "2026-10-25T02:54:53.754Z",
-    "status": "pending_confirmation",
-    "subject": "=?UTF-8?Q?Notificaci=C3=B3n_de_transacci=C3=B3n_SO?=",
-    "parsed": {
-      "matched": true,
-      "entity": "BAC Credomatic",
-      "amount": 4000,
-      "currency": "CRC",
-      "type": "gasto",
-      "last4": "0095",
-      "merchant": "SODA GLORIANA",
-      "note": "Compra: SODA GLORIANA (BAC Credomatic)",
-      "category": "Varios",
-      "date": "2026-10-22T12:20:00.000Z"
-    },
-    "suggestedAccount": "No asignada"
-  },
-  {
-    "id": "log_1792896893172_tobf",
-    "timestamp": "2026-10-25T02:54:53.172Z",
-    "status": "pending_confirmation",
-    "subject": "=?UTF-8?Q?Notificaci=C3=B3n_de_transacci=C3=B3n_SO?=",
-    "parsed": {
-      "matched": true,
-      "entity": "BAC Credomatic",
-      "amount": 2000,
-      "currency": "CRC",
-      "type": "gasto",
-      "last4": "0095",
-      "merchant": "SODA GLORIANA",
-      "note": "Compra: SODA GLORIANA (BAC Credomatic)",
-      "category": "Varios",
-      "date": "2026-10-22T12:21:00.000Z"
-    },
-    "suggestedAccount": "No asignada"
-  },
-  {
-    "id": "log_1792896892575_hkef",
-    "timestamp": "2026-10-25T02:54:52.575Z",
-    "status": "discarded",
-    "subject": "=?UTF-8?Q?Notificaci=C3=B3n_de_Transferencia?=",
-    "from": "BAC - SINPE <notificaciones@baccredomatic.cr>",
-    "reason": "No se detectó un monto financiero ejecutable"
-  },
-  {
-    "id": "log_1792896892383_9w2h",
-    "timestamp": "2026-10-25T02:54:52.383Z",
-    "status": "discarded",
-    "subject": "Su documento: 50622102600310119109500100002010000440540100000551",
-    "from": "no-reply@dfr.cloud",
-    "reason": "No se detectó un monto financiero ejecutable"
-  },
-  {
-    "id": "log_1792896892064_6hup",
-    "timestamp": "2026-10-25T02:54:52.064Z",
-    "status": "discarded",
-    "subject": "=?UTF-8?q?Su_validaci=C3=B3n_para_el_documento:_5062210260031011910950010?=",
-    "from": "no-reply@dfr.cloud",
-    "reason": "No se detectó un monto financiero ejecutable"
-  },
-  {
-    "id": "log_1792896891834_69dp",
-    "timestamp": "2026-10-25T02:54:51.835Z",
-    "status": "pending_confirmation",
-    "subject": "=?UTF-8?Q?Notificaci=C3=B3n_de_transacci=C3=B3n_GESS?=",
-    "parsed": {
-      "matched": true,
-      "entity": "BAC Credomatic",
-      "amount": 1660,
-      "currency": "CRC",
-      "type": "gasto",
-      "last4": "0095",
-      "merchant": "GESSA PERI ANONOS",
-      "note": "Compra: GESSA PERI ANONOS (BAC Credomatic)",
-      "category": "Varios",
-      "date": "2026-10-22T17:31:00.000Z"
-    },
-    "suggestedAccount": "No asignada"
-  },
-  {
-    "id": "log_1792896891271_zwl0",
-    "timestamp": "2026-10-25T02:54:51.271Z",
-    "status": "pending_confirmation",
-    "subject": "=?UTF-8?Q?Notificaci=C3=B3n_de_transacci=C3=B3n_?=",
-    "parsed": {
-      "matched": true,
-      "entity": "BAC Credomatic",
-      "amount": 2600,
-      "currency": "CRC",
-      "type": "gasto",
-      "last4": "8177",
-      "merchant": "Google One",
-      "note": "Compra: Google One (BAC Credomatic)",
-      "category": "Servicios y Software",
-      "date": "2026-10-23T14:26:00.000Z"
-    },
-    "suggestedAccount": "No asignada"
-  },
-  {
-    "id": "log_1792896890645_fywb",
-    "timestamp": "2026-10-25T02:54:50.645Z",
-    "status": "pending_confirmation",
-    "subject": "=?UTF-8?Q?Notificaci=C3=B3n_de_transacci=C3=B3n_K?=",
-    "parsed": {
-      "matched": true,
-      "entity": "BAC Credomatic",
-      "amount": 2492,
-      "currency": "CRC",
-      "type": "gasto",
-      "last4": "0095",
-      "merchant": "KFC EXPRESS",
-      "note": "Compra: KFC EXPRESS (BAC Credomatic)",
-      "category": "Alimentación y Reuniones",
-      "date": "2026-10-24T23:24:00.000Z"
-    },
-    "suggestedAccount": "No asignada"
-  },
-  {
-    "id": "log_1792896889566_lx5c",
-    "timestamp": "2026-10-25T02:54:49.566Z",
-    "status": "discarded",
-    "subject": "=?UTF-8?Q?Confirmaci=C3=B3n_de_reenv=C3=ADo_de_Gmail=3A_recibir_correo_d?=",
-    "from": "Equipo de Gmail <forwarding-noreply@google.com>",
-    "reason": "No se detectó un monto financiero ejecutable"
-  },
-  {
-    "id": "log_1792896889378_3s4d",
-    "timestamp": "2026-10-25T02:54:49.378Z",
-    "status": "discarded",
-    "subject": "=?UTF-8?Q?Confirmaci=C3=B3n_de_reenv=C3=ADo_de_Gmail=3A_recibir_correo_d?=",
-    "from": "Equipo de Gmail <forwarding-noreply@google.com>",
-    "reason": "No se detectó un monto financiero ejecutable"
-  },
-  {
-    "id": "log_1792896889189_wmjz",
-    "timestamp": "2026-10-25T02:54:49.189Z",
-    "status": "discarded",
-    "subject": "=?UTF-8?Q?Confirmaci=C3=B3n_de_reenv=C3=ADo_de_Gmail=3A_recibir_correo_d?=",
-    "from": "Equipo de Gmail <forwarding-noreply@google.com>",
-    "reason": "No se detectó un monto financiero ejecutable"
-  },
-  {
-    "id": "log_1792895999345_gyft",
-    "timestamp": "2026-10-25T02:39:59.345Z",
-    "status": "pending_confirmation",
-    "subject": "=?UTF-8?Q?Notificaci=C3=B3n_de_transacci=C3=B3n_S?=",
-    "parsed": {
-      "matched": true,
-      "entity": "BAC Credomatic",
-      "amount": 3800,
-      "currency": "CRC",
-      "type": "gasto",
-      "last4": "0095",
-      "merchant": "SERVI INDOOR",
-      "note": "Compra: SERVI INDOOR (BAC Credomatic)",
-      "category": "Varios",
-      "date": "2026-10-17T00:23:00.000Z"
-    },
-    "suggestedAccount": "No asignada"
-  },
-  {
-    "id": "log_1792895998771_63ut",
-    "timestamp": "2026-10-25T02:39:58.771Z",
-    "status": "pending_confirmation",
-    "subject": "=?UTF-8?Q?Notificaci=C3=B3n_de_transacci=C3=B3n_SUPER_?=",
-    "parsed": {
-      "matched": true,
-      "entity": "BAC Credomatic",
-      "amount": 6680,
-      "currency": "CRC",
-      "type": "gasto",
-      "last4": "0095",
-      "merchant": "SUPER HERRERA DEL ESTE",
-      "note": "Compra: SUPER HERRERA DEL ESTE (BAC Credomatic)",
-      "category": "Varios",
-      "date": "2026-10-17T23:07:00.000Z"
-    },
-    "suggestedAccount": "No asignada"
-  },
-  {
-    "id": "log_1792895998177_m4au",
-    "timestamp": "2026-10-25T02:39:58.177Z",
-    "status": "pending_confirmation",
-    "subject": "=?UTF-8?Q?Notificaci=C3=B3n_de_transacci=C3=B3n_LITTLE?=",
-    "parsed": {
-      "matched": true,
-      "entity": "BAC Credomatic",
-      "amount": 7300,
-      "currency": "CRC",
-      "type": "gasto",
-      "last4": "0095",
-      "merchant": "LITTLE CAESARS PIZZA G",
-      "note": "Compra: LITTLE CAESARS PIZZA G (BAC Credomatic)",
-      "category": "Varios",
-      "date": "2026-10-17T23:16:00.000Z"
-    },
-    "suggestedAccount": "No asignada"
-  },
-  {
-    "id": "log_1792895997615_olhk",
-    "timestamp": "2026-10-25T02:39:57.615Z",
-    "status": "pending_confirmation",
-    "subject": "=?UTF-8?Q?Notificaci=C3=B3n_de_transacci=C3=B3n?=",
-    "parsed": {
-      "matched": true,
-      "entity": "BAC Credomatic",
-      "amount": 25,
-      "currency": "USD",
-      "type": "gasto",
-      "last4": "8177",
-      "merchant": "SUPABASE",
-      "note": "Compra: SUPABASE (BAC Credomatic)",
-      "category": "Varios",
-      "date": "2026-10-18T00:33:00.000Z"
-    },
-    "suggestedAccount": "No asignada"
-  },
-  {
-    "id": "log_1792895996988_yhqx",
-    "timestamp": "2026-10-25T02:39:56.988Z",
-    "status": "pending_confirmation",
-    "subject": "=?UTF-8?Q?Notificaci=C3=B3n_de_transacci=C3=B3n_CA?=",
-    "parsed": {
-      "matched": true,
-      "entity": "BAC Credomatic",
-      "amount": 7013,
-      "currency": "CRC",
-      "type": "gasto",
-      "last4": "0095",
-      "merchant": "CARNES ABARCA",
-      "note": "Compra: CARNES ABARCA (BAC Credomatic)",
-      "category": "Varios",
-      "date": "2026-10-18T19:02:00.000Z"
-    },
-    "suggestedAccount": "No asignada"
-  },
-  {
-    "id": "log_1792895996400_oiqk",
-    "timestamp": "2026-10-25T02:39:56.400Z",
-    "status": "pending_confirmation",
-    "subject": "=?UTF-8?Q?Notificaci=C3=B3n_de_transacci=C3=B3n_?=",
-    "parsed": {
-      "matched": true,
-      "entity": "BAC Credomatic",
-      "amount": 3150,
-      "currency": "CRC",
-      "type": "gasto",
-      "last4": "0095",
-      "merchant": "SUPER ASIA",
-      "note": "Compra: SUPER ASIA (BAC Credomatic)",
-      "category": "Varios",
-      "date": "2026-10-18T19:26:00.000Z"
-    },
-    "suggestedAccount": "No asignada"
-  },
-  {
-    "id": "log_1792895995840_igg5",
-    "timestamp": "2026-10-25T02:39:55.840Z",
-    "status": "pending_confirmation",
-    "subject": "=?UTF-8?Q?Notificaci=C3=B3n_de_transacci=C3=B3n_M?=",
-    "parsed": {
-      "matched": true,
-      "entity": "BAC Credomatic",
-      "amount": 800,
-      "currency": "CRC",
-      "type": "gasto",
-      "last4": "0095",
-      "merchant": "MUSI UCIMED",
-      "note": "Compra: MUSI UCIMED (BAC Credomatic)",
-      "category": "Varios",
-      "date": "2026-10-20T12:51:00.000Z"
-    },
-    "suggestedAccount": "No asignada"
-  },
-  {
-    "id": "log_1792895995265_alcx",
-    "timestamp": "2026-10-25T02:39:55.265Z",
-    "status": "pending_confirmation",
-    "subject": "=?UTF-8?Q?Notificaci=C3=B3n_de_transacci=C3=B3n_COBRO_?=",
-    "parsed": {
-      "matched": true,
-      "entity": "BAC Credomatic",
-      "amount": 2448.38,
-      "currency": "CRC",
-      "type": "gasto",
-      "last4": "0095",
-      "merchant": "COBRO ADMINISTRACION C",
-      "note": "Compra: COBRO ADMINISTRACION C (BAC Credomatic)",
-      "category": "Varios",
-      "date": "2026-10-20T16:22:00.000Z"
-    },
-    "suggestedAccount": "No asignada"
-  },
-  {
-    "id": "log_1792895994676_8u27",
-    "timestamp": "2026-10-25T02:39:54.676Z",
-    "status": "discarded",
-    "subject": "=?UTF-8?Q?Notificaci=C3=B3n_Transferencia_SIN?=",
-    "from": "BAC - SINPE <notificaciones@baccredomatic.cr>",
-    "reason": "No se detectó un monto financiero ejecutable"
-  },
-  {
-    "id": "log_1792895994487_9n2h",
-    "timestamp": "2026-10-25T02:39:54.487Z",
-    "status": "pending_confirmation",
-    "subject": "=?UTF-8?Q?Notificaci=C3=B3n_de_transacci=C3=B3n_?=",
-    "parsed": {
-      "matched": true,
-      "entity": "BAC Credomatic",
-      "amount": 2800,
-      "currency": "CRC",
-      "type": "gasto",
-      "last4": "0095",
-      "merchant": "BAGUETONI",
-      "note": "Compra: BAGUETONI (BAC Credomatic)",
-      "category": "Varios",
-      "date": "2026-10-21T18:40:00.000Z"
-    },
-    "suggestedAccount": "No asignada"
-  },
-  {
-    "id": "log_1792895993888_3e6z",
-    "timestamp": "2026-10-25T02:39:53.888Z",
-    "status": "pending_confirmation",
-    "subject": "=?UTF-8?Q?Notificaci=C3=B3n_de_transacci=C3=B3n_MINI?=",
-    "parsed": {
-      "matched": true,
-      "entity": "BAC Credomatic",
-      "amount": 2450,
-      "currency": "CRC",
-      "type": "gasto",
-      "last4": "0095",
-      "merchant": "MINI SUPER COLIBRI",
-      "note": "Compra: MINI SUPER COLIBRI (BAC Credomatic)",
-      "category": "Varios",
-      "date": "2026-10-21T18:44:00.000Z"
-    },
-    "suggestedAccount": "No asignada"
-  },
-  {
-    "id": "log_1792895993327_viy4",
-    "timestamp": "2026-10-25T02:39:53.327Z",
-    "status": "pending_confirmation",
-    "subject": "=?UTF-8?Q?Notificaci=C3=B3n_de_transacci=C3=B3n_SO?=",
-    "parsed": {
-      "matched": true,
-      "entity": "BAC Credomatic",
-      "amount": 4000,
-      "currency": "CRC",
-      "type": "gasto",
-      "last4": "0095",
-      "merchant": "SODA GLORIANA",
-      "note": "Compra: SODA GLORIANA (BAC Credomatic)",
-      "category": "Varios",
-      "date": "2026-10-22T12:20:00.000Z"
-    },
-    "suggestedAccount": "No asignada"
-  },
-  {
-    "id": "log_1792895992740_0xou",
-    "timestamp": "2026-10-25T02:39:52.740Z",
-    "status": "pending_confirmation",
-    "subject": "=?UTF-8?Q?Notificaci=C3=B3n_de_transacci=C3=B3n_SO?=",
-    "parsed": {
-      "matched": true,
-      "entity": "BAC Credomatic",
-      "amount": 2000,
-      "currency": "CRC",
-      "type": "gasto",
-      "last4": "0095",
-      "merchant": "SODA GLORIANA",
-      "note": "Compra: SODA GLORIANA (BAC Credomatic)",
-      "category": "Varios",
-      "date": "2026-10-22T12:21:00.000Z"
-    },
-    "suggestedAccount": "No asignada"
-  },
-  {
-    "id": "log_1792895992165_fg3m",
-    "timestamp": "2026-10-25T02:39:52.165Z",
-    "status": "discarded",
-    "subject": "=?UTF-8?Q?Notificaci=C3=B3n_de_Transferencia?=",
-    "from": "BAC - SINPE <notificaciones@baccredomatic.cr>",
-    "reason": "No se detectó un monto financiero ejecutable"
-  },
-  {
-    "id": "log_1792895991949_nq6a",
-    "timestamp": "2026-10-25T02:39:51.949Z",
-    "status": "discarded",
-    "subject": "Su documento: 50622102600310119109500100002010000440540100000551",
-    "from": "no-reply@dfr.cloud",
-    "reason": "No se detectó un monto financiero ejecutable"
-  },
-  {
-    "id": "log_1792895991663_upf2",
-    "timestamp": "2026-10-25T02:39:51.663Z",
-    "status": "discarded",
-    "subject": "=?UTF-8?q?Su_validaci=C3=B3n_para_el_documento:_5062210260031011910950010?=",
-    "from": "no-reply@dfr.cloud",
-    "reason": "No se detectó un monto financiero ejecutable"
-  },
-  {
-    "id": "log_1792895991409_ssx8",
-    "timestamp": "2026-10-25T02:39:51.409Z",
-    "status": "pending_confirmation",
-    "subject": "=?UTF-8?Q?Notificaci=C3=B3n_de_transacci=C3=B3n_GESS?=",
-    "parsed": {
-      "matched": true,
-      "entity": "BAC Credomatic",
-      "amount": 1660,
-      "currency": "CRC",
-      "type": "gasto",
-      "last4": "0095",
-      "merchant": "GESSA PERI ANONOS",
-      "note": "Compra: GESSA PERI ANONOS (BAC Credomatic)",
-      "category": "Varios",
-      "date": "2026-10-22T17:31:00.000Z"
-    },
-    "suggestedAccount": "No asignada"
-  },
-  {
-    "id": "log_1792895990847_9fk4",
-    "timestamp": "2026-10-25T02:39:50.847Z",
-    "status": "pending_confirmation",
-    "subject": "=?UTF-8?Q?Notificaci=C3=B3n_de_transacci=C3=B3n_?=",
-    "parsed": {
-      "matched": true,
-      "entity": "BAC Credomatic",
-      "amount": 2600,
-      "currency": "CRC",
-      "type": "gasto",
-      "last4": "8177",
-      "merchant": "Google One",
-      "note": "Compra: Google One (BAC Credomatic)",
-      "category": "Servicios y Software",
-      "date": "2026-10-23T14:26:00.000Z"
-    },
-    "suggestedAccount": "No asignada"
-  },
-  {
-    "id": "log_1792895990116_1gzn",
-    "timestamp": "2026-10-25T02:39:50.116Z",
-    "status": "pending_confirmation",
-    "subject": "=?UTF-8?Q?Notificaci=C3=B3n_de_transacci=C3=B3n_K?=",
-    "parsed": {
-      "matched": true,
-      "entity": "BAC Credomatic",
-      "amount": 2492,
-      "currency": "CRC",
-      "type": "gasto",
-      "last4": "0095",
-      "merchant": "KFC EXPRESS",
-      "note": "Compra: KFC EXPRESS (BAC Credomatic)",
-      "category": "Alimentación y Reuniones",
-      "date": "2026-10-24T23:24:00.000Z"
-    },
-    "suggestedAccount": "No asignada"
-  },
-  {
-    "id": "log_1792895989059_bqzr",
-    "timestamp": "2026-10-25T02:39:49.059Z",
-    "status": "discarded",
-    "subject": "=?UTF-8?Q?Confirmaci=C3=B3n_de_reenv=C3=ADo_de_Gmail=3A_recibir_correo_d?=",
-    "from": "Equipo de Gmail <forwarding-noreply@google.com>",
-    "reason": "No se detectó un monto financiero ejecutable"
-  },
-  {
-    "id": "log_1792894211344_msz2",
-    "timestamp": "2026-10-25T02:10:11.344Z",
-    "status": "pending_confirmation",
-    "subject": "=?UTF-8?Q?Notificaci=C3=B3n_de_transacci=C3=B3n_SO?=",
-    "parsed": {
-      "matched": true,
-      "entity": "BAC Credomatic",
-      "amount": 7000,
-      "currency": "CRC",
-      "type": "gasto",
-      "last4": "0095",
-      "merchant": "SODA GLORIANA",
-      "note": "Compra: SODA GLORIANA (BAC Credomatic)",
-      "category": "Varios",
-      "date": "2026-10-16T13:27:00.000Z"
-    },
-    "suggestedAccount": "No asignada"
-  },
-  {
-    "id": "log_1792894210764_zbql",
-    "timestamp": "2026-10-25T02:10:10.764Z",
-    "status": "pending_confirmation",
-    "subject": "=?UTF-8?Q?Notificaci=C3=B3n_de_transacci=C3=B3n_S?=",
-    "parsed": {
-      "matched": true,
-      "entity": "BAC Credomatic",
-      "amount": 3800,
-      "currency": "CRC",
-      "type": "gasto",
-      "last4": "0095",
-      "merchant": "SERVI INDOOR",
-      "note": "Compra: SERVI INDOOR (BAC Credomatic)",
-      "category": "Varios",
-      "date": "2026-10-17T00:23:00.000Z"
-    },
-    "suggestedAccount": "No asignada"
-  },
-  {
-    "id": "log_1792894210193_p9ko",
-    "timestamp": "2026-10-25T02:10:10.193Z",
-    "status": "pending_confirmation",
-    "subject": "=?UTF-8?Q?Notificaci=C3=B3n_de_transacci=C3=B3n_SUPER_?=",
-    "parsed": {
-      "matched": true,
-      "entity": "BAC Credomatic",
-      "amount": 6680,
-      "currency": "CRC",
-      "type": "gasto",
-      "last4": "0095",
-      "merchant": "SUPER HERRERA DEL ESTE",
-      "note": "Compra: SUPER HERRERA DEL ESTE (BAC Credomatic)",
-      "category": "Varios",
-      "date": "2026-10-17T23:07:00.000Z"
-    },
-    "suggestedAccount": "No asignada"
-  },
-  {
-    "id": "log_1792894209625_ciq3",
-    "timestamp": "2026-10-25T02:10:09.625Z",
-    "status": "pending_confirmation",
-    "subject": "=?UTF-8?Q?Notificaci=C3=B3n_de_transacci=C3=B3n_LITTLE?=",
-    "parsed": {
-      "matched": true,
-      "entity": "BAC Credomatic",
-      "amount": 7300,
-      "currency": "CRC",
-      "type": "gasto",
-      "last4": "0095",
-      "merchant": "LITTLE CAESARS PIZZA G",
-      "note": "Compra: LITTLE CAESARS PIZZA G (BAC Credomatic)",
-      "category": "Varios",
-      "date": "2026-10-17T23:16:00.000Z"
-    },
-    "suggestedAccount": "No asignada"
-  },
-  {
-    "id": "log_1792894209049_np1k",
-    "timestamp": "2026-10-25T02:10:09.049Z",
-    "status": "pending_confirmation",
-    "subject": "=?UTF-8?Q?Notificaci=C3=B3n_de_transacci=C3=B3n?=",
-    "parsed": {
-      "matched": true,
-      "entity": "BAC Credomatic",
-      "amount": 25,
-      "currency": "USD",
-      "type": "gasto",
-      "last4": "8177",
-      "merchant": "SUPABASE",
-      "note": "Compra: SUPABASE (BAC Credomatic)",
-      "category": "Varios",
-      "date": "2026-10-18T00:33:00.000Z"
-    },
-    "suggestedAccount": "No asignada"
-  },
-  {
-    "id": "log_1792894208461_v06u",
-    "timestamp": "2026-10-25T02:10:08.461Z",
-    "status": "pending_confirmation",
-    "subject": "=?UTF-8?Q?Notificaci=C3=B3n_de_transacci=C3=B3n_CA?=",
-    "parsed": {
-      "matched": true,
-      "entity": "BAC Credomatic",
-      "amount": 7013,
-      "currency": "CRC",
-      "type": "gasto",
-      "last4": "0095",
-      "merchant": "CARNES ABARCA",
-      "note": "Compra: CARNES ABARCA (BAC Credomatic)",
-      "category": "Varios",
-      "date": "2026-10-18T19:02:00.000Z"
-    },
-    "suggestedAccount": "No asignada"
-  },
-  {
-    "id": "log_1792894207830_989b",
-    "timestamp": "2026-10-25T02:10:07.830Z",
-    "status": "pending_confirmation",
-    "subject": "=?UTF-8?Q?Notificaci=C3=B3n_de_transacci=C3=B3n_?=",
-    "parsed": {
-      "matched": true,
-      "entity": "BAC Credomatic",
-      "amount": 3150,
-      "currency": "CRC",
-      "type": "gasto",
-      "last4": "0095",
-      "merchant": "SUPER ASIA",
-      "note": "Compra: SUPER ASIA (BAC Credomatic)",
-      "category": "Varios",
-      "date": "2026-10-18T19:26:00.000Z"
-    },
-    "suggestedAccount": "No asignada"
-  },
-  {
-    "id": "log_1792894207243_jrbs",
-    "timestamp": "2026-10-25T02:10:07.243Z",
-    "status": "pending_confirmation",
-    "subject": "=?UTF-8?Q?Notificaci=C3=B3n_de_transacci=C3=B3n_M?=",
-    "parsed": {
-      "matched": true,
-      "entity": "BAC Credomatic",
-      "amount": 800,
-      "currency": "CRC",
-      "type": "gasto",
-      "last4": "0095",
-      "merchant": "MUSI UCIMED",
-      "note": "Compra: MUSI UCIMED (BAC Credomatic)",
-      "category": "Varios",
-      "date": "2026-10-20T12:51:00.000Z"
-    },
-    "suggestedAccount": "No asignada"
-  },
-  {
-    "id": "log_1792894206441_dgyw",
-    "timestamp": "2026-10-25T02:10:06.441Z",
-    "status": "pending_confirmation",
-    "subject": "=?UTF-8?Q?Notificaci=C3=B3n_de_transacci=C3=B3n_COBRO_?=",
-    "parsed": {
-      "matched": true,
-      "entity": "BAC Credomatic",
-      "amount": 2448.38,
-      "currency": "CRC",
-      "type": "gasto",
-      "last4": "0095",
-      "merchant": "COBRO ADMINISTRACION C",
-      "note": "Compra: COBRO ADMINISTRACION C (BAC Credomatic)",
-      "category": "Varios",
-      "date": "2026-10-20T16:22:00.000Z"
-    },
-    "suggestedAccount": "No asignada"
-  },
-  {
-    "id": "log_1792894205879_yuf4",
-    "timestamp": "2026-10-25T02:10:05.879Z",
-    "status": "discarded",
-    "subject": "=?UTF-8?Q?Notificaci=C3=B3n_Transferencia_SIN?=",
-    "from": "BAC - SINPE <notificaciones@baccredomatic.cr>",
-    "reason": "No se detectó un monto financiero ejecutable"
-  },
-  {
-    "id": "log_1792894205684_55j4",
-    "timestamp": "2026-10-25T02:10:05.684Z",
-    "status": "pending_confirmation",
-    "subject": "=?UTF-8?Q?Notificaci=C3=B3n_de_transacci=C3=B3n_?=",
-    "parsed": {
-      "matched": true,
-      "entity": "BAC Credomatic",
-      "amount": 2800,
-      "currency": "CRC",
-      "type": "gasto",
-      "last4": "0095",
-      "merchant": "BAGUETONI",
-      "note": "Compra: BAGUETONI (BAC Credomatic)",
-      "category": "Varios",
-      "date": "2026-10-21T18:40:00.000Z"
-    },
-    "suggestedAccount": "No asignada"
-  },
-  {
-    "id": "log_1792894205101_kkd7",
-    "timestamp": "2026-10-25T02:10:05.101Z",
-    "status": "pending_confirmation",
-    "subject": "=?UTF-8?Q?Notificaci=C3=B3n_de_transacci=C3=B3n_MINI?=",
-    "parsed": {
-      "matched": true,
-      "entity": "BAC Credomatic",
-      "amount": 2450,
-      "currency": "CRC",
-      "type": "gasto",
-      "last4": "0095",
-      "merchant": "MINI SUPER COLIBRI",
-      "note": "Compra: MINI SUPER COLIBRI (BAC Credomatic)",
-      "category": "Varios",
-      "date": "2026-10-21T18:44:00.000Z"
-    },
-    "suggestedAccount": "No asignada"
-  },
-  {
-    "id": "log_1792894204528_y0u6",
-    "timestamp": "2026-10-25T02:10:04.528Z",
-    "status": "pending_confirmation",
-    "subject": "=?UTF-8?Q?Notificaci=C3=B3n_de_transacci=C3=B3n_SO?=",
-    "parsed": {
-      "matched": true,
-      "entity": "BAC Credomatic",
-      "amount": 4000,
-      "currency": "CRC",
-      "type": "gasto",
-      "last4": "0095",
-      "merchant": "SODA GLORIANA",
-      "note": "Compra: SODA GLORIANA (BAC Credomatic)",
-      "category": "Varios",
-      "date": "2026-10-22T12:20:00.000Z"
-    },
-    "suggestedAccount": "No asignada"
-  },
-  {
-    "id": "log_1792894203960_u153",
-    "timestamp": "2026-10-25T02:10:03.960Z",
-    "status": "pending_confirmation",
-    "subject": "=?UTF-8?Q?Notificaci=C3=B3n_de_transacci=C3=B3n_SO?=",
-    "parsed": {
-      "matched": true,
-      "entity": "BAC Credomatic",
-      "amount": 2000,
-      "currency": "CRC",
-      "type": "gasto",
-      "last4": "0095",
-      "merchant": "SODA GLORIANA",
-      "note": "Compra: SODA GLORIANA (BAC Credomatic)",
-      "category": "Varios",
-      "date": "2026-10-22T12:21:00.000Z"
-    },
-    "suggestedAccount": "No asignada"
-  },
-  {
-    "id": "log_1792894203355_4dga",
-    "timestamp": "2026-10-25T02:10:03.355Z",
-    "status": "discarded",
-    "subject": "=?UTF-8?Q?Notificaci=C3=B3n_de_Transferencia?=",
-    "from": "BAC - SINPE <notificaciones@baccredomatic.cr>",
-    "reason": "No se detectó un monto financiero ejecutable"
-  },
-  {
-    "id": "log_1792894203163_b5m1",
-    "timestamp": "2026-10-25T02:10:03.163Z",
-    "status": "discarded",
-    "subject": "Su documento: 50622102600310119109500100002010000440540100000551",
-    "from": "no-reply@dfr.cloud",
-    "reason": "No se detectó un monto financiero ejecutable"
-  },
-  {
-    "id": "log_1792894202835_wx31",
-    "timestamp": "2026-10-25T02:10:02.835Z",
-    "status": "discarded",
-    "subject": "=?UTF-8?q?Su_validaci=C3=B3n_para_el_documento:_5062210260031011910950010?=",
-    "from": "no-reply@dfr.cloud",
-    "reason": "No se detectó un monto financiero ejecutable"
-  },
-  {
-    "id": "log_1792894202562_xu3w",
-    "timestamp": "2026-10-25T02:10:02.562Z",
-    "status": "pending_confirmation",
-    "subject": "=?UTF-8?Q?Notificaci=C3=B3n_de_transacci=C3=B3n_GESS?=",
-    "parsed": {
-      "matched": true,
-      "entity": "BAC Credomatic",
-      "amount": 1660,
-      "currency": "CRC",
-      "type": "gasto",
-      "last4": "0095",
-      "merchant": "GESSA PERI ANONOS",
-      "note": "Compra: GESSA PERI ANONOS (BAC Credomatic)",
-      "category": "Varios",
-      "date": "2026-10-22T17:31:00.000Z"
-    },
-    "suggestedAccount": "No asignada"
-  },
-  {
-    "id": "log_1792894201976_i56j",
-    "timestamp": "2026-10-25T02:10:01.976Z",
-    "status": "pending_confirmation",
-    "subject": "=?UTF-8?Q?Notificaci=C3=B3n_de_transacci=C3=B3n_?=",
-    "parsed": {
-      "matched": true,
-      "entity": "BAC Credomatic",
-      "amount": 2600,
-      "currency": "CRC",
-      "type": "gasto",
-      "last4": "8177",
-      "merchant": "Google One",
-      "note": "Compra: Google One (BAC Credomatic)",
-      "category": "Servicios y Software",
-      "date": "2026-10-23T14:26:00.000Z"
-    },
-    "suggestedAccount": "No asignada"
-  },
-  {
-    "id": "log_1792894201329_tdgw",
-    "timestamp": "2026-10-25T02:10:01.329Z",
-    "status": "pending_confirmation",
-    "subject": "=?UTF-8?Q?Notificaci=C3=B3n_de_transacci=C3=B3n_K?=",
-    "parsed": {
-      "matched": true,
-      "entity": "BAC Credomatic",
-      "amount": 2492,
-      "currency": "CRC",
-      "type": "gasto",
-      "last4": "0095",
-      "merchant": "KFC EXPRESS",
-      "note": "Compra: KFC EXPRESS (BAC Credomatic)",
-      "category": "Alimentación y Reuniones",
-      "date": "2026-10-24T23:24:00.000Z"
-    },
-    "suggestedAccount": "No asignada"
   }
 ]

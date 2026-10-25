@@ -272,11 +272,14 @@ export default function FinanceView() {
         : `${API}/api/finance/accounts`;
       const method = editingAccount ? 'PUT' : 'POST';
 
+      const balVal = parseFloat(accountForm.balance) || (parseFloat(accountForm.initialBalance) || 0);
+      const initVal = parseFloat(accountForm.initialBalance) || balVal;
+
       const payload = {
         ...accountForm,
         entity: accountForm.type === 'efectivo' ? 'Efectivo' : accountForm.entity,
-        initialBalance: parseFloat(accountForm.initialBalance) || 0,
-        balance: editingAccount ? parseFloat(accountForm.balance) : (parseFloat(accountForm.initialBalance) || 0),
+        initialBalance: initVal,
+        balance: balVal,
         creditLimit: accountForm.type === 'credito' ? (parseFloat(accountForm.creditLimit) || 0) : null,
         cutOffDay: accountForm.type === 'credito' && accountForm.cutOffDay ? parseInt(accountForm.cutOffDay, 10) : null,
         paymentDueDay: accountForm.type === 'credito' && accountForm.paymentDueDay ? parseInt(accountForm.paymentDueDay, 10) : null
@@ -1597,13 +1600,20 @@ export default function FinanceView() {
                 </div>
                 <div>
                   <label className="text-slate-300 block mb-1.5 font-medium">
-                    {accountForm.type === 'credito' ? 'Deuda Actual' : 'Saldo Inicial'}
+                    {accountForm.type === 'credito' ? 'Deuda Consumida Actual' : 'Saldo Disponible Actual'}
                   </label>
                   <input
                     type="number"
                     step="0.01"
-                    value={accountForm.initialBalance}
-                    onChange={(e) => setAccountForm(prev => ({ ...prev, initialBalance: e.target.value }))}
+                    value={accountForm.balance !== undefined && accountForm.balance !== '' ? accountForm.balance : accountForm.initialBalance}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setAccountForm(prev => ({
+                        ...prev,
+                        balance: val,
+                        initialBalance: val
+                      }));
+                    }}
                     placeholder="0.00"
                     className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-white/10 text-white font-mono"
                   />

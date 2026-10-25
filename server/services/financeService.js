@@ -205,7 +205,14 @@ class FinanceService {
     const supabase = getSupabaseClient();
     if (supabase) {
       try {
-        await supabase.from('finance_accounts').insert(newAcc);
+        await supabase.from('finance_accounts').upsert({
+          id: newAcc.id,
+          name: newAcc.name,
+          type: newAcc.type,
+          balance: newAcc.balance,
+          currency: newAcc.currency,
+          color: newAcc.color
+        });
       } catch (_) {}
     }
 
@@ -217,12 +224,15 @@ class FinanceService {
     const idx = data.accounts.findIndex(a => a.id === id);
     if (idx === -1) return null;
 
+    const newInit = updates.initialBalance !== undefined ? Number(updates.initialBalance) : data.accounts[idx].initialBalance;
+    const newBal = updates.balance !== undefined ? Number(updates.balance) : (updates.initialBalance !== undefined ? Number(updates.initialBalance) : data.accounts[idx].balance);
+
     data.accounts[idx] = {
       ...data.accounts[idx],
       ...updates,
       last4: updates.last4 ? updates.last4.slice(-4) : data.accounts[idx].last4,
-      initialBalance: updates.initialBalance !== undefined ? Number(updates.initialBalance) : data.accounts[idx].initialBalance,
-      balance: updates.balance !== undefined ? Number(updates.balance) : data.accounts[idx].balance
+      initialBalance: newInit,
+      balance: newBal
     };
 
     this.writeLocal(data);
@@ -230,7 +240,14 @@ class FinanceService {
     const supabase = getSupabaseClient();
     if (supabase) {
       try {
-        await supabase.from('finance_accounts').update(data.accounts[idx]).eq('id', id);
+        await supabase.from('finance_accounts').upsert({
+          id: data.accounts[idx].id,
+          name: data.accounts[idx].name,
+          type: data.accounts[idx].type,
+          balance: data.accounts[idx].balance,
+          currency: data.accounts[idx].currency,
+          color: data.accounts[idx].color
+        });
       } catch (_) {}
     }
 
