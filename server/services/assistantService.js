@@ -197,18 +197,22 @@ Estructura JSON requerida según acción:
       };
     }
 
-    // D2) MONITOREO EDUS
+    // D2) GESTIÓN DE CITAS EDUS CCSS
     if (parsed.action === 'EDUS_MONITORING') {
       const preferredDay = parsed.edus?.preferredDay || 'viernes';
       const timeSlot = parsed.edus?.timeSlot || 'mañana';
+      const isDental = originalCmd.toLowerCase().includes('odont') || originalCmd.toLowerCase().includes('dient');
+      const specialty = isDental ? 'Odontología' : 'Medicina General';
+
       const job = await edusService.createEdusJob({
         preferredDay,
         timeSlot,
+        specialty,
         notes: originalCmd
       });
       return {
         action: 'EDUS_MONITORING',
-        message: `Monitoreo autónomo activado en EDUS (CCSS) para el ${preferredDay} en la ${timeSlot}. En cuanto el EBAIS libere un cupo, se reservará automáticamente.`,
+        message: `Anotado para ${specialty}. Alerta estratégica fijada en tu Agenda para el ${preferredDay} a las 06:00 a.m. (hora de liberación de cupos en EBAIS) con acceso directo al portal oficial de la CCSS.`,
         data: job
       };
     }
@@ -430,7 +434,8 @@ Estructura JSON requerida según acción:
       } else if (executedAction.action === 'CREATE_TASK') {
         naturalReply = `Anotado en tus tareas de alta prioridad. Te mantendré al tanto de su seguimiento.`;
       } else if (executedAction.action === 'EDUS_MONITORING') {
-        naturalReply = `Excelente César. Ya dejé activado el bot de monitoreo autónomo en la web de EDUS para buscarte cupo este próximo viernes por la mañana. En cuanto el EBAIS libere la cita, te la confirmo en tu agenda y te envío la notificación.`;
+        const spec = executedAction.data?.specialty || 'Odontología';
+        naturalReply = `César, anotado para ${spec}. Por normativas de seguridad de la CCSS, el portal EDUS requiere tu autenticación personal (cédula y contraseña oficial). Ya te dejé programada la alarma en tu Agenda para este viernes a las 6:00 a.m. (hora exacta en que tu EBAIS libera los cupos) con el enlace directo al portal oficial para asegurar tu turno.`;
       } else if (executedAction.action === 'SEARCH_PROMOS') {
         const p = executedAction.data?.promotions || [];
         naturalReply = `César, revisé las promociones de ${executedAction.data?.merchant || 'KFC'} en Costa Rica: la más prometedora es "${p[0]?.title || 'el Mega Box'}" (${p[0]?.description || ''}). ¿Quieres que te detalle los demás cupones o combos?`;

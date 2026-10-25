@@ -121,20 +121,42 @@ export default function ConversationalAssistantModal({
 
     const utterance = new SpeechSynthesisUtterance(cleanText);
     utterance.lang = 'es-CR';
-    utterance.rate = 1.05;
-    utterance.pitch = 1.0;
+    utterance.rate = 0.98;
+    utterance.pitch = 0.95;
 
-    // Buscar una voz natural en español
+    // Buscar una voz neural o natural de alta fidelidad en español
     const voices = synthRef.current.getVoices();
-    const spanishVoice = voices.find(v => v.lang.startsWith('es') && (v.name.includes('Natural') || v.name.includes('Google') || v.name.includes('Sabina') || v.name.includes('Paulina')))
-      || voices.find(v => v.lang.startsWith('es'));
-    if (spanishVoice) utterance.voice = spanishVoice;
+    const neuralVoice = voices.find(v => v.lang.startsWith('es') && (
+      v.name.toLowerCase().includes('neural') ||
+      v.name.toLowerCase().includes('natural') ||
+      v.name.toLowerCase().includes('online') ||
+      v.name.toLowerCase().includes('google') ||
+      v.name.toLowerCase().includes('sabina') ||
+      v.name.toLowerCase().includes('paulina') ||
+      v.name.toLowerCase().includes('jorge') ||
+      v.name.toLowerCase().includes('alvaro')
+    ));
+    const fallbackVoice = voices.find(v => v.lang.startsWith('es') || v.lang.includes('es'));
+    if (neuralVoice) {
+      utterance.voice = neuralVoice;
+    } else if (fallbackVoice) {
+      utterance.voice = fallbackVoice;
+    }
 
     utterance.onstart = () => setIsSpeaking(true);
     utterance.onend = () => setIsSpeaking(false);
     utterance.onerror = () => setIsSpeaking(false);
 
     synthRef.current.speak(utterance);
+  };
+
+  const toggleVoiceMute = () => {
+    if (!isVoiceMuted && synthRef.current) synthRef.current.cancel();
+    const next = !isVoiceMuted;
+    setIsVoiceMuted(next);
+    try {
+      localStorage.setItem('proactur_voice_muted', String(next));
+    } catch (_) {}
   };
 
   const toggleListening = () => {
@@ -275,18 +297,16 @@ export default function ConversationalAssistantModal({
             {/* Botón Silenciar Voz IA */}
             <button
               type="button"
-              onClick={() => {
-                if (!isVoiceMuted && synthRef.current) synthRef.current.cancel();
-                setIsVoiceMuted(prev => !prev);
-              }}
-              className={`p-2 rounded-xl border transition-all ${
+              onClick={toggleVoiceMute}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-semibold transition-all ${
                 isVoiceMuted
                   ? 'bg-rose-500/10 border-rose-500/30 text-rose-400'
                   : 'bg-slate-800/80 border-slate-700 text-slate-300 hover:text-white'
               }`}
               title={isVoiceMuted ? 'Activar voz del asistente' : 'Silenciar voz del asistente'}
             >
-              {isVoiceMuted ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
+              {isVoiceMuted ? <VolumeX className="w-3.5 h-3.5" /> : <Volume2 className="w-3.5 h-3.5" />}
+              <span className="text-[10px] font-medium">{isVoiceMuted ? 'Silencio' : 'Voz'}</span>
             </button>
 
             {/* Cerrar */}

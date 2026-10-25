@@ -1,1 +1,13 @@
-[]
+[
+  {
+    "id": "task_1792942828836",
+    "title": "Poner dobby",
+    "priority": "medium",
+    "due_date": "2026-10-25T15:40:28.836+00:00",
+    "status": "pending",
+    "source": "assistant",
+    "meeting_id": null,
+    "created_at": "2026-10-25T15:40:28.837+00:00",
+    "updated_at": "2026-10-25T15:40:28.901995+00:00"
+  }
+]

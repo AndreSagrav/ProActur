@@ -5,7 +5,7 @@ import {
   PieChart, RefreshCw, X, Mail, ShieldCheck, CheckCircle2,
   Calendar, Clock, DollarSign, Edit3, ChevronRight, Play, AlertTriangle,
   Zap, Bell, ArrowUpRight, ArrowDownRight, Layers, FileSpreadsheet,
-  Coins, ArrowRightLeft, Percent, Sparkles
+  Coins, ArrowRightLeft, Percent, Sparkles, Receipt
 } from 'lucide-react';
 
 const API = import.meta.env.VITE_API_URL || '';
@@ -557,6 +557,23 @@ export default function FinanceView() {
           </button>
 
           <button
+            onClick={() => setActiveTab('movimientos')}
+            className={`flex items-center gap-2 px-3.5 sm:px-5 py-2 sm:py-2.5 rounded-xl text-xs font-semibold transition-all whitespace-nowrap shrink-0 ${
+              activeTab === 'movimientos'
+                ? 'bg-gradient-to-r from-sky-600 to-indigo-600 text-white shadow-md shadow-sky-600/30'
+                : 'text-slate-400 hover:text-white hover:bg-white/5'
+            }`}
+          >
+            <Receipt className="w-4 h-4 shrink-0" />
+            <span>Movimientos</span>
+            {financeData.recentTransactions?.length > 0 && (
+              <span className="px-1.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 text-[10px] font-bold">
+                {financeData.recentTransactions.length}
+              </span>
+            )}
+          </button>
+
+          <button
             onClick={() => setActiveTab('prestamos')}
             className={`flex items-center gap-2 px-3.5 sm:px-5 py-2 sm:py-2.5 rounded-xl text-xs font-semibold transition-all whitespace-nowrap shrink-0 ${
               activeTab === 'prestamos'
@@ -601,9 +618,36 @@ export default function FinanceView() {
       {/* PESTAÑA 1: CUENTAS                                       */}
       {/* ======================================================== */}
       {activeTab === 'cuentas' && (
-        <div className="space-y-8">
-          {/* BALANCE GENERAL RÁPIDO */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
+        <div className="space-y-6">
+          {/* VISTA MÓVIL: RESUMEN EJECUTIVO COMPACTO (CERO APELOTAMIENTO) */}
+          <div className="p-4 sm:hidden rounded-2xl bg-slate-900/80 backdrop-blur-md border border-white/10 space-y-3">
+            <div className="flex justify-between items-center">
+              <span className="text-xs text-slate-400 font-medium">Disponible Total Líquido</span>
+              <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-bold uppercase">
+                En Cuentas
+              </span>
+            </div>
+            <div className="text-2xl font-bold font-mono text-white">
+              ₡{(financeData.balance || 0).toLocaleString()}
+            </div>
+            <div className="grid grid-cols-3 gap-2 pt-2.5 border-t border-white/10 text-xs">
+              <div>
+                <span className="text-[10px] text-slate-400 block font-medium">Gastos Mes</span>
+                <span className="font-bold text-rose-400 font-mono text-[11px]">₡{(financeData.monthExpense || 0).toLocaleString()}</span>
+              </div>
+              <div>
+                <span className="text-[10px] text-slate-400 block font-medium">Deuda Tarjetas</span>
+                <span className="font-bold text-purple-400 font-mono text-[11px]">₡{(financeData.creditDebt || 0).toLocaleString()}</span>
+              </div>
+              <div>
+                <span className="text-[10px] text-slate-400 block font-medium">Ingresos Mes</span>
+                <span className="font-bold text-emerald-400 font-mono text-[11px]">₡{(financeData.monthIncome || 0).toLocaleString()}</span>
+              </div>
+            </div>
+          </div>
+
+          {/* VISTA ESCRITORIO: CUADRÍCULA DE 4 TARJETAS */}
+          <div className="hidden sm:grid sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
             <div className="p-6 rounded-3xl bg-slate-900/60 backdrop-blur-md border border-white/10 hover:border-white/20 transition-all shadow-sm">
               <span className="text-xs font-medium text-slate-400 block mb-2">Disponible en Cuentas</span>
               <div className="text-2xl md:text-3xl font-bold font-mono text-white tracking-tight">
@@ -705,8 +749,8 @@ export default function FinanceView() {
                 </div>
               </div>
             ) : (
-              /* FILA ÚNICA DE 4 COLUMNAS - COMPACTO, ELEGANTE Y DE PRIMER MUNDO */
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              /* CARRUSEL DESLIZABLE EN MÓVIL Y CUADRÍCULA EN ESCRITORIO (APPLE WALLET STYLE) */
+              <div className="flex gap-3 overflow-x-auto pb-3 sm:pb-0 scrollbar-none snap-x snap-mandatory sm:grid sm:grid-cols-2 lg:grid-cols-4 sm:gap-4">
                 {financeData.accounts
                   .filter(acc => acc.type !== 'credito')
                   .map(acc => {
@@ -718,7 +762,7 @@ export default function FinanceView() {
                       <div
                         key={acc.id}
                         onClick={() => setFilterAccountId(isSelected ? 'all' : acc.id)}
-                        className={`relative p-5 rounded-2xl border transition-all cursor-pointer group shadow-sm flex flex-col justify-between h-40 ${
+                        className={`min-w-[260px] max-w-[280px] shrink-0 snap-start sm:min-w-0 sm:max-w-none relative p-5 rounded-2xl border transition-all cursor-pointer group shadow-sm flex flex-col justify-between h-40 ${
                           isSelected
                             ? 'border-sky-500 ring-2 ring-sky-500/30 bg-slate-900/95 shadow-sky-500/10'
                             : 'border-white/10 bg-slate-900/60 hover:border-white/25 hover:bg-slate-900/80'
@@ -791,10 +835,34 @@ export default function FinanceView() {
                   })}
               </div>
             )}
-          </div>
 
+            {/* BANNER DE ACCESO DIRECTO AL HISTORIAL CONTABLE */}
+            <div className="p-4 sm:p-5 rounded-2xl bg-slate-900/60 backdrop-blur-md border border-white/10 flex items-center justify-between shadow-sm">
+              <div>
+                <span className="text-xs font-bold text-white block">Libro Contable y Movimientos</span>
+                <span className="text-[11px] text-slate-400">
+                  {filteredTransactions.length} registros contables activos • Conciliación IMAP automática
+                </span>
+              </div>
+              <button
+                onClick={() => setActiveTab('movimientos')}
+                className="px-4 py-2 rounded-xl bg-gradient-to-r from-sky-600 to-indigo-600 text-white text-xs font-semibold flex items-center gap-1.5 shadow-md shadow-sky-600/20 active:scale-95 transition-all"
+              >
+                <span>Ver Movimientos</span>
+                <ChevronRight className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ======================================================== */}
+      {/* PESTAÑA 2: MOVIMIENTOS CONTABLES                         */}
+      {/* ======================================================== */}
+      {activeTab === 'movimientos' && (
+        <div className="space-y-6">
           {/* LIBRO DE MOVIMIENTOS ESPACIOSO */}
-          <div className="p-7 md:p-8 rounded-3xl bg-slate-900/60 backdrop-blur-md border border-white/10 space-y-6 shadow-sm">
+          <div className="p-4 sm:p-7 md:p-8 rounded-3xl bg-slate-900/60 backdrop-blur-md border border-white/10 space-y-6 shadow-sm">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
               <div>
                 <h3 className="font-bold text-white text-lg flex items-center gap-2.5">

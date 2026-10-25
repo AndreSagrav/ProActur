@@ -51,29 +51,37 @@ class EdusService {
   }
 
   /**
-   * Crea y activa un rastreador/monitoreo de citas en EDUS CCSS
+   * Crea y activa un rastreador/alerta estratégica de citas en EDUS CCSS
    */
   async createEdusJob({
     patientName = 'César Andrés',
+    specialty = 'Odontología',
     preferredDay = 'viernes',
     timeSlot = 'mañana',
     ebaisName = 'EBAIS correspondiente',
     notes = ''
   }) {
-    const targetDate = this.getNextFriday(timeSlot === 'mañana' ? '08:00' : '14:00');
+    // Detectar especialidad requerida (Odontología, Medicina General, etc.)
+    const text = (notes + ' ' + specialty).toLowerCase();
+    const isDental = text.includes('odont') || text.includes('dient') || text.includes('denta');
+    const finalSpecialty = isDental ? 'Odontología' : specialty;
+
+    // Los EBAIS de la CCSS abren la liberación de cupos en línea a las 06:00 a.m.
+    const targetDate = this.getNextFriday('06:00');
     
     const job = {
       id: 'edus_' + Date.now(),
       service: 'EDUS_CCSS',
+      specialty: finalSpecialty,
       patientName,
       preferredDay,
       timeSlot,
       ebaisName,
-      status: 'monitoreando', // 'monitoreando' | 'reservado' | 'pausado'
+      status: 'programado',
       targetDate,
+      directUrl: 'https://edus.ccss.sa.cr/eduscitas/',
       lastChecked: new Date().toISOString(),
-      checkCount: 1,
-      notes: notes || `Búsqueda autónoma de cupo para el ${preferredDay} en la ${timeSlot}`,
+      notes: notes || `Alerta estratégica para cupo de ${finalSpecialty} en EBAIS`,
       createdAt: new Date().toISOString()
     };
 
@@ -81,15 +89,15 @@ class EdusService {
     jobs.unshift(job);
     this._writeJobs(jobs);
 
-    // Registrar evento de recordatorio de monitoreo en la Agenda Supabase
+    // Registrar evento de alta prioridad en la Agenda Supabase
     try {
       await eventService.createEvent({
-        title: `🩺 Monitoreo EDUS: Cita Médica (${preferredDay.toUpperCase()} ${timeSlot.toUpperCase()})`,
+        title: `🦷 EDUS CCSS: Apertura de Cupos ${finalSpecialty} (6:00 AM)`,
         startTime: targetDate,
-        location: ebaisName,
-        description: `Bot activo rastreando cupo médico en portal web de la CCSS. Estado: Monitoreo autónomo activo.`,
-        color: '#0284c7', // Sky blue de salud
-        tags: ['edus', 'ccss', 'salud', 'bot-activo']
+        location: 'Portal Oficial EDUS (https://edus.ccss.sa.cr/eduscitas/)',
+        description: `Alerta estratégica: A las 6:00 AM la CCSS libera los cupos de ${finalSpecialty} para tu EBAIS. Accede de inmediato al portal con tu cédula y clave oficial para confirmar el turno.`,
+        color: '#0284c7',
+        tags: ['edus', 'ccss', 'salud', finalSpecialty.toLowerCase()]
       });
     } catch (err) {
       console.warn('[EdusService] No se pudo crear evento en agenda:', err.message);
