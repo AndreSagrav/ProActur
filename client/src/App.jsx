@@ -1042,24 +1042,26 @@ const handleNewNote = (linkedMeeting = null) => {
         </div>
       )}
 
-      {/* Barra de Mando y Dictado por Voz del Asistente Ejecutivo */}
-      <ExecutiveCommandBar
-        onStartRecording={() => {
-          setActiveTab('meetings');
-          setShowMobileDetail(false);
-          setTimeout(() => {
-            recorderRef.current?.startRecording?.();
-          }, 400);
-        }}
-        onNavigate={(dest) => {
-          setActiveTab(dest);
-          if (dest === 'meetings') setShowMobileDetail(false);
-        }}
-        onRefreshData={() => {
-          fetchMeetings();
-        }}
-        onOpenVoiceAssistant={() => setIsConversationalAssistantOpen(true)}
-      />
+      {/* Barra de Mando y Dictado por Voz del Asistente Ejecutivo (Desktop Únicamente; en móvil Dobby se gestiona desde su tarjeta nativa de Mando) */}
+      {!isCompact && (
+        <ExecutiveCommandBar
+          onStartRecording={() => {
+            setActiveTab('meetings');
+            setShowMobileDetail(false);
+            setTimeout(() => {
+              recorderRef.current?.startRecording?.();
+            }, 400);
+          }}
+          onNavigate={(dest) => {
+            setActiveTab(dest);
+            if (dest === 'meetings') setShowMobileDetail(false);
+          }}
+          onRefreshData={() => {
+            fetchMeetings();
+          }}
+          onOpenVoiceAssistant={() => setIsConversationalAssistantOpen(true)}
+        />
+      )}
 
     </div>
   );

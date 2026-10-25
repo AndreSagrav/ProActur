@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react';
 import {
   Sparkles, Wallet, CheckSquare, Mic, Plus, Brain,
   ChevronRight, TrendingUp, TrendingDown, Clock, Calendar, FileText,
-  ShieldCheck, ArrowUpRight, ArrowDownRight, Layers, Download
+  ShieldCheck, ArrowUpRight, ArrowDownRight, Layers, Download,
+  Edit3, Trash2, CheckCircle2, AlertCircle, X
 } from 'lucide-react';
 import BottomSheet from './BottomSheet';
 
@@ -16,17 +17,26 @@ export default function MobileCommandCenter({
   onOpenAssistant
 }) {
   const [financeSummary, setFinanceSummary] = useState({
-    balance: 0,
+    balanceCRC: 0,
+    balanceUSD: 0,
+    creditDebtCRC: 0,
+    creditDebtUSD: 0,
     monthIncome: 0,
     monthExpense: 0,
+    monthCreditExpense: 0,
     budgetLimit: 0,
     accounts: [],
     recentTransactions: []
   });
   const [tasks, setTasks] = useState([]);
   const [showTaskSheet, setShowTaskSheet] = useState(false);
+  const [editingTask, setEditingTask] = useState(null);
+  
+  // Formulario nueva tarea
   const [newTaskTitle, setNewTaskTitle] = useState('');
   const [newTaskPriority, setNewTaskPriority] = useState('high');
+  const [newTaskDueDate, setNewTaskDueDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [newTaskNotes, setNewTaskNotes] = useState('');
 
   const fetchFinance = async () => {
     try {
@@ -47,7 +57,8 @@ export default function MobileCommandCenter({
     fetchTasks();
   }, []);
 
-  const toggleTask = async (id) => {
+  const toggleTask = async (e, id) => {
+    e.stopPropagation();
     setTasks(prev => prev.map(t => t.id === id ? { ...t, status: t.status === 'completed' ? 'pending' : 'completed' } : t));
     try {
       await fetch(`${API}/api/tasks/${id}/toggle`, { method: 'PATCH' });
@@ -64,15 +75,67 @@ export default function MobileCommandCenter({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           title: newTaskTitle.trim(),
-          priority: newTaskPriority
+          priority: newTaskPriority,
+          dueDate: newTaskDueDate ? new Date(newTaskDueDate).toISOString() : new Date().toISOString(),
+          notes: newTaskNotes.trim()
         })
       });
       if (res.ok) {
         setNewTaskTitle('');
+        setNewTaskNotes('');
         setShowTaskSheet(false);
         fetchTasks();
       }
     } catch (_) {}
+  };
+
+  const handleUpdateTask = async (e) => {
+    e.preventDefault();
+    if (!editingTask || !editingTask.title?.trim()) return;
+    try {
+      const res = await fetch(`${API}/api/tasks/${editingTask.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: editingTask.title.trim(),
+          priority: editingTask.priority,
+          dueDate: editingTask.dueDate ? new Date(editingTask.dueDate).toISOString() : null,
+          notes: (editingTask.notes || '').trim(),
+          status: editingTask.status
+        })
+      });
+      if (res.ok) {
+        setEditingTask(null);
+        fetchTasks();
+      }
+    } catch (_) {}
+  };
+
+  const handleDeleteTask = async (id) => {
+    if (!id) return;
+    try {
+      const res = await fetch(`${API}/api/tasks/${id}`, { method: 'DELETE' });
+      if (res.ok) {
+        setEditingTask(null);
+        fetchTasks();
+      }
+    } catch (_) {}
+  };
+
+  const formatTaskDate = (dateStr) => {
+    if (!dateStr) return null;
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return null;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const target = new Date(d);
+    target.setHours(0, 0, 0, 0);
+    const diffDays = Math.round((target - today) / (1000 * 60 * 60 * 24));
+
+    if (diffDays === 0) return { label: 'Hoy', color: 'text-amber-400', isOverdue: false };
+    if (diffDays === 1) return { label: 'Mañana', color: 'text-sky-400', isOverdue: false };
+    if (diffDays < 0) return { label: `Vencida (${d.toLocaleDateString('es-CR', { month: 'short', day: 'numeric' })})`, color: 'text-rose-400', isOverdue: true };
+    return { label: d.toLocaleDateString('es-CR', { month: 'short', day: 'numeric' }), color: 'text-slate-400', isOverdue: false };
   };
 
   const latestMeeting = meetings[0] || null;
@@ -99,7 +162,7 @@ export default function MobileCommandCenter({
           {/* Saldo Neto Consolidado Real */}
           <div>
             <span className="text-[10px] font-semibold text-slate-400 tracking-wider uppercase">
-              Saldo Neto Consolidado
+              Saldo Disponible Líquido (Débito)
             </span>
             <div className="flex items-baseline gap-2 mt-0.5">
               <span className="text-2xl sm:text-3xl font-extrabold font-mono tracking-tight text-white">
@@ -115,7 +178,7 @@ export default function MobileCommandCenter({
             </div>
           </div>
 
-          {/* Indicadores de Flujo del Mes */}
+          {/* Indicadores de Flujo del Mes con Tratamiento Separado de Crédito */}
           <div className="grid grid-cols-2 gap-2 pt-1 border-t border-slate-800/60 text-xs">
             <div className="flex items-center justify-between p-2 rounded-xl bg-slate-950/50 border border-white/[0.04]">
               <span className="text-[10px] text-slate-400 uppercase font-semibold">Ingresos:</span>
@@ -124,12 +187,34 @@ export default function MobileCommandCenter({
               </span>
             </div>
             <div className="flex items-center justify-between p-2 rounded-xl bg-slate-950/50 border border-white/[0.04]">
-              <span className="text-[10px] text-slate-400 uppercase font-semibold">Egresos:</span>
+              <span className="text-[10px] text-slate-400 uppercase font-semibold">Egresos Débito:</span>
               <span className="font-mono font-bold text-rose-400">
                 -₡{Number(financeSummary.monthExpense || 0).toLocaleString('es-CR', { minimumFractionDigits: 0 })}
               </span>
             </div>
           </div>
+
+          {/* Tarjeta de Crédito (Tratamiento Diferenciado) */}
+          {(Number(financeSummary.creditDebtCRC || 0) > 0 || Number(financeSummary.monthCreditExpense || 0) > 0) && (
+            <div className="p-2.5 rounded-xl bg-purple-950/30 border border-purple-500/20 flex items-center justify-between text-xs">
+              <div className="flex items-center gap-2">
+                <span className="w-1.5 h-1.5 rounded-full bg-purple-400" />
+                <span className="text-[10px] uppercase font-bold text-purple-300 tracking-wider">
+                  Tarjetas de Crédito:
+                </span>
+              </div>
+              <div className="text-right font-mono">
+                <span className="font-bold text-purple-200">
+                  ₡{Number(financeSummary.creditDebtCRC || 0).toLocaleString('es-CR')}
+                </span>
+                {Number(financeSummary.monthCreditExpense || 0) > 0 && (
+                  <span className="text-[10px] text-purple-400/80 ml-1.5">
+                    (Consumo mes: ₡{Number(financeSummary.monthCreditExpense).toLocaleString('es-CR')})
+                  </span>
+                )}
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
@@ -160,7 +245,7 @@ export default function MobileCommandCenter({
         </div>
       )}
 
-      {/* 3. Acciones Rápidas (Diseño Armónico, Delicado y de Proporciones Sobrias) */}
+      {/* 3. Acciones Rápidas */}
       <div className="grid grid-cols-2 gap-2.5">
         {/* Grabar Reunión */}
         <button
@@ -223,7 +308,7 @@ export default function MobileCommandCenter({
         </button>
       </div>
 
-      {/* 3. Compromisos & Tareas Prioritarias */}
+      {/* 4. Compromisos & Tareas Prioritarias */}
       <div className="p-4 rounded-2xl bg-slate-900/90 border border-white/[0.08] shadow-sm space-y-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
@@ -235,51 +320,86 @@ export default function MobileCommandCenter({
           <button
             type="button"
             onClick={() => setShowTaskSheet(true)}
-            className="text-xs font-bold text-indigo-400 hover:text-indigo-300 active:scale-95 transition-all px-2 py-0.5 rounded-lg bg-indigo-500/10 border border-indigo-500/20"
+            className="text-xs font-bold text-indigo-400 hover:text-indigo-300 active:scale-95 transition-all px-2.5 py-1 rounded-lg bg-indigo-500/10 border border-indigo-500/20 flex items-center gap-1"
           >
-            + Añadir
+            <Plus className="w-3.5 h-3.5" />
+            <span>Añadir</span>
           </button>
         </div>
 
         <div className="space-y-2">
           {tasks.length === 0 ? (
             <div className="py-5 text-center text-xs text-slate-500 space-y-1">
-              <p>No hay tareas pendientes en este momento.</p>
-              <p className="text-[10px] text-slate-600">Presione "+ Añadir" o dicte una orden al asistente.</p>
+              <p>No hay tareas registradas en este momento.</p>
+              <p className="text-[10px] text-slate-600">Presione "+ Añadir" para crear una con fecha y detalles.</p>
             </div>
           ) : (
-            tasks.slice(0, 5).map(t => {
+            tasks.map(t => {
               const isDone = t.status === 'completed';
+              const dateInfo = formatTaskDate(t.dueDate || t.due_date);
               return (
                 <div
                   key={t.id}
-                  onClick={() => toggleTask(t.id)}
+                  onClick={() => setEditingTask(t)}
                   className={`p-3 rounded-xl border transition-all duration-150 active:scale-[0.99] flex items-center justify-between gap-3 cursor-pointer ${
                     isDone
                       ? 'bg-slate-950/40 border-slate-800/40 opacity-40'
-                      : 'bg-slate-950/80 hover:bg-slate-950 border-white/[0.05]'
+                      : 'bg-slate-950/80 hover:bg-slate-950 border-white/[0.05] hover:border-indigo-500/30'
                   }`}
                 >
-                  <div className="flex items-center gap-2.5 min-w-0">
-                    <input
-                      type="checkbox"
-                      checked={isDone}
-                      onChange={() => {}}
-                      className="w-4 h-4 rounded text-indigo-500 bg-slate-900 border-slate-700 cursor-pointer shrink-0"
-                    />
-                    <span className={`text-xs font-medium leading-snug break-words ${isDone ? 'line-through text-slate-500' : 'text-slate-200'}`}>
-                      {t.title}
-                    </span>
+                  <div className="flex items-center gap-3 min-w-0">
+                    <button
+                      type="button"
+                      onClick={(e) => toggleTask(e, t.id)}
+                      className={`w-5 h-5 rounded-md border flex items-center justify-center transition-all shrink-0 ${
+                        isDone
+                          ? 'bg-indigo-600 border-indigo-500 text-white'
+                          : 'border-slate-700 bg-slate-900/90 hover:border-slate-500'
+                      }`}
+                    >
+                      {isDone && <CheckCircle2 className="w-3.5 h-3.5" />}
+                    </button>
+
+                    <div className="min-w-0">
+                      <p className={`text-xs font-semibold leading-snug break-words ${isDone ? 'line-through text-slate-500' : 'text-slate-200'}`}>
+                        {t.title}
+                      </p>
+                      
+                      <div className="flex items-center gap-2 mt-1">
+                        {dateInfo && (
+                          <span className={`text-[10px] font-mono font-medium flex items-center gap-1 ${dateInfo.color}`}>
+                            <Calendar className="w-3 h-3" />
+                            {dateInfo.label}
+                          </span>
+                        )}
+                        {t.notes && (
+                          <span className="text-[10px] text-slate-500 flex items-center gap-0.5 truncate max-w-[150px]">
+                            <FileText className="w-2.5 h-2.5 shrink-0" />
+                            <span className="truncate">{t.notes}</span>
+                          </span>
+                        )}
+                      </div>
+                    </div>
                   </div>
-                  <span className={`text-[9px] px-2 py-0.5 rounded font-bold uppercase tracking-wider shrink-0 ${
-                    t.priority === 'high'
-                      ? 'bg-rose-500/20 text-rose-300 border border-rose-500/30'
-                      : t.priority === 'medium'
-                      ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
-                      : 'bg-slate-800 text-slate-400 border border-slate-700'
-                  }`}>
-                    {t.priority}
-                  </span>
+
+                  <div className="flex items-center gap-2 shrink-0">
+                    <span className={`text-[9px] px-2 py-0.5 rounded font-bold uppercase tracking-wider ${
+                      t.priority === 'high'
+                        ? 'bg-rose-500/20 text-rose-300 border border-rose-500/30'
+                        : t.priority === 'medium'
+                        ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+                        : 'bg-slate-800 text-slate-400 border border-slate-700'
+                    }`}>
+                      {t.priority === 'high' ? 'Alta' : t.priority === 'medium' ? 'Media' : 'Baja'}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={(e) => { e.stopPropagation(); setEditingTask(t); }}
+                      className="p-1 text-slate-500 hover:text-slate-300 rounded"
+                    >
+                      <Edit3 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
                 </div>
               );
             })
@@ -311,48 +431,75 @@ export default function MobileCommandCenter({
       <BottomSheet
         isOpen={showTaskSheet}
         onClose={() => setShowTaskSheet(false)}
-        title="Crear Tarea Prioritaria"
-        subtitle="Se sincronizará en Supabase para todos sus dispositivos"
+        title="Crear Nueva Tarea"
+        subtitle="Sincronizada en Supabase con fecha, prioridad y notas"
       >
         <form onSubmit={handleCreateTask} className="space-y-4">
           <div>
-            <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-2">
-              Descripción de la Tarea
+            <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1.5">
+              Título de la Tarea *
             </label>
             <input
               type="text"
               value={newTaskTitle}
               onChange={(e) => setNewTaskTitle(e.target.value)}
-              placeholder="Ej. Revisar contrato de servicios..."
+              placeholder="Ej. Agendar cita odontológica, revisar contrato..."
               autoFocus
               className="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-3 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-indigo-500 transition-colors"
             />
           </div>
 
-          <div>
-            <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-2">
-              Nivel de Prioridad
-            </label>
-            <div className="grid grid-cols-3 gap-2">
-              {['high', 'medium', 'low'].map((p) => (
-                <button
-                  key={p}
-                  type="button"
-                  onClick={() => setNewTaskPriority(p)}
-                  className={`py-2 rounded-xl text-xs font-bold uppercase tracking-wider transition-all border ${
-                    newTaskPriority === p
-                      ? p === 'high'
-                        ? 'bg-rose-500 text-white border-rose-400'
-                        : p === 'medium'
-                        ? 'bg-amber-500 text-slate-950 border-amber-400'
-                        : 'bg-indigo-600 text-white border-indigo-500'
-                      : 'bg-slate-900 text-slate-400 border-slate-800'
-                  }`}
-                >
-                  {p === 'high' ? 'Alta' : p === 'medium' ? 'Media' : 'Baja'}
-                </button>
-              ))}
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1.5">
+                Fecha Límite
+              </label>
+              <input
+                type="date"
+                value={newTaskDueDate}
+                onChange={(e) => setNewTaskDueDate(e.target.value)}
+                className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2.5 text-xs text-slate-200 focus:outline-none focus:border-indigo-500"
+              />
             </div>
+
+            <div>
+              <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1.5">
+                Prioridad
+              </label>
+              <div className="grid grid-cols-3 gap-1">
+                {['high', 'medium', 'low'].map((p) => (
+                  <button
+                    key={p}
+                    type="button"
+                    onClick={() => setNewTaskPriority(p)}
+                    className={`py-2 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all border ${
+                      newTaskPriority === p
+                        ? p === 'high'
+                          ? 'bg-rose-500 text-white border-rose-400'
+                          : p === 'medium'
+                          ? 'bg-amber-500 text-slate-950 border-amber-400'
+                          : 'bg-indigo-600 text-white border-indigo-500'
+                        : 'bg-slate-900 text-slate-400 border-slate-800'
+                    }`}
+                  >
+                    {p === 'high' ? 'Alta' : p === 'medium' ? 'Media' : 'Baja'}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1.5">
+              Detalles / Notas Adicionales
+            </label>
+            <textarea
+              rows={3}
+              value={newTaskNotes}
+              onChange={(e) => setNewTaskNotes(e.target.value)}
+              placeholder="Contexto, acuerdos previos o pasos específicos..."
+              className="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-2.5 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-indigo-500 resize-none"
+            />
           </div>
 
           <div className="pt-2">
@@ -365,6 +512,132 @@ export default function MobileCommandCenter({
             </button>
           </div>
         </form>
+      </BottomSheet>
+
+      {/* Bottom Sheet Nativo: Ver / Editar Tarea */}
+      <BottomSheet
+        isOpen={Boolean(editingTask)}
+        onClose={() => setEditingTask(null)}
+        title="Detalles y Edición de Tarea"
+        subtitle="Modifique plazos, descripción o estado de la tarea"
+      >
+        {editingTask && (
+          <form onSubmit={handleUpdateTask} className="space-y-4">
+            <div>
+              <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1.5">
+                Título de la Tarea *
+              </label>
+              <input
+                type="text"
+                value={editingTask.title || ''}
+                onChange={(e) => setEditingTask({ ...editingTask, title: e.target.value })}
+                className="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-3 text-sm text-slate-100 focus:outline-none focus:border-indigo-500 transition-colors"
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1.5">
+                  Fecha Límite
+                </label>
+                <input
+                  type="date"
+                  value={editingTask.dueDate ? editingTask.dueDate.slice(0, 10) : (editingTask.due_date ? editingTask.due_date.slice(0, 10) : '')}
+                  onChange={(e) => setEditingTask({ ...editingTask, dueDate: e.target.value })}
+                  className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2.5 text-xs text-slate-200 focus:outline-none focus:border-indigo-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1.5">
+                  Prioridad
+                </label>
+                <div className="grid grid-cols-3 gap-1">
+                  {['high', 'medium', 'low'].map((p) => (
+                    <button
+                      key={p}
+                      type="button"
+                      onClick={() => setEditingTask({ ...editingTask, priority: p })}
+                      className={`py-2 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all border ${
+                        editingTask.priority === p
+                          ? p === 'high'
+                            ? 'bg-rose-500 text-white border-rose-400'
+                            : p === 'medium'
+                            ? 'bg-amber-500 text-slate-950 border-amber-400'
+                            : 'bg-indigo-600 text-white border-indigo-500'
+                          : 'bg-slate-900 text-slate-400 border-slate-800'
+                      }`}
+                    >
+                      {p === 'high' ? 'Alta' : p === 'medium' ? 'Media' : 'Baja'}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1.5">
+                Estado
+              </label>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setEditingTask({ ...editingTask, status: 'pending' })}
+                  className={`py-2.5 rounded-xl text-xs font-bold transition-all border ${
+                    editingTask.status !== 'completed'
+                      ? 'bg-amber-500/20 text-amber-300 border-amber-500/40'
+                      : 'bg-slate-900 text-slate-500 border-slate-800'
+                  }`}
+                >
+                  ⏳ Pendiente
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setEditingTask({ ...editingTask, status: 'completed' })}
+                  className={`py-2.5 rounded-xl text-xs font-bold transition-all border ${
+                    editingTask.status === 'completed'
+                      ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
+                      : 'bg-slate-900 text-slate-500 border-slate-800'
+                  }`}
+                >
+                  ✅ Completada
+                </button>
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1.5">
+                Detalles / Notas Adicionales
+              </label>
+              <textarea
+                rows={3}
+                value={editingTask.notes || ''}
+                onChange={(e) => setEditingTask({ ...editingTask, notes: e.target.value })}
+                placeholder="Escriba detalles, pasos o contexto..."
+                className="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-2.5 text-xs text-slate-200 focus:outline-none focus:border-indigo-500 resize-none"
+              />
+            </div>
+
+            <div className="pt-2 flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => handleDeleteTask(editingTask.id)}
+                className="px-4 py-3 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/30 font-bold text-xs transition-all active:scale-95 flex items-center gap-1.5"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                <span>Eliminar</span>
+              </button>
+
+              <button
+                type="submit"
+                disabled={!editingTask.title?.trim()}
+                className="flex-1 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 text-white font-bold text-xs shadow-md transition-all active:scale-[0.98]"
+              >
+                Guardar Cambios
+              </button>
+            </div>
+          </form>
+        )}
       </BottomSheet>
     </div>
   );

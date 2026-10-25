@@ -2,14 +2,14 @@
   "accounts": [
     {
       "id": "acc_1792898165250",
-      "name": "BAC Débito 0095",
+      "name": "BAC Crédito 0095",
       "entity": "BAC Credomatic",
-      "type": "debito",
+      "type": "credito",
       "last4": "0095",
       "initialBalance": 14598,
       "balance": 12048,
       "currency": "CRC",
-      "creditLimit": null,
+      "creditLimit": 1500000,
       "cutOffDay": null,
       "paymentDueDay": null,
       "color": "#e4032b",

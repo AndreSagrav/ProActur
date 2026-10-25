@@ -48,8 +48,13 @@ class TaskService {
       try {
         const { data, error } = await supabase.from('tasks').select('*').order('created_at', { ascending: false });
         if (!error && data) {
-          this.writeLocal(data);
-          return data;
+          const mapped = data.map(t => ({
+            ...t,
+            dueDate: t.due_date || t.dueDate || null,
+            notes: t.notes || ''
+          }));
+          this.writeLocal(mapped);
+          return mapped;
         }
       } catch (_) {}
     }
@@ -63,6 +68,7 @@ class TaskService {
       title: taskData.title || 'Nueva tarea',
       priority: taskData.priority || 'medium',
       dueDate: taskData.dueDate || new Date().toISOString(),
+      notes: taskData.notes || '',
       status: 'pending',
       source: taskData.source || 'manual',
       meetingId: taskData.meetingId || null,
@@ -89,6 +95,41 @@ class TaskService {
     }
 
     return newTask;
+  }
+
+  async updateTask(id, updateData) {
+    const tasks = this.readLocal();
+    const taskIndex = tasks.findIndex(t => t.id === id);
+    if (taskIndex === -1) return null;
+
+    const current = tasks[taskIndex];
+    const updated = {
+      ...current,
+      title: updateData.title !== undefined ? updateData.title.trim() : current.title,
+      priority: updateData.priority !== undefined ? updateData.priority : current.priority,
+      dueDate: updateData.dueDate !== undefined ? updateData.dueDate : (current.dueDate || current.due_date),
+      status: updateData.status !== undefined ? updateData.status : current.status,
+      notes: updateData.notes !== undefined ? updateData.notes : (current.notes || ''),
+      updatedAt: new Date().toISOString()
+    };
+
+    tasks[taskIndex] = updated;
+    this.writeLocal(tasks);
+
+    const supabase = getSupabaseClient();
+    if (supabase) {
+      try {
+        await supabase.from('tasks').update({
+          title: updated.title,
+          priority: updated.priority,
+          due_date: updated.dueDate,
+          status: updated.status,
+          updated_at: updated.updatedAt
+        }).eq('id', id);
+      } catch (_) {}
+    }
+
+    return updated;
   }
 
   async toggleTaskStatus(id) {

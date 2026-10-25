@@ -176,10 +176,17 @@ class FinanceService {
       .filter(a => (a.currency || '').toUpperCase() === 'USD')
       .reduce((sum, a) => sum + (Number(a.balance) || 0), 0);
 
-    const expenses = (data.transactions || []).filter(t => t.type === 'gasto');
+    const liquidAccountIds = new Set(liquidAccounts.map(a => a.id));
+    const creditAccountIds = new Set(creditAccounts.map(a => a.id));
+
+    // Egresos líquidos: ÚNICAMENTE los que salen de cuentas de débito o efectivo
+    const liquidExpenses = (data.transactions || []).filter(t => t.type === 'gasto' && liquidAccountIds.has(t.accountId || t.account_id));
+    // Consumos en tarjetas de crédito: deuda asumida en tarjeta (tratamiento diferenciado)
+    const creditExpenses = (data.transactions || []).filter(t => t.type === 'gasto' && creditAccountIds.has(t.accountId || t.account_id));
     const incomes = (data.transactions || []).filter(t => t.type === 'ingreso');
 
-    const monthExpense = expenses.reduce((acc, t) => acc + (Number(t.amount) || 0), 0);
+    const monthExpense = liquidExpenses.reduce((acc, t) => acc + (Number(t.amount) || 0), 0);
+    const monthCreditExpense = creditExpenses.reduce((acc, t) => acc + (Number(t.amount) || 0), 0);
     const monthIncome = incomes.reduce((acc, t) => acc + (Number(t.amount) || 0), 0);
     const budgetLimit = data.budgets?.[0]?.monthlyLimit || 0;
 
@@ -206,6 +213,7 @@ class FinanceService {
       creditDebtCRC,
       creditDebtUSD,
       monthExpense,
+      monthCreditExpense,
       monthIncome,
       budgetLimit,
       accounts: enrichedAccounts,
@@ -438,6 +446,24 @@ class FinanceService {
       });
       if (isDuplicate) {
         return { isDuplicate: true };
+      }
+
+      const supabaseClient = getSupabaseClient();
+      if (supabaseClient) {
+        try {
+          const { data: supaDup } = await supabaseClient
+            .from('finance_transactions')
+            .select('id, amount, note, date')
+            .eq('amount', cleanAmount)
+            .limit(10);
+          if (supaDup && supaDup.some(e => 
+            (e.date || '').slice(0, 10) === cleanDate.slice(0, 10) &&
+            ((tx.merchant && (e.note || '').toLowerCase().includes(tx.merchant.toLowerCase())) ||
+             (tx.note && (e.note || '').toLowerCase() === tx.note.toLowerCase()))
+          )) {
+            return { isDuplicate: true };
+          }
+        } catch (_) {}
       }
     }
 
