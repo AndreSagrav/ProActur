@@ -13,6 +13,7 @@ const financeService = require('../services/financeService');
 const taskService = require('../services/taskService');
 const assistantService = require('../services/assistantService');
 const edusService = require('../services/edusService');
+const bankMailService = require('../services/bankMailService');
 
 const router = express.Router();
 
@@ -767,6 +768,125 @@ router.delete('/finance/transactions/:id', async (req, res) => {
     const success = await financeService.deleteTransaction(req.params.id);
     if (!success) return res.status(404).json({ error: 'Movimiento no encontrado' });
     res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// CUENTAS BANCARIAS & TARJETAS
+router.post('/finance/accounts', async (req, res) => {
+  try {
+    const created = await financeService.createAccount(req.body);
+    res.json(created);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.put('/finance/accounts/:id', async (req, res) => {
+  try {
+    const updated = await financeService.updateAccount(req.params.id, req.body);
+    if (!updated) return res.status(404).json({ error: 'Cuenta no encontrada' });
+    res.json(updated);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.delete('/finance/accounts/:id', async (req, res) => {
+  try {
+    const success = await financeService.deleteAccount(req.params.id);
+    if (!success) return res.status(404).json({ error: 'Cuenta no encontrada' });
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// PRÉSTAMOS & CRÉDITOS
+router.get('/finance/loans', async (req, res) => {
+  try {
+    const loans = await financeService.getLoans();
+    res.json(loans);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post('/finance/loans', async (req, res) => {
+  try {
+    const created = await financeService.createLoan(req.body);
+    res.json(created);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.put('/finance/loans/:id', async (req, res) => {
+  try {
+    const updated = await financeService.updateLoan(req.params.id, req.body);
+    if (!updated) return res.status(404).json({ error: 'Préstamo no encontrado' });
+    res.json(updated);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.delete('/finance/loans/:id', async (req, res) => {
+  try {
+    const success = await financeService.deleteLoan(req.params.id);
+    if (!success) return res.status(404).json({ error: 'Préstamo no encontrado' });
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post('/finance/loans/:id/pay', async (req, res) => {
+  try {
+    const { amount, accountId } = req.body;
+    const result = await financeService.payLoanInstallment(req.params.id, amount, accountId);
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// BUZÓN BANCARIO & CONCILIACIÓN GMAIL
+router.get('/finance/mail-config', (req, res) => {
+  try {
+    const config = bankMailService.getConfig();
+    const logs = bankMailService.getLogs();
+    res.json({ config, logs });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post('/finance/mail-config', (req, res) => {
+  try {
+    const saved = bankMailService.saveConfig(req.body);
+    res.json(saved);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post('/finance/mail-test', async (req, res) => {
+  try {
+    const { email, appPassword } = req.body;
+    const result = await bankMailService.testConnection(email, appPassword);
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post('/finance/mail-simulate', async (req, res) => {
+  try {
+    const { sampleType } = req.body;
+    const result = await bankMailService.simulateVoucher(sampleType);
+    res.json(result);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

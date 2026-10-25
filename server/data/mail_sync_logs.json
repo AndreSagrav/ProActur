@@ -1,0 +1,75 @@
+[
+  {
+    "id": "log_1792891214501_bo8m",
+    "timestamp": "2026-10-25T01:20:14.501Z",
+    "status": "recorded",
+    "subject": "Notificación de compra con su tarjeta BAC Credomatic",
+    "amount": 18450,
+    "currency": "CRC",
+    "accountName": "BAC Débito Principal",
+    "accountId": "acc_bac_debito",
+    "last4": "4120",
+    "type": "gasto",
+    "txId": "tx_1792891214273"
+  },
+  {
+    "id": "log_1792891214485_pulu",
+    "timestamp": "2026-10-25T01:20:14.485Z",
+    "status": "recorded",
+    "subject": "Comprobante de Rebajo de Cuota Mensual",
+    "amount": 65400,
+    "currency": "CRC",
+    "accountName": "Coopeande Ahorros",
+    "accountId": "acc_coopeande",
+    "last4": "9312",
+    "type": "gasto",
+    "txId": "tx_1792891214232"
+  },
+  {
+    "id": "log_1792891214472_8p77",
+    "timestamp": "2026-10-25T01:20:14.472Z",
+    "status": "recorded",
+    "subject": "Aprobación de cargo en tarjeta de crédito",
+    "amount": 42.5,
+    "currency": "USD",
+    "accountName": "BAC Tarjeta Platino",
+    "accountId": "acc_bac_credito",
+    "last4": "8841",
+    "type": "gasto",
+    "txId": "tx_1792891214249"
+  },
+  {
+    "id": "log_1792891046182_dmyx",
+    "timestamp": "2026-10-25T01:17:26.182Z",
+    "status": "recorded",
+    "subject": "Notificación de compra con su tarjeta BAC Credomatic",
+    "amount": 18450,
+    "currency": "CRC",
+    "accountName": "Cuenta Operativa (USD)",
+    "accountId": "acc_main",
+    "last4": "4120",
+    "type": "gasto",
+    "txId": "tx_1792891046025"
+  },
+  {
+    "id": "log_1792891046173_1nrl",
+    "timestamp": "2026-10-25T01:17:26.173Z",
+    "status": "recorded",
+    "subject": "Aprobación de cargo en tarjeta de crédito",
+    "amount": 42.5,
+    "currency": "USD",
+    "accountName": "Cuenta Operativa (USD)",
+    "accountId": "acc_main",
+    "last4": "8841",
+    "type": "gasto",
+    "txId": "tx_1792891046013"
+  },
+  {
+    "id": "log_1792891045637_db03",
+    "timestamp": "2026-10-25T01:17:25.637Z",
+    "status": "discarded",
+    "subject": "CCSS - Notificación de Emisión de Orden Patronal Digital",
+    "from": "sicere@ccss.sa.cr",
+    "reason": "Correo descartado por regla (no financiero / orden patronal / boletín)"
+  }
+]

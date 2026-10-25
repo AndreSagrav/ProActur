@@ -8,8 +8,68 @@ const DATA_FILE = process.env.VERCEL
 
 const INITIAL_FINANCES = {
   accounts: [
-    { id: 'acc_main', name: 'Cuenta Operativa (USD)', type: 'debito', balance: 0.00, currency: 'USD', color: '#10b981' },
-    { id: 'acc_crc', name: 'Cuenta Local (CRC)', type: 'debito', balance: 0.00, currency: 'CRC', color: '#6366f1' }
+    {
+      id: 'acc_bac_debito',
+      name: 'BAC Débito Principal',
+      entity: 'BAC Credomatic',
+      type: 'debito',
+      last4: '4120',
+      initialBalance: 0.00,
+      balance: 0.00,
+      currency: 'CRC',
+      color: '#dc2626'
+    },
+    {
+      id: 'acc_bac_credito',
+      name: 'BAC Tarjeta Platino',
+      entity: 'BAC Credomatic',
+      type: 'credito',
+      last4: '8841',
+      initialBalance: 0.00,
+      balance: 0.00,
+      creditLimit: 1500000.00,
+      cutOffDay: 22,
+      paymentDueDay: 7,
+      currency: 'CRC',
+      color: '#991b1b'
+    },
+    {
+      id: 'acc_popular',
+      name: 'Banco Popular Nómina',
+      entity: 'Banco Popular',
+      type: 'debito',
+      last4: '5201',
+      initialBalance: 0.00,
+      balance: 0.00,
+      currency: 'CRC',
+      color: '#0284c7'
+    },
+    {
+      id: 'acc_coopeande',
+      name: 'Coopeande Ahorros',
+      entity: 'Coopeande',
+      type: 'debito',
+      last4: '9312',
+      initialBalance: 0.00,
+      balance: 0.00,
+      currency: 'CRC',
+      color: '#16a34a'
+    }
+  ],
+  loans: [
+    {
+      id: 'loan_coopeande_1',
+      name: 'Préstamo Personal Coopeande',
+      entity: 'Coopeande',
+      totalAmount: 2500000.00,
+      remainingBalance: 1850000.00,
+      monthlyInstallment: 65400.00,
+      paymentDay: 15,
+      sourceAccountId: 'acc_coopeande',
+      currency: 'CRC',
+      status: 'active',
+      createdAt: new Date().toISOString()
+    }
   ],
   transactions: [],
   budgets: [
@@ -30,15 +90,35 @@ class FinanceService {
       }
       if (!fs.existsSync(DATA_FILE)) {
         fs.writeFileSync(DATA_FILE, JSON.stringify(INITIAL_FINANCES, null, 2), 'utf8');
+      } else {
+        // Asegurar que existan las llaves loans y accounts con estructura moderna
+        const raw = fs.readFileSync(DATA_FILE, 'utf8');
+        const data = JSON.parse(raw);
+        let modified = false;
+        if (!data.loans) {
+          data.loans = INITIAL_FINANCES.loans;
+          modified = true;
+        }
+        if (!data.accounts || data.accounts.length === 0) {
+          data.accounts = INITIAL_FINANCES.accounts;
+          modified = true;
+        }
+        if (modified) {
+          fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2), 'utf8');
+        }
       }
-    } catch (err) {}
+    } catch (err) {
+      console.warn('[FinanceService Init Warn]', err.message);
+    }
   }
 
   readLocal() {
     try {
       if (fs.existsSync(DATA_FILE)) {
         const raw = fs.readFileSync(DATA_FILE, 'utf8');
-        return JSON.parse(raw);
+        const data = JSON.parse(raw);
+        if (!data.loans) data.loans = [];
+        return data;
       }
     } catch (_) {}
     return INITIAL_FINANCES;
@@ -54,13 +134,31 @@ class FinanceService {
     const supabase = getSupabaseClient();
     let data = this.readLocal();
 
-    // Intentar leer de Supabase si existen las tablas
+    // Sincronizar lectura con Supabase si las tablas existen
     if (supabase) {
       try {
         const { data: supaAccounts } = await supabase.from('finance_accounts').select('*');
-        const { data: supaTx } = await supabase.from('finance_transactions').select('*').order('date', { ascending: false }).limit(20);
+        const { data: supaLoans } = await supabase.from('finance_loans').select('*');
+        const { data: supaTx } = await supabase.from('finance_transactions').select('*').order('date', { ascending: false }).limit(50);
+        
         if (supaAccounts && supaAccounts.length > 0) {
-          data.accounts = supaAccounts;
+          const localAccounts = data.accounts || [];
+          data.accounts = supaAccounts.map(sa => {
+            const local = localAccounts.find(la => la.id === sa.id);
+            return {
+              ...local,
+              ...sa,
+              last4: sa.last4 || local?.last4 || (sa.name.includes('4120') ? '4120' : sa.name.includes('8841') ? '8841' : sa.name.includes('5201') ? '5201' : sa.name.includes('9312') ? '9312' : null),
+              entity: sa.entity || local?.entity || (sa.name.includes('BAC') ? 'BAC Credomatic' : sa.name.includes('Popular') ? 'Banco Popular' : sa.name.includes('Coopeande') ? 'Coopeande' : 'Entidad Bancaria'),
+              initialBalance: sa.initial_balance !== undefined ? sa.initial_balance : (local?.initialBalance || 0),
+              creditLimit: sa.credit_limit !== undefined ? sa.credit_limit : (local?.creditLimit || (sa.type === 'credito' ? 1500000 : null)),
+              cutOffDay: sa.cut_off_day !== undefined ? sa.cut_off_day : (local?.cutOffDay || (sa.type === 'credito' ? 22 : null)),
+              paymentDueDay: sa.payment_due_day !== undefined ? sa.payment_due_day : (local?.paymentDueDay || (sa.type === 'credito' ? 7 : null))
+            };
+          });
+        }
+        if (supaLoans && supaLoans.length > 0) {
+          data.loans = supaLoans;
         }
         if (supaTx && supaTx.length > 0) {
           data.transactions = supaTx;
@@ -68,33 +166,286 @@ class FinanceService {
       } catch (_) {}
     }
 
-    const totalBalance = data.accounts.reduce((acc, a) => acc + (Number(a.balance) || 0), 0);
-    const expenses = data.transactions.filter(t => t.type === 'gasto');
-    const incomes = data.transactions.filter(t => t.type === 'ingreso');
+    // Calcular saldos y límites
+    const now = new Date();
+    const currentDay = now.getDate();
+
+    // Procesar cuentas con alertas de corte y pago
+    const enrichedAccounts = (data.accounts || []).map(acc => {
+      let daysToCutOff = null;
+      let daysToPayment = null;
+      let isPaymentUrgent = false;
+
+      if (acc.type === 'credito' && acc.cutOffDay) {
+        let diffCut = acc.cutOffDay - currentDay;
+        if (diffCut < 0) diffCut += 30; // Aproximación días restantes
+        daysToCutOff = diffCut;
+
+        if (acc.paymentDueDay) {
+          let diffPay = acc.paymentDueDay - currentDay;
+          if (diffPay < 0) diffPay += 30;
+          daysToPayment = diffPay;
+          if (daysToPayment <= 3) isPaymentUrgent = true;
+        }
+      }
+
+      const availableCredit = acc.type === 'credito' && acc.creditLimit
+        ? Math.max(0, acc.creditLimit - (acc.balance || 0))
+        : null;
+
+      return {
+        ...acc,
+        daysToCutOff,
+        daysToPayment,
+        isPaymentUrgent,
+        availableCredit
+      };
+    });
+
+    const totalBalance = enrichedAccounts
+      .filter(a => a.type === 'debito')
+      .reduce((sum, a) => sum + (Number(a.balance) || 0), 0);
+
+    const totalCreditDebt = enrichedAccounts
+      .filter(a => a.type === 'credito')
+      .reduce((sum, a) => sum + (Number(a.balance) || 0), 0);
+
+    const expenses = (data.transactions || []).filter(t => t.type === 'gasto');
+    const incomes = (data.transactions || []).filter(t => t.type === 'ingreso');
 
     const monthExpense = expenses.reduce((acc, t) => acc + (Number(t.amount) || 0), 0);
     const monthIncome = incomes.reduce((acc, t) => acc + (Number(t.amount) || 0), 0);
-    const budgetLimit = data.budgets[0]?.monthlyLimit || 0;
+    const budgetLimit = data.budgets?.[0]?.monthlyLimit || 0;
+
+    // Alertas ejecutivas de vencimiento de préstamos
+    const enrichedLoans = (data.loans || []).map(loan => {
+      let daysToPayment = null;
+      if (loan.paymentDay) {
+        let diff = loan.paymentDay - currentDay;
+        if (diff < 0) diff += 30;
+        daysToPayment = diff;
+      }
+      return {
+        ...loan,
+        daysToPayment,
+        isUrgent: daysToPayment !== null && daysToPayment <= 3
+      };
+    });
 
     return {
       balance: totalBalance,
+      creditDebt: totalCreditDebt,
       monthExpense,
       monthIncome,
       budgetLimit,
-      accounts: data.accounts,
-      recentTransactions: data.transactions.slice(0, 10)
+      accounts: enrichedAccounts,
+      loans: enrichedLoans,
+      recentTransactions: (data.transactions || []).slice(0, 30)
     };
   }
 
+  // GESTIÓN DE CUENTAS
+  async createAccount(acc) {
+    const data = this.readLocal();
+    const newAcc = {
+      id: 'acc_' + Date.now(),
+      name: acc.name || 'Nueva Cuenta',
+      entity: acc.entity || 'Banco',
+      type: acc.type || 'debito',
+      last4: (acc.last4 || '').slice(-4),
+      initialBalance: Number(acc.initialBalance) || 0,
+      balance: Number(acc.initialBalance) || 0,
+      currency: acc.currency || 'CRC',
+      creditLimit: acc.type === 'credito' ? (Number(acc.creditLimit) || 0) : null,
+      cutOffDay: acc.type === 'credito' ? (Number(acc.cutOffDay) || 1) : null,
+      paymentDueDay: acc.type === 'credito' ? (Number(acc.paymentDueDay) || 1) : null,
+      color: acc.color || '#3b82f6',
+      createdAt: new Date().toISOString()
+    };
+
+    data.accounts.push(newAcc);
+    this.writeLocal(data);
+
+    const supabase = getSupabaseClient();
+    if (supabase) {
+      try {
+        await supabase.from('finance_accounts').insert(newAcc);
+      } catch (_) {}
+    }
+
+    return newAcc;
+  }
+
+  async updateAccount(id, updates) {
+    const data = this.readLocal();
+    const idx = data.accounts.findIndex(a => a.id === id);
+    if (idx === -1) return null;
+
+    data.accounts[idx] = {
+      ...data.accounts[idx],
+      ...updates,
+      last4: updates.last4 ? updates.last4.slice(-4) : data.accounts[idx].last4,
+      initialBalance: updates.initialBalance !== undefined ? Number(updates.initialBalance) : data.accounts[idx].initialBalance,
+      balance: updates.balance !== undefined ? Number(updates.balance) : data.accounts[idx].balance
+    };
+
+    this.writeLocal(data);
+
+    const supabase = getSupabaseClient();
+    if (supabase) {
+      try {
+        await supabase.from('finance_accounts').update(data.accounts[idx]).eq('id', id);
+      } catch (_) {}
+    }
+
+    return data.accounts[idx];
+  }
+
+  async deleteAccount(id) {
+    const data = this.readLocal();
+    const idx = data.accounts.findIndex(a => a.id === id);
+    if (idx === -1) return false;
+
+    data.accounts.splice(idx, 1);
+    this.writeLocal(data);
+
+    const supabase = getSupabaseClient();
+    if (supabase) {
+      try {
+        await supabase.from('finance_accounts').delete().eq('id', id);
+      } catch (_) {}
+    }
+
+    return true;
+  }
+
+  // GESTIÓN DE PRÉSTAMOS
+  async getLoans() {
+    const summary = await this.getSummary();
+    return summary.loans;
+  }
+
+  async createLoan(loan) {
+    const data = this.readLocal();
+    const newLoan = {
+      id: 'loan_' + Date.now(),
+      name: loan.name || 'Préstamo Nuevo',
+      entity: loan.entity || 'Entidad Financiera',
+      totalAmount: Number(loan.totalAmount) || 0,
+      remainingBalance: Number(loan.remainingBalance !== undefined ? loan.remainingBalance : loan.totalAmount) || 0,
+      monthlyInstallment: Number(loan.monthlyInstallment) || 0,
+      paymentDay: Number(loan.paymentDay) || 15,
+      sourceAccountId: loan.sourceAccountId || '',
+      currency: loan.currency || 'CRC',
+      status: 'active',
+      createdAt: new Date().toISOString()
+    };
+
+    data.loans.push(newLoan);
+    this.writeLocal(data);
+
+    const supabase = getSupabaseClient();
+    if (supabase) {
+      try {
+        await supabase.from('finance_loans').insert(newLoan);
+      } catch (_) {}
+    }
+
+    return newLoan;
+  }
+
+  async updateLoan(id, updates) {
+    const data = this.readLocal();
+    const idx = data.loans.findIndex(l => l.id === id);
+    if (idx === -1) return null;
+
+    data.loans[idx] = {
+      ...data.loans[idx],
+      ...updates
+    };
+
+    this.writeLocal(data);
+
+    const supabase = getSupabaseClient();
+    if (supabase) {
+      try {
+        await supabase.from('finance_loans').update(data.loans[idx]).eq('id', id);
+      } catch (_) {}
+    }
+
+    return data.loans[idx];
+  }
+
+  async deleteLoan(id) {
+    const data = this.readLocal();
+    const idx = data.loans.findIndex(l => l.id === id);
+    if (idx === -1) return false;
+
+    data.loans.splice(idx, 1);
+    this.writeLocal(data);
+
+    const supabase = getSupabaseClient();
+    if (supabase) {
+      try {
+        await supabase.from('finance_loans').delete().eq('id', id);
+      } catch (_) {}
+    }
+
+    return true;
+  }
+
+  // PAGO DE CUOTA DE PRÉSTAMO
+  async payLoanInstallment(loanId, amount, accountId) {
+    const data = this.readLocal();
+    const loan = data.loans.find(l => l.id === loanId);
+    if (!loan) throw new Error('Préstamo no encontrado');
+
+    const payAmount = Number(amount) || loan.monthlyInstallment;
+    loan.remainingBalance = Math.max(0, loan.remainingBalance - payAmount);
+    if (loan.remainingBalance <= 0) {
+      loan.status = 'paid';
+    }
+
+    // Registrar transacción de gasto
+    const targetAccountId = accountId || loan.sourceAccountId || data.accounts[0]?.id;
+    const tx = await this.addTransaction({
+      accountId: targetAccountId,
+      type: 'gasto',
+      category: 'Servicios y Software',
+      note: `Cuota mensual: ${loan.name} (${loan.entity})`,
+      amount: payAmount,
+      date: new Date().toISOString()
+    });
+
+    this.writeLocal(data);
+
+    const supabase = getSupabaseClient();
+    if (supabase) {
+      try {
+        await supabase.from('finance_loans').update({
+          remaining_balance: loan.remainingBalance,
+          status: loan.status
+        }).eq('id', loan.id);
+      } catch (_) {}
+    }
+
+    return { loan, transaction: tx };
+  }
+
+  // TRANSACCIONES
   async addTransaction(tx) {
     const data = this.readLocal();
     const newTx = {
       id: 'tx_' + Date.now(),
-      accountId: tx.accountId || data.accounts[0]?.id || 'acc_main',
+      accountId: tx.accountId || data.accounts[0]?.id || 'acc_bac_debito',
       type: tx.type || 'gasto',
       category: tx.category || 'Varios',
       note: tx.note || '',
+      merchant: tx.merchant || '',
       amount: Math.abs(Number(tx.amount) || 0),
+      currency: tx.currency || 'CRC',
+      source: tx.source || 'manual', // 'manual' | 'gmail_auto' | 'xml_hacienda'
+      rawSnippet: tx.rawSnippet || null,
       date: tx.date || new Date().toISOString()
     };
 
@@ -103,10 +454,20 @@ class FinanceService {
     // Actualizar saldo de la cuenta correspondiente
     const targetAccount = data.accounts.find(a => a.id === newTx.accountId);
     if (targetAccount) {
-      if (newTx.type === 'gasto') {
-        targetAccount.balance -= newTx.amount;
-      } else if (newTx.type === 'ingreso') {
-        targetAccount.balance += newTx.amount;
+      if (targetAccount.type === 'credito') {
+        // En tarjeta de crédito: un gasto aumenta el saldo consumido (deuda); un pago/ingreso lo reduce
+        if (newTx.type === 'gasto') {
+          targetAccount.balance = (Number(targetAccount.balance) || 0) + newTx.amount;
+        } else if (newTx.type === 'ingreso') {
+          targetAccount.balance = Math.max(0, (Number(targetAccount.balance) || 0) - newTx.amount);
+        }
+      } else {
+        // En cuenta de débito: un gasto resta; un ingreso suma
+        if (newTx.type === 'gasto') {
+          targetAccount.balance = (Number(targetAccount.balance) || 0) - newTx.amount;
+        } else if (newTx.type === 'ingreso') {
+          targetAccount.balance = (Number(targetAccount.balance) || 0) + newTx.amount;
+        }
       }
     }
 
@@ -140,11 +501,20 @@ class FinanceService {
     if (index === -1) return false;
     const [deleted] = data.transactions.splice(index, 1);
     const targetAccount = data.accounts.find(a => a.id === deleted.accountId);
+    
     if (targetAccount) {
-      if (deleted.type === 'gasto') {
-        targetAccount.balance += deleted.amount;
-      } else if (deleted.type === 'ingreso') {
-        targetAccount.balance -= deleted.amount;
+      if (targetAccount.type === 'credito') {
+        if (deleted.type === 'gasto') {
+          targetAccount.balance = Math.max(0, (Number(targetAccount.balance) || 0) - deleted.amount);
+        } else if (deleted.type === 'ingreso') {
+          targetAccount.balance = (Number(targetAccount.balance) || 0) + deleted.amount;
+        }
+      } else {
+        if (deleted.type === 'gasto') {
+          targetAccount.balance = (Number(targetAccount.balance) || 0) + deleted.amount;
+        } else if (deleted.type === 'ingreso') {
+          targetAccount.balance = (Number(targetAccount.balance) || 0) - deleted.amount;
+        }
       }
     }
     this.writeLocal(data);

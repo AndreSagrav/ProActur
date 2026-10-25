@@ -1,0 +1,10 @@
+{
+  "email": "",
+  "appPassword": "",
+  "host": "imap.gmail.com",
+  "port": 993,
+  "enabled": false,
+  "autoRecord": true,
+  "lastSync": null,
+  "syncIntervalMinutes": 15
+}
