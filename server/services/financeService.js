@@ -108,7 +108,18 @@ class FinanceService {
           data.loans = supaLoans;
         }
         if (supaTx && supaTx.length > 0) {
-          data.transactions = supaTx;
+          const localTxs = data.transactions || [];
+          data.transactions = supaTx.map(st => {
+            const local = localTxs.find(lt => lt.id === st.id);
+            return {
+              ...local,
+              ...st,
+              accountId: st.account_id || st.accountId || local?.accountId,
+              currency: st.currency || local?.currency || 'CRC',
+              source: st.source || local?.source || 'gmail_auto',
+              merchant: st.merchant || local?.merchant || ''
+            };
+          });
         }
       } catch (_) {}
     }

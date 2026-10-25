@@ -872,9 +872,11 @@ export default function FinanceView() {
                     </tr>
                   ) : (
                     filteredTransactions.map(tx => {
-                      const account = (financeData.accounts || []).find(a => a.id === tx.accountId);
+                      const accId = tx.accountId || tx.account_id;
+                      const account = (financeData.accounts || []).find(a => String(a.id) === String(accId));
                       const isExpense = tx.type === 'gasto';
                       const symbol = tx.currency === 'USD' ? '$' : '₡';
+                      const isAuto = tx.source === 'gmail_auto' || (tx.note && (tx.note.includes('BAC') || tx.note.includes('SINPE') || tx.note.includes('Wink')));
 
                       return (
                         <tr key={tx.id} className="hover:bg-white/5 transition-colors">
@@ -897,7 +899,7 @@ export default function FinanceView() {
                             </span>
                           </td>
                           <td className="py-4">
-                            {tx.source === 'gmail_auto' ? (
+                            {isAuto ? (
                               <span className="inline-flex items-center gap-1.5 text-[10px] font-semibold px-2.5 py-0.5 rounded-full bg-sky-500/10 text-sky-400 border border-sky-500/20">
                                 <Zap className="w-3 h-3" /> IMAP Auto
                               </span>

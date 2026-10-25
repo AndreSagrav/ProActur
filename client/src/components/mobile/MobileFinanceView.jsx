@@ -3,7 +3,7 @@ import {
   Wallet, TrendingUp, TrendingDown, Plus, Trash2,
   CreditCard, Banknote, Landmark, Filter, RefreshCw,
   ArrowUpRight, ArrowDownRight, Tag, Calendar, CheckCircle2,
-  Mail, ShieldCheck, Zap, AlertCircle, X, Edit3
+  Mail, ShieldCheck, Zap, AlertCircle, X, Edit3, Receipt
 } from 'lucide-react';
 import BottomSheet from './BottomSheet';
 
@@ -311,7 +311,8 @@ export default function MobileFinanceView() {
   };
 
   const filteredTransactions = (financeData.recentTransactions || []).filter(tx => {
-    if (filterAccountId !== 'all' && tx.accountId !== filterAccountId) return false;
+    const accId = tx.accountId || tx.account_id;
+    if (filterAccountId !== 'all' && String(accId) !== String(filterAccountId)) return false;
     if (filterType !== 'all' && tx.type !== filterType) return false;
     return true;
   });
@@ -343,7 +344,7 @@ export default function MobileFinanceView() {
       </div>
 
       {/* PESTAÑAS MÓVILES */}
-      <div className="flex p-1 bg-slate-900/80 rounded-2xl border border-white/10 text-xs font-semibold">
+      <div className="flex p-1 bg-slate-900/80 rounded-2xl border border-white/10 text-xs font-semibold gap-1">
         <button
           onClick={() => setActiveTab('accounts')}
           className={`flex-1 py-2 rounded-xl transition-all text-center ${
@@ -353,12 +354,25 @@ export default function MobileFinanceView() {
           Cuentas
         </button>
         <button
+          onClick={() => setActiveTab('transactions')}
+          className={`flex-1 py-2 rounded-xl transition-all text-center flex items-center justify-center gap-1 ${
+            activeTab === 'transactions' ? 'bg-gradient-to-r from-sky-600 to-indigo-600 text-white shadow-md' : 'text-slate-400'
+          }`}
+        >
+          <span>Historial</span>
+          {financeData.recentTransactions?.length > 0 && (
+            <span className="px-1.5 py-0.2 rounded-full bg-emerald-500/20 text-emerald-400 text-[10px] font-bold">
+              {financeData.recentTransactions.length}
+            </span>
+          )}
+        </button>
+        <button
           onClick={() => setActiveTab('loans')}
           className={`flex-1 py-2 rounded-xl transition-all text-center ${
             activeTab === 'loans' ? 'bg-gradient-to-r from-sky-600 to-indigo-600 text-white shadow-md' : 'text-slate-400'
           }`}
         >
-          Préstamos
+          Créditos
         </button>
         <button
           onClick={() => setActiveTab('mailbox')}
@@ -366,7 +380,7 @@ export default function MobileFinanceView() {
             activeTab === 'mailbox' ? 'bg-gradient-to-r from-sky-600 to-indigo-600 text-white shadow-md' : 'text-slate-400'
           }`}
         >
-          Buzón Gmail
+          Gmail
         </button>
       </div>
 
@@ -505,9 +519,11 @@ export default function MobileFinanceView() {
                 </div>
               ) : (
                 filteredTransactions.map(tx => {
-                  const account = (financeData.accounts || []).find(a => a.id === tx.accountId);
+                  const accId = tx.accountId || tx.account_id;
+                  const account = (financeData.accounts || []).find(a => String(a.id) === String(accId));
                   const isExpense = tx.type === 'gasto';
                   const symbol = tx.currency === 'USD' ? '$' : '₡';
+                  const isAuto = tx.source === 'gmail_auto' || (tx.note && (tx.note.includes('BAC') || tx.note.includes('SINPE') || tx.note.includes('Wink')));
 
                   return (
                     <div
@@ -515,13 +531,16 @@ export default function MobileFinanceView() {
                       className="p-3.5 rounded-2xl bg-slate-900/60 border border-white/10 flex items-center justify-between text-xs"
                     >
                       <div className="space-y-0.5 max-w-[200px]">
-                        <div className="font-semibold text-white truncate">
-                          {tx.note || tx.merchant || 'Movimiento'}
+                        <div className="font-semibold text-white truncate flex items-center gap-1.5">
+                          <span>{tx.note || tx.merchant || 'Movimiento'}</span>
+                          {isAuto && (
+                            <span className="px-1.5 py-0.2 rounded bg-sky-500/20 text-sky-400 text-[9px] font-bold">Auto</span>
+                          )}
                         </div>
                         <div className="text-[10px] text-slate-400 flex items-center gap-1.5">
                           <span>{new Date(tx.date).toLocaleDateString('es-CR')}</span>
                           <span>•</span>
-                          <span>{account ? account.name : 'Cuenta'}</span>
+                          <span className="text-slate-300 font-medium">{account ? account.name : 'Cuenta Principal'}</span>
                         </div>
                       </div>
 
@@ -546,7 +565,122 @@ export default function MobileFinanceView() {
       )}
 
       {/* ======================================= */}
-      {/* TAB 2: PRÉSTAMOS MÓVILES               */}
+      {/* TAB 2: HISTORIAL COMPLETO DE MOVIMIENTOS */}
+      {/* ======================================= */}
+      {activeTab === 'transactions' && (
+        <div className="space-y-4">
+          <div className="p-4 rounded-2xl bg-slate-900/60 backdrop-blur-md border border-white/10 space-y-3">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-sm font-bold text-white">Historial de Movimientos</h3>
+                <p className="text-[11px] text-slate-400">{filteredTransactions.length} registros contables</p>
+              </div>
+              <button
+                onClick={() => setShowAddSheet(true)}
+                disabled={!hasAccounts}
+                className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-xl bg-gradient-to-r from-sky-600 to-indigo-600 text-white font-semibold shadow-md"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                Registrar
+              </button>
+            </div>
+
+            {/* FILTROS TIPO */}
+            <div className="flex p-1 bg-slate-950 rounded-xl border border-white/10 text-xs">
+              <button
+                onClick={() => setFilterType('all')}
+                className={`flex-1 py-1.5 rounded-lg font-medium transition-all ${filterType === 'all' ? 'bg-sky-600 text-white' : 'text-slate-400'}`}
+              >
+                Todos
+              </button>
+              <button
+                onClick={() => setFilterType('gasto')}
+                className={`flex-1 py-1.5 rounded-lg font-medium transition-all ${filterType === 'gasto' ? 'bg-rose-500 text-white' : 'text-slate-400'}`}
+              >
+                Gastos
+              </button>
+              <button
+                onClick={() => setFilterType('ingreso')}
+                className={`flex-1 py-1.5 rounded-lg font-medium transition-all ${filterType === 'ingreso' ? 'bg-emerald-500 text-white' : 'text-slate-400'}`}
+              >
+                Ingresos
+              </button>
+            </div>
+          </div>
+
+          {/* LISTA COMPLETA */}
+          <div className="space-y-2">
+            {filteredTransactions.length === 0 ? (
+              <div className="p-8 text-center text-xs text-slate-500 bg-slate-900/40 rounded-2xl border border-white/10 space-y-2">
+                <Receipt className="w-8 h-8 mx-auto text-slate-600 mb-1" />
+                <p className="font-medium text-slate-400">No hay movimientos con este filtro</p>
+                <p className="text-[11px] text-slate-500">Tus compras y pagos bancarios se registran automáticamente aquí</p>
+              </div>
+            ) : (
+              filteredTransactions.map(tx => {
+                const accId = tx.accountId || tx.account_id;
+                const account = (financeData.accounts || []).find(a => String(a.id) === String(accId));
+                const isExpense = tx.type === 'gasto';
+                const symbol = tx.currency === 'USD' ? '$' : '₡';
+                const isAuto = tx.source === 'gmail_auto' || (tx.note && (tx.note.includes('BAC') || tx.note.includes('SINPE') || tx.note.includes('Wink')));
+
+                return (
+                  <div
+                    key={tx.id}
+                    className="p-4 rounded-2xl bg-slate-900/70 border border-white/10 space-y-2 text-xs"
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="space-y-1">
+                        <div className="font-bold text-white text-sm flex items-center gap-1.5">
+                          <span>{tx.note || tx.merchant || 'Movimiento'}</span>
+                        </div>
+                        <div className="flex items-center gap-2 text-[11px] text-slate-400">
+                          <span className="font-mono text-slate-300">{new Date(tx.date).toLocaleDateString('es-CR')}</span>
+                          <span>•</span>
+                          <span className="px-2 py-0.5 rounded-md bg-slate-800 text-slate-300 text-[10px]">
+                            {tx.category || 'General'}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="text-right">
+                        <div className={`font-mono font-bold text-base ${isExpense ? 'text-rose-400' : 'text-emerald-400'}`}>
+                          {isExpense ? '-' : '+'} {symbol}{(tx.amount || 0).toLocaleString()}
+                        </div>
+                        {isAuto ? (
+                          <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-sky-400">
+                            <Zap className="w-2.5 h-2.5" /> IMAP Auto
+                          </span>
+                        ) : (
+                          <span className="text-[10px] text-slate-500">Manual</span>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="pt-2 border-t border-white/5 flex items-center justify-between text-[11px]">
+                      <div className="flex items-center gap-1.5 text-slate-300">
+                        <span className="w-2 h-2 rounded-full" style={{ backgroundColor: account?.color || '#0ea5e9' }} />
+                        <span>{account ? account.name : 'Cuenta Principal'}</span>
+                        {account?.last4 && <span className="text-slate-500 font-mono">({account.last4})</span>}
+                      </div>
+
+                      <button
+                        onClick={() => handleDeleteTx(tx.id)}
+                        className="text-slate-500 hover:text-rose-400 text-[11px] transition-colors"
+                      >
+                        Eliminar
+                      </button>
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ======================================= */}
+      {/* TAB 3: PRÉSTAMOS MÓVILES               */}
       {/* ======================================= */}
       {activeTab === 'loans' && (
         <div className="space-y-3">
