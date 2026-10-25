@@ -14,6 +14,7 @@ const taskService = require('../services/taskService');
 const assistantService = require('../services/assistantService');
 const edusService = require('../services/edusService');
 const bankMailService = require('../services/bankMailService');
+const dobyBrowserService = require('../services/dobyBrowserService');
 
 const router = express.Router();
 
@@ -1104,11 +1105,44 @@ router.post('/assistant/edus-jobs', async (req, res) => {
   }
 });
 
-// Consulta de Promociones en Comercios (KFC, etc.)
-router.get('/assistant/promos', async (req, res) => {
+// Automatización de Navegador en Vivo Doby (Web Agent EDUS CCSS)
+router.post('/assistant/doby-browser/launch', async (req, res) => {
   try {
-    const merchant = req.query.merchant || 'KFC';
-    const result = await edusService.searchPromotions(merchant);
+    const { userCedula, userClave, headless } = req.body || {};
+    const result = await dobyBrowserService.launchEdusPortal({
+      headless: headless !== undefined ? headless : false,
+      userCedula,
+      userClave
+    });
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post('/assistant/doby-browser/captcha', async (req, res) => {
+  try {
+    const { captchaCode } = req.body || {};
+    if (!captchaCode) return res.status(400).json({ error: 'Debe ingresar el código de seguridad (Captcha).' });
+    const result = await dobyBrowserService.submitCaptcha(captchaCode);
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.get('/assistant/doby-browser/status', async (req, res) => {
+  try {
+    const result = await dobyBrowserService.getStatus();
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post('/assistant/doby-browser/close', async (req, res) => {
+  try {
+    const result = await dobyBrowserService.close();
     res.json(result);
   } catch (err) {
     res.status(500).json({ error: err.message });

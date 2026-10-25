@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import {
   Mic, MicOff, Send, X, Volume2, VolumeX, Sparkles,
   Calendar, Wallet, CheckSquare, Brain, Radio, ArrowDownRight,
-  ArrowUpRight, ShieldCheck, Clock, ExternalLink, Loader2
+  ArrowUpRight, ShieldCheck, Clock, ExternalLink, Loader2, Globe, Eye
 } from 'lucide-react';
 
 const API = import.meta.env.VITE_API_URL || '';
@@ -17,7 +17,7 @@ export default function ConversationalAssistantModal({
     {
       id: 'welcome',
       role: 'assistant',
-      text: 'Hola César, aquí estoy atento. ¿En qué te colaboro hoy?',
+      text: 'Hola César, soy Doby, tu copiloto ejecutivo. ¿En qué te colaboro hoy?',
       action: 'GREETING',
       timestamp: new Date().toLocaleTimeString('es-CR', { hour: '2-digit', minute: '2-digit' })
     }
@@ -28,10 +28,95 @@ export default function ConversationalAssistantModal({
   const [isThinking, setIsThinking] = useState(false);
   const [isVoiceMuted, setIsVoiceMuted] = useState(false);
   const [activeJobs, setActiveJobs] = useState([]);
+  const [browserSession, setBrowserSession] = useState({
+    active: false,
+    status: 'inactivo',
+    screenshot: null,
+    logs: []
+  });
+  const [captchaInput, setCaptchaInput] = useState('');
+  const [isLaunchingBrowser, setIsLaunchingBrowser] = useState(false);
 
   const messagesEndRef = useRef(null);
   const recognitionRef = useRef(null);
   const synthRef = useRef(null);
+
+  const checkBrowserStatus = async () => {
+    try {
+      const res = await fetch(`${API}/api/assistant/doby-browser/status`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.hasActiveBrowser) {
+          setBrowserSession({
+            active: true,
+            status: data.status,
+            screenshot: data.screenshot,
+            logs: data.logs || []
+          });
+        }
+      }
+    } catch (_) {}
+  };
+
+  const handleLaunchDobyBrowser = async () => {
+    try {
+      setIsLaunchingBrowser(true);
+      const res = await fetch(`${API}/api/assistant/doby-browser/launch`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ headless: false })
+      });
+      const data = await res.json();
+      if (data.success) {
+        setBrowserSession({
+          active: true,
+          status: data.status,
+          screenshot: data.screenshot,
+          logs: data.logs || []
+        });
+        speakText('Navegador Chrome abierto en tu pantalla en el portal de EDUS. Ingresa el código de seguridad o tus credenciales para continuar.');
+      } else {
+        alert(data.error || 'No se pudo abrir el navegador.');
+      }
+    } catch (err) {
+      alert(err.message);
+    } finally {
+      setIsLaunchingBrowser(false);
+    }
+  };
+
+  const handleSendCaptcha = async () => {
+    if (!captchaInput.trim()) return;
+    try {
+      const res = await fetch(`${API}/api/assistant/doby-browser/captcha`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ captchaCode: captchaInput.trim() })
+      });
+      const data = await res.json();
+      if (data.success) {
+        setCaptchaInput('');
+        setBrowserSession(prev => ({
+          ...prev,
+          status: data.status,
+          screenshot: data.screenshot || prev.screenshot,
+          logs: data.logs || prev.logs
+        }));
+        speakText('Código de seguridad enviado. Procesando sesión de EDUS.');
+      } else {
+        alert(data.error || 'Error al enviar código.');
+      }
+    } catch (err) {
+      alert(err.message);
+    }
+  };
+
+  const handleCloseBrowser = async () => {
+    try {
+      await fetch(`${API}/api/assistant/doby-browser/close`, { method: 'POST' });
+      setBrowserSession({ active: false, status: 'inactivo', screenshot: null, logs: [] });
+    } catch (_) {}
+  };
 
   // Inicializar Web Speech Recognition y Synthesis
   useEffect(() => {
@@ -282,9 +367,9 @@ export default function ConversationalAssistantModal({
 
             <div>
               <div className="flex items-center gap-2">
-                <h3 className="text-sm font-black text-white tracking-tight">ProActur AI</h3>
+                <h3 className="text-sm font-black text-white tracking-tight">Doby</h3>
                 <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-bold">
-                  Asistente Ejecutivo
+                  Copiloto Ejecutivo
                 </span>
               </div>
               <p className="text-[11px] text-slate-400">
@@ -335,6 +420,64 @@ export default function ConversationalAssistantModal({
           </div>
         )}
 
+        {/* PANEL DE CONTROL DEL NAVEGADOR EN VIVO (DOBY WEB AGENT) */}
+        {browserSession.active && (
+          <div className="p-3.5 mx-4 mt-2 rounded-2xl bg-slate-950 border border-sky-500/30 space-y-2.5 shadow-xl shrink-0 animate-fade-in">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-ping" />
+                <span className="text-xs font-bold text-white flex items-center gap-1.5">
+                  <Globe className="w-4 h-4 text-sky-400" />
+                  Google Chrome En Pantalla • EDUS CCSS
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={handleCloseBrowser}
+                className="text-[10px] text-rose-400 hover:text-rose-300 font-bold px-2 py-0.5 rounded bg-rose-500/10 border border-rose-500/20"
+              >
+                Cerrar Navegador
+              </button>
+            </div>
+
+            {/* Captura en vivo reducida */}
+            {browserSession.screenshot && (
+              <div className="rounded-xl overflow-hidden border border-white/10 max-h-36 bg-black relative group">
+                <img
+                  src={browserSession.screenshot}
+                  alt="Vista en vivo EDUS"
+                  className="w-full object-cover object-top opacity-90 group-hover:opacity-100 transition-opacity"
+                />
+                <span className="absolute bottom-1.5 right-1.5 bg-black/80 text-[9px] text-sky-300 px-2 py-0.5 rounded-full border border-sky-500/30">
+                  Captura en Vivo
+                </span>
+              </div>
+            )}
+
+            {/* Formulario de Captcha / Código de Seguridad */}
+            <div className="flex items-center gap-2">
+              <input
+                type="text"
+                value={captchaInput}
+                onChange={(e) => setCaptchaInput(e.target.value)}
+                placeholder="Digita el Código de Seguridad (Captcha)..."
+                className="flex-1 bg-slate-900 border border-white/10 rounded-xl px-3 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-sky-500 font-mono tracking-wider uppercase"
+              />
+              <button
+                type="button"
+                onClick={handleSendCaptcha}
+                disabled={!captchaInput.trim()}
+                className="px-3 py-1.5 rounded-xl bg-gradient-to-r from-sky-600 to-indigo-600 hover:from-sky-500 hover:to-indigo-500 text-white font-bold text-xs disabled:opacity-50 transition-all shrink-0 shadow-md"
+              >
+                Enviar a Chrome
+              </button>
+            </div>
+            <p className="text-[10px] text-slate-400">
+              💡 Chrome está abierto en tu escritorio. Puedes interactuar en él directamente o ingresar el código captcha aquí para que Doby lo envíe.
+            </p>
+          </div>
+        )}
+
         {/* 3. Feed Conversacional con Burbujas */}
         <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-3.5 scrollbar-thin">
           {messages.map((m) => {
@@ -365,6 +508,17 @@ export default function ConversationalAssistantModal({
                         </span>
                       </div>
 
+                      {m.action === 'EDUS_MONITORING' && (
+                        <button
+                          type="button"
+                          onClick={handleLaunchDobyBrowser}
+                          disabled={isLaunchingBrowser}
+                          className="px-2.5 py-1 rounded-lg bg-sky-600 hover:bg-sky-500 text-white font-bold text-[10px] flex items-center gap-1 shadow-sm transition-all"
+                        >
+                          <Globe className="w-3 h-3" />
+                          <span>{isLaunchingBrowser ? 'Abriendo...' : 'Abrir Chrome EDUS'}</span>
+                        </button>
+                      )}
                       {m.action === 'CREATE_EVENT' && (
                         <button
                           type="button"

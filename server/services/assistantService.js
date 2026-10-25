@@ -52,7 +52,7 @@ class AssistantService {
 
   async parseWithAI(cmd) {
     const today = new Date().toISOString();
-    const systemPrompt = `Eres el Asistente Ejecutivo de ProActur. Analiza la siguiente instrucción del directivo y extrae la intención en formato JSON puro (sin markdown, sin bloques de código).
+    const systemPrompt = `Eres Doby, el copiloto y asistente ejecutivo de ProActur. Analiza la siguiente instrucción de César y extrae la intención en formato JSON puro (sin markdown, sin bloques de código).
 
 Fecha/Hora actual: ${today}.
 
@@ -465,7 +465,7 @@ Estructura JSON requerida según acción:
         `Reuniones registradas en el sistema: ${allMeetings.length}\n` +
         `Notas disponibles: ${allNotes.length}`;
 
-      const systemPrompt = `Eres ProActur AI, el asistente ejecutivo personal de máxima confianza de César Andrés.
+      const systemPrompt = `Eres Doby, el asistente ejecutivo personal de máxima confianza de César Andrés.
 Hablas en español de Costa Rica/Latinoamérica con un tono completamente natural, humano, directo, educado y resolutivo.
 Tienes acceso completo en tiempo real a sus cuentas bancarias, deudas, reuniones, notas y tareas.
 NUNCA hables como un robot ni des introducciones genéricas ni bloques de código.
