@@ -31,6 +31,21 @@
       "createdAt": "2026-10-25T03:16:05.751Z"
     },
     {
+      "id": "acc_usd_1792951283520",
+      "name": "BAC Dólares",
+      "entity": "BAC Credomatic",
+      "type": "debito",
+      "last4": "",
+      "initialBalance": 0,
+      "balance": 0,
+      "currency": "USD",
+      "creditLimit": null,
+      "cutOffDay": null,
+      "paymentDueDay": null,
+      "color": "#e4032b",
+      "createdAt": "2026-10-25T18:01:23.907Z"
+    },
+    {
       "id": "acc_1792968553732",
       "name": "Marchamo",
       "entity": "BAC Credomatic",
@@ -61,21 +76,6 @@
       "createdAt": "2026-10-25T22:51:20.319Z"
     },
     {
-      "id": "acc_1792968137777",
-      "name": "Wink Cuenta Dólares",
-      "entity": "Wink",
-      "type": "debito",
-      "last4": "1081",
-      "initialBalance": 0,
-      "balance": 0,
-      "currency": "USD",
-      "creditLimit": null,
-      "cutOffDay": null,
-      "paymentDueDay": null,
-      "color": "#0ea5e9",
-      "createdAt": "2026-10-25T22:42:17.777Z"
-    },
-    {
       "id": "acc_1792898166116",
       "name": "Wink Débito 1081",
       "entity": "Wink",
@@ -89,6 +89,21 @@
       "paymentDueDay": null,
       "color": "#3b82f6",
       "createdAt": "2026-10-25T03:16:06.116Z"
+    },
+    {
+      "id": "acc_1792968137777",
+      "name": "Wink Cuenta Dólares",
+      "entity": "Wink",
+      "type": "debito",
+      "last4": "1081",
+      "initialBalance": 0,
+      "balance": 0,
+      "currency": "USD",
+      "creditLimit": null,
+      "cutOffDay": null,
+      "paymentDueDay": null,
+      "color": "#0ea5e9",
+      "createdAt": "2026-10-25T22:42:17.777Z"
     },
     {
       "id": "acc_1792898165885",
