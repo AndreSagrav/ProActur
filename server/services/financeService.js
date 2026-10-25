@@ -7,74 +7,10 @@ const DATA_FILE = process.env.VERCEL
   : path.join(__dirname, '..', 'data', 'finances.json');
 
 const INITIAL_FINANCES = {
-  accounts: [
-    {
-      id: 'acc_bac_debito',
-      name: 'BAC Débito Principal',
-      entity: 'BAC Credomatic',
-      type: 'debito',
-      last4: '4120',
-      initialBalance: 0.00,
-      balance: 0.00,
-      currency: 'CRC',
-      color: '#dc2626'
-    },
-    {
-      id: 'acc_bac_credito',
-      name: 'BAC Tarjeta Platino',
-      entity: 'BAC Credomatic',
-      type: 'credito',
-      last4: '8841',
-      initialBalance: 0.00,
-      balance: 0.00,
-      creditLimit: 1500000.00,
-      cutOffDay: 22,
-      paymentDueDay: 7,
-      currency: 'CRC',
-      color: '#991b1b'
-    },
-    {
-      id: 'acc_popular',
-      name: 'Banco Popular Nómina',
-      entity: 'Banco Popular',
-      type: 'debito',
-      last4: '5201',
-      initialBalance: 0.00,
-      balance: 0.00,
-      currency: 'CRC',
-      color: '#0284c7'
-    },
-    {
-      id: 'acc_coopeande',
-      name: 'Coopeande Ahorros',
-      entity: 'Coopeande',
-      type: 'debito',
-      last4: '9312',
-      initialBalance: 0.00,
-      balance: 0.00,
-      currency: 'CRC',
-      color: '#16a34a'
-    }
-  ],
-  loans: [
-    {
-      id: 'loan_coopeande_1',
-      name: 'Préstamo Personal Coopeande',
-      entity: 'Coopeande',
-      totalAmount: 2500000.00,
-      remainingBalance: 1850000.00,
-      monthlyInstallment: 65400.00,
-      paymentDay: 15,
-      sourceAccountId: 'acc_coopeande',
-      currency: 'CRC',
-      status: 'active',
-      createdAt: new Date().toISOString()
-    }
-  ],
+  accounts: [],
+  loans: [],
   transactions: [],
-  budgets: [
-    { id: 'b_general', category: 'Presupuesto Mensual', monthlyLimit: 0.00 }
-  ]
+  budgets: []
 };
 
 class FinanceService {

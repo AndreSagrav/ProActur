@@ -352,48 +352,6 @@ class BankMailService {
       });
     });
   }
-
-  /**
-   * Disparador de Prueba / Simulación de Comprobante
-   * Permite al usuario simular un correo de BAC, Popular o Coopeande para verificar cómo se concilia solo
-   */
-  async simulateVoucher(sampleType = 'bac_debito') {
-    const samples = {
-      bac_debito: {
-        from: 'notificaciones@notificacionesbac.com',
-        subject: 'Notificación de compra con su tarjeta BAC Credomatic',
-        snippet: 'Estimado cliente: Le informamos que se registró una compra por ₡ 18.450,00 en AUTO MERCADO SAN PEDRO con su tarjeta de débito terminada en 4120. Fecha: ' + new Date().toLocaleDateString('es-CR'),
-        date: new Date().toISOString()
-      },
-      bac_credito: {
-        from: 'notificaciones@notificacionesbac.com',
-        subject: 'Aprobación de cargo en tarjeta de crédito',
-        snippet: 'Aviso de transacción: Se ha realizado un cargo por $ 42.50 en RESTAURANTE KFC ESCAZU con su tarjeta Platino terminada en 8841.',
-        date: new Date().toISOString()
-      },
-      popular: {
-        from: 'alertas@bancopopular.fi.cr',
-        subject: 'Banco Popular - Notificación de Depósito de Nómina',
-        snippet: 'Estimado César: Se ha acreditado un depósito por ₡ 485.000,00 bajo el concepto de PAGO HONORARIOS PROFESIONALES en su cuenta terminada en 5201.',
-        date: new Date().toISOString()
-      },
-      coopeande_cuota: {
-        from: 'servicio@coopeande.fi.cr',
-        subject: 'Comprobante de Rebajo de Cuota Mensual',
-        snippet: 'Estimado asociado: Se ha aplicado con éxito el rebajo de su cuota mensual por ₡ 65.400,00 correspondiente a Préstamo Personal Coopeande de su cuenta de ahorros terminada en 9312.',
-        date: new Date().toISOString()
-      },
-      orden_patronal: {
-        from: 'sicere@ccss.sa.cr',
-        subject: 'CCSS - Notificación de Emisión de Orden Patronal Digital',
-        snippet: 'Señor César: Se encuentra disponible su Orden Patronal digital correspondiente al periodo actual. Ingrese a la plataforma de la CCSS para descargarla.',
-        date: new Date().toISOString()
-      }
-    };
-
-    const targetSample = samples[sampleType] || samples.bac_debito;
-    return await this.processIncomingEmail(targetSample);
-  }
 }
 
 module.exports = new BankMailService();

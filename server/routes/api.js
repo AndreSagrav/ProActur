@@ -882,16 +882,6 @@ router.post('/finance/mail-test', async (req, res) => {
   }
 });
 
-router.post('/finance/mail-simulate', async (req, res) => {
-  try {
-    const { sampleType } = req.body;
-    const result = await bankMailService.simulateVoucher(sampleType);
-    res.json(result);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
 // ==========================================
 // TAREAS & ACUERDOS (MÓDULO CENTRO DE MANDO)
 // ==========================================
