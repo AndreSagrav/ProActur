@@ -1,4 +1,4 @@
-﻿const fs = require('fs');
+const fs = require('fs');
 const path = require('path');
 const { getSupabaseClient } = require('./supabaseClient');
 
@@ -117,7 +117,7 @@ class StorageService {
           .order('created_at', { ascending: false });
 
         if (!error && data) {
-          return data.map(r => this.fromSupabaseRow(r));
+          return data.filter(r => !String(r.id || '').startsWith('__sys_')).map(r => this.fromSupabaseRow(r));
         }
 
         if (error && error.code === 'PGRST205') {

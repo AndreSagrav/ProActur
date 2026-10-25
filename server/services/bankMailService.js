@@ -57,7 +57,47 @@ function decodeMimeWords(str) {
 class BankMailService {
   constructor() {
     this.ensureFiles();
+    this.syncFromCloud().catch(() => {});
     this.startBackgroundPoller();
+  }
+
+  async syncFromCloud() {
+    try {
+      const supabase = getSupabaseClient();
+      if (!supabase) return;
+      const { data, error } = await supabase
+        .from('meetings')
+        .select('transcript')
+        .eq('id', '__sys_mail_config__')
+        .single();
+
+      if (!error && data && data.transcript) {
+        const cloudConfig = JSON.parse(data.transcript);
+        if (cloudConfig && cloudConfig.email) {
+          const current = this.getConfig();
+          const merged = { ...current, ...cloudConfig };
+          try {
+            const dir = path.dirname(CONFIG_FILE);
+            if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+            fs.writeFileSync(CONFIG_FILE, JSON.stringify(merged, null, 2), 'utf8');
+          } catch (_) {}
+        }
+      }
+    } catch (_) {}
+  }
+
+  async saveConfigToCloud(cfg) {
+    try {
+      const supabase = getSupabaseClient();
+      if (!supabase) return;
+      await supabase.from('meetings').upsert({
+        id: '__sys_mail_config__',
+        title: '[SYSTEM] Bank Mail Configuration',
+        summary: 'Cloud persistence for Gmail sync credentials across web & mobile',
+        transcript: JSON.stringify(cfg),
+        updated_at: new Date().toISOString()
+      }, { onConflict: 'id' });
+    } catch (_) {}
   }
 
   startBackgroundPoller() {
@@ -101,7 +141,7 @@ class BankMailService {
     return DEFAULT_CONFIG;
   }
 
-  saveConfig(newConfig) {
+  async saveConfig(newConfig) {
     const current = this.getConfig();
     const updated = {
       ...current,
@@ -116,6 +156,7 @@ class BankMailService {
     };
 
     fs.writeFileSync(CONFIG_FILE, JSON.stringify(updated, null, 2), 'utf8');
+    await this.saveConfigToCloud(updated);
     return this.getConfig();
   }
 

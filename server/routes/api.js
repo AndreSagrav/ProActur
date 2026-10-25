@@ -863,8 +863,9 @@ router.post('/finance/loans/:id/pay', async (req, res) => {
 });
 
 // BUZÓN BANCARIO & CONCILIACIÓN GMAIL
-router.get('/finance/mail-config', (req, res) => {
+router.get('/finance/mail-config', async (req, res) => {
   try {
+    await bankMailService.syncFromCloud();
     const config = bankMailService.getConfig();
     const logs = bankMailService.getLogs();
     res.json({ config, logs });
@@ -873,9 +874,9 @@ router.get('/finance/mail-config', (req, res) => {
   }
 });
 
-router.post('/finance/mail-config', (req, res) => {
+router.post('/finance/mail-config', async (req, res) => {
   try {
-    const saved = bankMailService.saveConfig(req.body);
+    const saved = await bankMailService.saveConfig(req.body);
     res.json(saved);
   } catch (err) {
     res.status(500).json({ error: err.message });

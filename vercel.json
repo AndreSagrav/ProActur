@@ -6,10 +6,6 @@
     {
       "path": "/api/keep-alive",
       "schedule": "0 12 * * *"
-    },
-    {
-      "path": "/api/finance/mail-sync",
-      "schedule": "0 * * * *"
     }
   ],
   "rewrites": [
