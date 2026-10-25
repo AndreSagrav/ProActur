@@ -18,6 +18,7 @@ const CATEGORIES = {
     'Equipamiento',
     'Honorarios y Nómina',
     'Financiero e Intereses',
+    'Donaciones y Diezmos',
     'Varios'
   ],
   ingreso: [

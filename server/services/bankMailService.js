@@ -258,9 +258,10 @@ class BankMailService {
       if (last4Match) last4 = last4Match[1];
     }
 
-    if (merchant === entity) {
-      const merchantMatch = fullText.match(/(?:en|comercio|establecimiento|concepto|detalle):\s*([^.\n\r,<]+)/i);
-      if (merchantMatch && merchantMatch[1]) merchant = merchantMatch[1].trim();
+    // 5. Detectar Comercio, Motivo o Concepto (ej: SINPE "Diezmo", "Alquiler", etc.)
+    const motiveMatch = fullText.match(/(?:motivo|detalle|concepto|mensaje|descripci[oó]n|comercio|establecimiento|en):\s*([^.\n\r,<]+)/i);
+    if (motiveMatch && motiveMatch[1]) {
+      merchant = motiveMatch[1].trim();
     }
 
     if (lower.includes('deposito') || lower.includes('transferencia recibida') || lower.includes('credito a su cuenta') || lower.includes('pago recibido') || lower.includes('sinpe movil recibido')) {
@@ -275,6 +276,9 @@ class BankMailService {
       };
     }
 
+    const isSinpe = lower.includes('sinpe');
+    const notePrefix = isSinpe ? (type === 'gasto' ? 'SINPE Móvil' : 'SINPE Recibido') : (type === 'gasto' ? 'Compra' : 'Ingreso');
+
     return {
       matched: true,
       entity,
@@ -283,14 +287,15 @@ class BankMailService {
       type,
       last4,
       merchant,
-      note: `${type === 'gasto' ? 'Compra' : 'Ingreso'}: ${merchant} (${entity})`,
-      category: this.categorizeExpense(merchant),
+      note: `${notePrefix}: ${merchant} (${entity})`,
+      category: this.categorizeExpense(merchant, fullText),
       date
     };
   }
 
-  categorizeExpense(merchant = '') {
-    const text = merchant.toLowerCase();
+  categorizeExpense(merchant = '', fullText = '') {
+    const text = (merchant + ' ' + fullText).toLowerCase();
+    if (text.includes('diezmo') || text.includes('ofrenda') || text.includes('iglesia') || text.includes('donaci')) return 'Donaciones y Diezmos';
     if (text.includes('gas') || text.includes('delta') || text.includes('uber') || text.includes('didi') || text.includes('peaje')) return 'Gasolina y Transporte';
     if (text.includes('auto mercado') || text.includes('automercado') || text.includes('walmart') || text.includes('masxmenos') || text.includes('kfc') || text.includes('mcdonald') || text.includes('restaurante')) return 'Alimentación y Reuniones';
     if (text.includes('ice') || text.includes('kolbi') || text.includes('claro') || text.includes('liberty') || text.includes('aya') || text.includes('cnfl') || text.includes('google') || text.includes('apple') || text.includes('netflix') || text.includes('spotify') || text.includes('aws')) return 'Servicios y Software';
