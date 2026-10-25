@@ -1,4 +1,12 @@
-﻿const express = require('express');
+// Escudo de protección global contra excepciones imprevistas (DNS drops, socket errors, API timeouts)
+process.on('uncaughtException', (err) => {
+  console.error('[Shield uncaughtException]:', err && err.message ? err.message : err);
+});
+process.on('unhandledRejection', (reason) => {
+  console.error('[Shield unhandledRejection]:', reason);
+});
+
+const express = require('express');
 const cors = require('cors');
 const path = require('path');
 const config = require('./config');
