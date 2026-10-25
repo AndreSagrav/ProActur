@@ -1158,16 +1158,34 @@ const handleGetStatus = async (req, res) => {
 router.get('/assistant/dobby-browser/status', handleGetStatus);
 router.get('/assistant/doby-browser/status', handleGetStatus);
 
-const handleCloseBrowser = async (req, res) => {
+const handleStartLoop = async (req, res) => {
   try {
-    const result = await dobyBrowserService.close();
+    const { service, specialty, targetDay, intervalSeconds } = req.body || {};
+    const result = dobyBrowserService.startMonitoringLoop({
+      service: service || 'ODONTOLOGIA',
+      specialty: specialty || 'ODONTOLOGIA GENERAL',
+      targetDay: targetDay || 'viernes',
+      intervalSeconds: Number(intervalSeconds) || 60
+    });
     res.json(result);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 };
-router.post('/assistant/dobby-browser/close', handleCloseBrowser);
-router.post('/assistant/doby-browser/close', handleCloseBrowser);
+router.post('/assistant/dobby-browser/loop/start', handleStartLoop);
+router.post('/assistant/doby-browser/loop/start', handleStartLoop);
+
+const handleStopLoop = async (req, res) => {
+  try {
+    const result = dobyBrowserService.stopMonitoringLoop();
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
+router.post('/assistant/dobby-browser/loop/stop', handleStopLoop);
+router.post('/assistant/doby-browser/loop/stop', handleStopLoop);
 
 module.exports = router;
+
 

@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import {
   Mic, MicOff, Send, X, Volume2, VolumeX, Sparkles,
   Calendar, Wallet, CheckSquare, Brain, Radio, ArrowDownRight,
-  ArrowUpRight, ShieldCheck, Clock, ExternalLink, Loader2, Globe, Eye
+  ArrowUpRight, ShieldCheck, Clock, ExternalLink, Loader2, Globe, Eye, RefreshCw
 } from 'lucide-react';
 
 const API = import.meta.env.VITE_API_URL || '';
@@ -38,6 +38,8 @@ export default function ConversationalAssistantModal({
   const [captchaInput, setCaptchaInput] = useState('');
   const [isLaunchingBrowser, setIsLaunchingBrowser] = useState(false);
   const [isSolvingCaptcha, setIsSolvingCaptcha] = useState(false);
+  const [isLoopActive, setIsLoopActive] = useState(false);
+  const [loopInfo, setLoopInfo] = useState({ attempts: 0, service: 'ODONTOLOGIA', targetDay: 'viernes' });
 
   const messagesEndRef = useRef(null);
   const recognitionRef = useRef(null);
@@ -56,9 +58,14 @@ export default function ConversationalAssistantModal({
             logs: data.logs || [],
             solvedCaptcha: data.solvedCaptcha || null
           });
+          setIsLoopActive(!!data.isLoopRunning);
+          if (data.loopConfig) setLoopInfo(data.loopConfig);
           if (data.solvedCaptcha && !captchaInput) {
             setCaptchaInput(data.solvedCaptcha);
           }
+        } else {
+          setBrowserSession(prev => ({ ...prev, active: false }));
+          setIsLoopActive(false);
         }
       }
     } catch (_) {}
@@ -141,10 +148,45 @@ export default function ConversationalAssistantModal({
     }
   };
 
+  const handleStartLoop = async () => {
+    try {
+      const res = await fetch(`${API}/api/assistant/dobby-browser/loop/start`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          service: 'ODONTOLOGIA',
+          specialty: 'ODONTOLOGIA GENERAL',
+          targetDay: 'viernes',
+          intervalSeconds: 60
+        })
+      });
+      const data = await res.json();
+      if (data.success) {
+        setIsLoopActive(true);
+        speakText('Bucle de búsqueda iniciado. Dobby consultará cupos de odontología cada 60 segundos.');
+        checkBrowserStatus();
+      } else {
+        alert(data.error || 'No se pudo iniciar el bucle.');
+      }
+    } catch (err) {
+      alert(err.message);
+    }
+  };
+
+  const handleStopLoop = async () => {
+    try {
+      await fetch(`${API}/api/assistant/dobby-browser/loop/stop`, { method: 'POST' });
+      setIsLoopActive(false);
+      speakText('Bucle de búsqueda pausado.');
+      checkBrowserStatus();
+    } catch (_) {}
+  };
+
   const handleCloseBrowser = async () => {
     try {
       await fetch(`${API}/api/assistant/dobby-browser/close`, { method: 'POST' });
       setBrowserSession({ active: false, status: 'inactivo', screenshot: null, logs: [], solvedCaptcha: null });
+      setIsLoopActive(false);
       setCaptchaInput('');
     } catch (_) {}
   };
@@ -518,6 +560,49 @@ export default function ConversationalAssistantModal({
                 Ingresar a EDUS
               </button>
             </div>
+
+            {/* Bucle de Búsqueda de Citas (Odontología / Medicina cada 60s) */}
+            <div className="pt-2 border-t border-white/10 flex flex-col sm:flex-row items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={isLoopActive ? handleStopLoop : handleStartLoop}
+                  className={`px-3 py-1.5 rounded-xl font-bold text-xs flex items-center gap-1.5 transition-all shadow-md ${
+                    isLoopActive
+                      ? 'bg-amber-600 hover:bg-amber-500 text-white animate-pulse'
+                      : 'bg-gradient-to-r from-indigo-600 to-sky-600 hover:from-indigo-500 hover:to-sky-500 text-white'
+                  }`}
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 ${isLoopActive ? 'animate-spin' : ''}`} />
+                  <span>
+                    {isLoopActive
+                      ? `Detener Bucle (Intento #${loopInfo.attempts || 1})`
+                      : 'Iniciar Bucle Autónomo (Cada 60s)'}
+                  </span>
+                </button>
+                {isLoopActive && (
+                  <span className="text-[10px] text-amber-300 font-mono font-semibold">
+                    Monitoreando {loopInfo.service} ({loopInfo.targetDay})...
+                  </span>
+                )}
+              </div>
+
+              <span className="text-[10px] text-slate-400">
+                {isLoopActive ? 'Consultando agenda periódicamente' : 'Buscará cupos en Odontología para el viernes'}
+              </span>
+            </div>
+
+            {/* Logs recientes de Dobby en vivo */}
+            {browserSession.logs && browserSession.logs.length > 0 && (
+              <div className="bg-black/60 rounded-xl p-2 border border-white/5 space-y-1 font-mono text-[10px] text-slate-300 max-h-20 overflow-y-auto">
+                {browserSession.logs.slice(0, 3).map((l, i) => (
+                  <p key={i} className="truncate text-slate-400">
+                    <span className="text-sky-400">›</span> {l}
+                  </p>
+                ))}
+              </div>
+            )}
+
             <p className="text-[10px] text-slate-400">
               💡 Dobby gestiona Chrome en tu escritorio de forma autónoma: lee el captcha con visión IA, lo digita y mantiene tu sesión activa.
             </p>

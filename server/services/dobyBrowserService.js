@@ -10,11 +10,20 @@ class DobbyBrowserService {
   constructor() {
     this.activeBrowser = null;
     this.activePage = null;
-    this.currentStatus = 'inactivo'; // 'inactivo' | 'abriendo' | 'resolviendo_captcha' | 'ingresado' | 'buscando_citas'
+    this.currentStatus = 'inactivo'; // 'inactivo' | 'abriendo' | 'esperando_ingreso' | 'monitoreando_citas' | 'cupos_encontrados'
     this.lastScreenshot = null;
     this.lastLogs = [];
     this.solvedCaptcha = null;
     this.keepAliveInterval = null;
+    this.loopInterval = null;
+    this.isLoopRunning = false;
+    this.loopConfig = {
+      service: 'ODONTOLOGIA',
+      specialty: 'ODONTOLOGIA GENERAL',
+      targetDay: 'viernes',
+      intervalSeconds: 60,
+      attempts: 0
+    };
   }
 
   _log(msg) {
@@ -116,7 +125,6 @@ class DobbyBrowserService {
       const inputSelector = '[id="formInicioSesion:captchaDigitado"]';
       await this.activePage.waitForSelector(inputSelector, { timeout: 5000 });
       await this.activePage.click(inputSelector);
-      // Limpiar campo si tiene algo
       await this.activePage.evaluate((sel) => {
         const el = document.querySelector(sel);
         if (el) el.value = '';
@@ -187,7 +195,7 @@ class DobbyBrowserService {
       }
 
       this.currentStatus = captchaResult?.success ? 'captcha_resuelto' : 'esperando_ingreso';
-      this._log('Portal EDUS listo en pantalla.');
+      this._log('Portal EDUS listo en pantalla visible.');
 
       // Iniciar heartbeat / keep-alive para que la sesión de César no se cierre
       this._startKeepAlive();
@@ -225,15 +233,14 @@ class DobbyBrowserService {
   _startKeepAlive() {
     if (this.keepAliveInterval) clearInterval(this.keepAliveInterval);
     this.keepAliveInterval = setInterval(async () => {
-      if (this.activePage) {
+      if (this.activePage && !this.isLoopRunning) {
         try {
-          // Micro interacción invisible para que el servidor JSF / PrimeFaces no cierre la sesión por inactividad
           await this.activePage.evaluate(() => {
             window.dispatchEvent(new Event('mousemove'));
           });
         } catch (_) {}
       }
-    }, 60000); // Cada 60 segundos
+    }, 60000);
   }
 
   /**
@@ -254,7 +261,6 @@ class DobbyBrowserService {
       }, inputSelector);
       await this.activePage.type(inputSelector, captchaCode, { delay: 60 });
 
-      // Clic en el botón Ingresar
       this._log('Dobby está haciendo clic en Ingresar...');
       const btn = await this.activePage.$('[id="formInicioSesion:ejecutarPaso1"]');
       if (btn) {
@@ -264,7 +270,6 @@ class DobbyBrowserService {
         ]);
       }
 
-      // Tomar captura actualizada
       const buffer = await this.activePage.screenshot({ encoding: 'base64' });
       this.lastScreenshot = `data:image/png;base64,${buffer}`;
       this.currentStatus = 'ingresado';
@@ -284,6 +289,223 @@ class DobbyBrowserService {
   }
 
   /**
+   * Hace clic en el botón "Agregar una cita"
+   */
+  async clickAddAppointment() {
+    if (!this.activePage) return false;
+    try {
+      return await this.activePage.evaluate(() => {
+        const candidates = Array.from(document.querySelectorAll('button, a, div, span, p')).filter(el => {
+          const txt = (el.innerText || '').trim().toLowerCase();
+          return txt.includes('agregar una cita') || txt.includes('agregar cita');
+        });
+        if (candidates.length > 0) {
+          const target = candidates[candidates.length - 1];
+          (target.closest('a, button') || target).click();
+          return true;
+        }
+        return false;
+      });
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /**
+   * Selecciona un dropdown de PrimeFaces / JSF por texto de etiqueta y opción
+   */
+  async selectDropdownOption(labelPattern, optionPattern) {
+    if (!this.activePage) return false;
+    try {
+      return await this.activePage.evaluate((lStr, oStr) => {
+        const lReg = new RegExp(lStr, 'i');
+        const oReg = new RegExp(oStr, 'i');
+
+        // 1. Buscar selects nativos
+        const selects = Array.from(document.querySelectorAll('select'));
+        for (const sel of selects) {
+          const container = sel.closest('div, td, .form-group') || sel.parentElement;
+          if (container && lReg.test(container.innerText || '')) {
+            for (const opt of sel.options) {
+              if (oReg.test(opt.text)) {
+                sel.value = opt.value;
+                sel.dispatchEvent(new Event('change', { bubbles: true }));
+                return true;
+              }
+            }
+          }
+        }
+
+        // 2. Buscar dropdowns PrimeFaces
+        const primeMenus = Array.from(document.querySelectorAll('.ui-selectonemenu'));
+        for (const menu of primeMenus) {
+          const parent = menu.closest('div, td, tr') || menu.parentElement;
+          if (parent && lReg.test(parent.innerText || '')) {
+            const trigger = menu.querySelector('.ui-selectonemenu-trigger') || menu;
+            trigger.click();
+
+            // Buscar la opción en los paneles visibles
+            const panelItems = Array.from(document.querySelectorAll('.ui-selectonemenu-item, li')).filter(li => oReg.test(li.innerText || ''));
+            if (panelItems.length > 0) {
+              panelItems[panelItems.length - 1].click();
+              return true;
+            }
+          }
+        }
+
+        // 3. Fallback directo en items
+        const directItems = Array.from(document.querySelectorAll('.ui-selectonemenu-item, li')).filter(li => oReg.test(li.innerText || ''));
+        if (directItems.length > 0) {
+          directItems[directItems.length - 1].click();
+          return true;
+        }
+
+        return false;
+      }, labelPattern, optionPattern);
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /**
+   * Revisa la tabla de cupos de citas disponibles
+   */
+  async checkTableAvailability(targetDay = 'viernes') {
+    if (!this.activePage) return { available: false, message: 'Sin página' };
+    try {
+      return await this.activePage.evaluate((dayTarget) => {
+        const bodyText = document.body.innerText || '';
+        if (bodyText.includes('No se encontraron cupos disponibles')) {
+          return { available: false, count: 0, message: 'No se encontraron cupos disponibles.' };
+        }
+
+        const rows = Array.from(document.querySelectorAll('table tbody tr, .ui-datatable-data tr'));
+        const foundRows = [];
+        for (const r of rows) {
+          const text = (r.innerText || '').trim();
+          if (!text || text.includes('No se encontraron') || text.includes('Espere por favor')) continue;
+          
+          const matchesDay = dayTarget ? text.toLowerCase().includes(dayTarget.toLowerCase()) : true;
+          foundRows.push({ text, matchesDay });
+        }
+
+        return {
+          available: foundRows.length > 0,
+          count: foundRows.length,
+          rows: foundRows
+        };
+      }, targetDay);
+    } catch (err) {
+      return { available: false, count: 0, error: err.message };
+    }
+  }
+
+  /**
+   * Ejecuta un paso de búsqueda completo
+   */
+  async executeSearchStep(service = 'ODONTOLOGIA', specialty = 'ODONTOLOGIA GENERAL', targetDay = 'viernes') {
+    this.loopConfig.attempts += 1;
+    this._log(`[Intento #${this.loopConfig.attempts}] Dobby verificando citas para ${service} (${targetDay})...`);
+
+    // 1. Clic en "Agregar una cita"
+    const clickedAdd = await this.clickAddAppointment();
+    if (clickedAdd) {
+      this._log('Dobby pulsó "Agregar una cita".');
+      await new Promise(r => setTimeout(r, 2000));
+    }
+
+    // 2. Seleccionar Servicio
+    this._log(`Seleccionando servicio: ${service}`);
+    await this.selectDropdownOption('Servicio', service);
+    await new Promise(r => setTimeout(r, 2000));
+
+    // 3. Seleccionar Especialidad
+    this._log(`Seleccionando especialidad: ${specialty}`);
+    await this.selectDropdownOption('Especialidad', specialty);
+    await new Promise(r => setTimeout(r, 3500)); // Espera a que termine la animación de pulso "Espere por favor"
+
+    // 4. Leer tabla de cupos
+    const result = await this.checkTableAvailability(targetDay);
+
+    // Actualizar captura en vivo
+    try {
+      const buffer = await this.activePage.screenshot({ encoding: 'base64' });
+      this.lastScreenshot = `data:image/png;base64,${buffer}`;
+    } catch (_) {}
+
+    if (result.available) {
+      this.currentStatus = 'cupos_encontrados';
+      this._log(`🎉 ¡CUPOS ENCONTRADOS! Se detectaron ${result.count} citas en el sistema.`);
+      return { success: true, found: true, rows: result.rows };
+    } else {
+      this.currentStatus = 'monitoreando_citas';
+      this._log(`No hay cupos en este momento. Reintentando en ${this.loopConfig.intervalSeconds}s...`);
+      return { success: true, found: false };
+    }
+  }
+
+  /**
+   * Inicia el bucle recurrente de monitoreo
+   */
+  startMonitoringLoop({ service = 'ODONTOLOGIA', specialty = 'ODONTOLOGIA GENERAL', targetDay = 'viernes', intervalSeconds = 60 } = {}) {
+    if (!this.activePage) {
+      return { success: false, error: 'Primero debes abrir el navegador con Dobby.' };
+    }
+
+    this.stopMonitoringLoop();
+    this.isLoopRunning = true;
+    this.loopConfig = {
+      service,
+      specialty,
+      targetDay,
+      intervalSeconds,
+      attempts: 0
+    };
+
+    this._log(`🚀 Bucle de búsqueda autónoma iniciado para ${service} cada ${intervalSeconds} segundos.`);
+    this.currentStatus = 'monitoreando_citas';
+
+    // Primer intento inmediato
+    this.executeSearchStep(service, specialty, targetDay).then(res => {
+      if (res.found) this.stopMonitoringLoop();
+    });
+
+    // Repetición recurrente
+    this.loopInterval = setInterval(async () => {
+      if (!this.isLoopRunning || !this.activePage) return;
+      const res = await this.executeSearchStep(
+        this.loopConfig.service,
+        this.loopConfig.specialty,
+        this.loopConfig.targetDay
+      );
+      if (res.found) {
+        this._log('Dobby detuvo el bucle porque encontró cupos disponibles.');
+        this.stopMonitoringLoop();
+      }
+    }, intervalSeconds * 1000);
+
+    return {
+      success: true,
+      status: this.currentStatus,
+      message: `Bucle autónomo activo. Dobby consultará ${service} cada ${intervalSeconds} segundos.`,
+      loopConfig: this.loopConfig
+    };
+  }
+
+  /**
+   * Detiene el bucle de búsqueda recurrente
+   */
+  stopMonitoringLoop() {
+    if (this.loopInterval) {
+      clearInterval(this.loopInterval);
+      this.loopInterval = null;
+    }
+    this.isLoopRunning = false;
+    this._log('Bucle de monitoreo detenido.');
+    return { success: true, isLoopRunning: false };
+  }
+
+  /**
    * Obtiene el estado actual, logs y captura en vivo
    */
   async getStatus() {
@@ -298,7 +520,9 @@ class DobbyBrowserService {
       screenshot: this.lastScreenshot,
       logs: this.lastLogs,
       solvedCaptcha: this.solvedCaptcha,
-      hasActiveBrowser: !!this.activeBrowser
+      hasActiveBrowser: !!this.activeBrowser,
+      isLoopRunning: this.isLoopRunning,
+      loopConfig: this.loopConfig
     };
   }
 
@@ -306,6 +530,7 @@ class DobbyBrowserService {
    * Cierra el navegador de Dobby
    */
   async close() {
+    this.stopMonitoringLoop();
     if (this.keepAliveInterval) {
       clearInterval(this.keepAliveInterval);
       this.keepAliveInterval = null;
