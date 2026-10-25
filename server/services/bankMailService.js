@@ -23,6 +23,36 @@ const DEFAULT_CONFIG = {
   syncIntervalMinutes: 15
 };
 
+function decodeQuotedPrintable(str) {
+  if (!str) return '';
+  return str
+    .replace(/=\r?\n/g, '')
+    .replace(/=3D/g, '=')
+    .replace(/=([0-9A-Fa-f]{2})/g, (_, hex) => {
+      try {
+        return String.fromCharCode(parseInt(hex, 16));
+      } catch (_) {
+        return _;
+      }
+    });
+}
+
+function decodeMimeWords(str) {
+  if (!str) return '';
+  return str.replace(/=\?([^?]+)\?([BQbq])\?([^?]+)\?=/g, (_, charset, encoding, text) => {
+    try {
+      if (encoding.toUpperCase() === 'B') {
+        return Buffer.from(text, 'base64').toString('utf8');
+      } else if (encoding.toUpperCase() === 'Q') {
+        return text
+          .replace(/_/g, ' ')
+          .replace(/=([0-9A-Fa-f]{2})/g, (__, hex) => String.fromCharCode(parseInt(hex, 16)));
+      }
+    } catch (_) {}
+    return text;
+  });
+}
+
 class BankMailService {
   constructor() {
     this.ensureFiles();
@@ -118,15 +148,15 @@ class BankMailService {
   }
 
   /**
-   * Extractor de Comprobantes Bancarios (BAC, Popular, Coopeande, BCR, PayPal, etc.)
+   * Extractor de Comprobantes Bancarios (BAC, Popular, Coopeande, BCR, SINPE, etc.)
    */
   parseBankNotification(emailData) {
-    const subject = emailData.subject || '';
-    const body = emailData.body || emailData.snippet || '';
-    const fullText = subject + ' ' + body;
+    const rawSubject = decodeMimeWords(emailData.subject || '');
+    const rawBody = decodeQuotedPrintable(emailData.body || emailData.snippet || '');
+    const fullText = rawSubject + ' ' + rawBody;
 
     // Verificar si se descarta
-    if (this.isDiscardable(subject, body)) {
+    if (this.isDiscardable(rawSubject, rawBody)) {
       return {
         matched: false,
         reason: 'Correo descartado por regla (no financiero / orden patronal / boletín)'
@@ -143,44 +173,82 @@ class BankMailService {
     else if (lower.includes('davivienda')) entity = 'Davivienda';
     else if (lower.includes('scotiabank')) entity = 'Scotiabank';
     else if (lower.includes('paypal')) entity = 'PayPal';
-    else if (lower.includes('factura electronica') || lower.includes('comprobante electronico')) entity = 'Factura Electrónica';
 
-    // 2. Detectar Moneda y Monto
-    // Soporta: ₡ 24,500.00 | CRC 15.000 | $ 120.50 | USD 45.00
-    let currency = 'CRC';
     let amount = 0;
-
-    const crcMatch = fullText.match(/(?:₡|CRC|COLONES)\s*([0-9]{1,3}(?:[.,][0-9]{3})*(?:[.,][0-9]{2})?|[0-9]+)/i);
-    const usdMatch = fullText.match(/(?:\$|USD|DOLARES)\s*([0-9]{1,3}(?:[.,][0-9]{3})*(?:[.,][0-9]{2})?|[0-9]+)/i);
-
-    if (usdMatch && (!crcMatch || fullText.indexOf(usdMatch[0]) < fullText.indexOf(crcMatch[0]))) {
-      currency = 'USD';
-      amount = parseFloat(usdMatch[1].replace(/,/g, ''));
-    } else if (crcMatch) {
-      currency = 'CRC';
-      const cleanNum = crcMatch[1].replace(/\./g, '').replace(/,/g, '.');
-      amount = parseFloat(cleanNum);
-    }
-
-    // 3. Detectar últimos 4 dígitos de tarjeta o cuenta
-    // Ej: terminada en 4120, tarjeta *8841, cuenta ...5201
+    let currency = 'CRC';
     let last4 = null;
-    const last4Match = fullText.match(/(?:tarjeta|cuenta|terminada en|terminacion|card|\*|\.{2,})\s*(?:no\.?\s*)?([0-9]{4})\b/i);
-    if (last4Match) {
-      last4 = last4Match[1];
+    let merchant = entity;
+    let type = 'gasto';
+    let date = emailData.date || new Date().toISOString();
+
+    // ----------------------------------------------------------------
+    // PARSER ESPECÍFICO BAC CREDOMATIC (Estructura de tablas HTML)
+    // ----------------------------------------------------------------
+    if (entity === 'BAC Credomatic') {
+      // Comercio en BAC
+      const merchMatch = rawBody.match(/Comercio:<\/td>\s*<td[^>]*>([^<]+)<\/td>/i);
+      if (merchMatch) merchant = merchMatch[1].trim();
+
+      // Tarjeta o Cuenta en BAC (ej: VISA: ************0095 o Cuenta: *******1234)
+      const cardMatch = rawBody.match(/(?:VISA|MasterCard|AMEX|Cuenta|Tarjeta)[^<]*<\/td>\s*<td[^>]*>[*xX\s]*([0-9]{4})<\/td>/i)
+        || rawBody.match(/\*{4,}([0-9]{4})/);
+      if (cardMatch) last4 = cardMatch[1];
+
+      // Monto en BAC (ej: CRC 2,492.00 o USD 15.00)
+      const montoMatch = rawBody.match(/Monto:<\/td>\s*<td[^>]*>(?:([A-Z]{3}|₡|\$)\s*)?([0-9]{1,3}(?:[.,][0-9]{3})*(?:[.,][0-9]{2})?|[0-9]+)<\/td>/i);
+      if (montoMatch) {
+        const currSym = (montoMatch[1] || '').toUpperCase();
+        currency = currSym.includes('$') || currSym.includes('USD') ? 'USD' : 'CRC';
+        const numStr = montoMatch[2].replace(/,/g, '');
+        amount = parseFloat(numStr);
+      }
+
+      // Tipo en BAC
+      const tipoMatch = rawBody.match(/Tipo de Transacci[oó]n:<\/td>\s*<td[^>]*>([^<]+)<\/td>/i);
+      if (tipoMatch) {
+        const tStr = tipoMatch[1].toLowerCase();
+        if (tStr.includes('deposito') || tStr.includes('transferencia recibida') || tStr.includes('credito') || tStr.includes('pago recibido')) {
+          type = 'ingreso';
+        }
+      }
+
+      // Fecha en BAC (ej: Oct 24, 2026, 17:24)
+      const fechaMatch = rawBody.match(/Fecha:<\/td>\s*<td[^>]*>([^<]+)<\/td>/i);
+      if (fechaMatch) {
+        const parsedD = new Date(fechaMatch[1].trim());
+        if (!isNaN(parsedD.getTime())) date = parsedD.toISOString();
+      }
     }
 
-    // 4. Detectar Tipo (Gasto vs Ingreso)
-    let type = 'gasto';
+    // ----------------------------------------------------------------
+    // PARSER GENERAL / BANCO POPULAR / COOPEANDE / SINPE
+    // ----------------------------------------------------------------
+    if (!amount) {
+      const crcMatch = fullText.match(/(?:₡|CRC|COLONES)\s*([0-9]{1,3}(?:[.,][0-9]{3})*(?:[.,][0-9]{2})?|[0-9]+)/i);
+      const usdMatch = fullText.match(/(?:\$|USD|DOLARES)\s*([0-9]{1,3}(?:[.,][0-9]{3})*(?:[.,][0-9]{2})?|[0-9]+)/i);
+
+      if (usdMatch && (!crcMatch || fullText.indexOf(usdMatch[0]) < fullText.indexOf(crcMatch[0]))) {
+        currency = 'USD';
+        amount = parseFloat(usdMatch[1].replace(/,/g, ''));
+      } else if (crcMatch) {
+        currency = 'CRC';
+        const cleanNum = crcMatch[1].replace(/\./g, '').replace(/,/g, '.');
+        amount = parseFloat(cleanNum);
+      }
+    }
+
+    if (!last4) {
+      const last4Match = fullText.match(/(?:tarjeta|cuenta|terminada en|terminacion|card|\*|\.{2,})\s*(?:no\.?\s*)?([0-9]{4})\b/i);
+      if (last4Match) last4 = last4Match[1];
+    }
+
+    if (merchant === entity) {
+      const merchantMatch = fullText.match(/(?:en|comercio|establecimiento|concepto|detalle):\s*([^.\n\r,<]+)/i);
+      if (merchantMatch && merchantMatch[1]) merchant = merchantMatch[1].trim();
+    }
+
     if (lower.includes('deposito') || lower.includes('transferencia recibida') || lower.includes('credito a su cuenta') || lower.includes('pago recibido') || lower.includes('sinpe movil recibido')) {
       type = 'ingreso';
-    }
-
-    // 5. Detectar Comercio o Concepto
-    let merchant = entity;
-    const merchantMatch = fullText.match(/(?:en|comercio|establecimiento|concepto|detalle):\s*([^.\n\r,]+)/i);
-    if (merchantMatch && merchantMatch[1]) {
-      merchant = merchantMatch[1].trim();
     }
 
     // Si no logramos monto válido, no se considera transacción contable
@@ -201,7 +269,7 @@ class BankMailService {
       merchant,
       note: `${type === 'gasto' ? 'Compra' : 'Ingreso'}: ${merchant} (${entity})`,
       category: this.categorizeExpense(merchant),
-      date: emailData.date || new Date().toISOString()
+      date
     };
   }
 
@@ -481,7 +549,7 @@ class BankMailService {
           if (currentIndex < msgIds.length) {
             const id = msgIds[currentIndex];
             const tag = `f${currentIndex}`;
-            sendCmd(tag, `FETCH ${id} (BODY.PEEK[HEADER.FIELDS (SUBJECT FROM DATE)] BODY.PEEK[TEXT]<0.2000>)`);
+            sendCmd(tag, `FETCH ${id} (BODY.PEEK[HEADER.FIELDS (SUBJECT FROM DATE)] BODY.PEEK[TEXT]<0.14000>)`);
           } else {
             step = 'DONE';
             this.saveConfig({ ...config, lastSync: new Date().toISOString() });

@@ -1450,9 +1450,22 @@ export default function FinanceView() {
                               {log.reason}
                             </span>
                           )}
-                          {log.amount && (
+                          {!isRecorded && !isDiscarded && log.parsed && (
+                            <div className="space-y-1">
+                              <div className="flex items-center gap-1.5 text-amber-300 font-medium">
+                                <Clock className="w-3.5 h-3.5 text-amber-400" />
+                                <span>{log.parsed.merchant} ({log.parsed.entity}) {log.parsed.last4 ? `• Tarjeta •••• ${log.parsed.last4}` : ''}</span>
+                              </div>
+                              <span className="text-[10px] text-slate-400">
+                                {financeData.accounts?.length === 0
+                                  ? 'Cree su cuenta en la pestaña "Cuentas" para contabilizar automáticamente.'
+                                  : 'Pendiente de confirmación de cuenta.'}
+                              </span>
+                            </div>
+                          )}
+                          {(log.amount || log.parsed?.amount) && (
                             <span className="font-mono font-bold text-white text-sm">
-                              {log.currency === 'USD' ? '$' : '₡'}{Number(log.amount).toLocaleString()}
+                              {(log.currency || log.parsed?.currency) === 'USD' ? '$' : '₡'}{Number(log.amount || log.parsed?.amount).toLocaleString()}
                             </span>
                           )}
                         </div>

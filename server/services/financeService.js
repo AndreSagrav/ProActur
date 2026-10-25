@@ -368,21 +368,40 @@ class FinanceService {
     return { loan, transaction: tx };
   }
 
-  // TRANSACCIONES
   async addTransaction(tx) {
     const data = this.readLocal();
+    const cleanAmount = Math.abs(Number(tx.amount) || 0);
+    const cleanCurrency = tx.currency || 'CRC';
+    const cleanType = tx.type || 'gasto';
+    const cleanDate = tx.date || new Date().toISOString();
+
+    // Evitar transacciones duplicadas por sincronización de correo
+    if (tx.source === 'gmail_auto') {
+      const isDuplicate = (data.transactions || []).some(existing => {
+        return Math.abs(Number(existing.amount) || 0) === cleanAmount &&
+          existing.currency === cleanCurrency &&
+          existing.type === cleanType &&
+          ((existing.merchant && tx.merchant && existing.merchant.toLowerCase() === tx.merchant.toLowerCase()) ||
+           (existing.note && tx.note && existing.note.toLowerCase() === tx.note.toLowerCase())) &&
+          (existing.date || '').slice(0, 10) === cleanDate.slice(0, 10);
+      });
+      if (isDuplicate) {
+        return { isDuplicate: true };
+      }
+    }
+
     const newTx = {
       id: 'tx_' + Date.now(),
       accountId: tx.accountId || data.accounts[0]?.id || 'acc_bac_debito',
-      type: tx.type || 'gasto',
+      type: cleanType,
       category: tx.category || 'Varios',
       note: tx.note || '',
       merchant: tx.merchant || '',
-      amount: Math.abs(Number(tx.amount) || 0),
-      currency: tx.currency || 'CRC',
+      amount: cleanAmount,
+      currency: cleanCurrency,
       source: tx.source || 'manual', // 'manual' | 'gmail_auto' | 'xml_hacienda'
       rawSnippet: tx.rawSnippet || null,
-      date: tx.date || new Date().toISOString()
+      date: cleanDate
     };
 
     data.transactions.unshift(newTx);

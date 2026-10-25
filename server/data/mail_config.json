@@ -1,9 +1,9 @@
 {
   "email": "dr3sagrav@gmail.com",
-  "appPassword": "Cbva050579.",
+  "appPassword": "jkngwlhffvutipfm",
   "host": "imap.gmail.com",
   "port": 993,
-  "enabled": false,
+  "enabled": true,
   "autoRecord": true,
   "lastSync": null,
   "syncIntervalMinutes": 15,
