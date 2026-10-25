@@ -82,7 +82,6 @@ export default function FinanceView() {
   const [editingAccount, setEditingAccount] = useState(null);
   const [showLoanModal, setShowLoanModal] = useState(false);
   const [editingLoan, setEditingLoan] = useState(null);
-  const [showReorderModal, setShowReorderModal] = useState(false);
 
   // Estados Gmail
   const [mailConfig, setMailConfig] = useState({ email: '', appPassword: '', enabled: false, autoRecord: true });
@@ -346,10 +345,38 @@ export default function FinanceView() {
     if (!confirm('¿Confirma eliminar esta cuenta del sistema?')) return;
     try {
       const res = await fetch(`${API}/api/finance/accounts/${id}`, { method: 'DELETE' });
-      if (res.ok) fetchFinanceData();
+      if (res.ok) {
+        setShowAccountModal(false);
+        fetchFinanceData();
+      }
     } catch (err) {
       console.error('[Delete Account Error]', err);
     }
+  };
+
+  // Arrastrar y soltar cuentas directamente (Drag and Drop)
+  const handleDropAccount = async (fromIndex, toIndex) => {
+    if (fromIndex === toIndex) return;
+    const nonCredit = (financeData.accounts || []).filter(a => a.type !== 'credito');
+    if (fromIndex < 0 || fromIndex >= nonCredit.length || toIndex < 0 || toIndex >= nonCredit.length) return;
+
+    const newNonCredit = [...nonCredit];
+    const [moved] = newNonCredit.splice(fromIndex, 1);
+    newNonCredit.splice(toIndex, 0, moved);
+
+    const creditCards = (financeData.accounts || []).filter(a => a.type === 'credito');
+    const newAll = [...newNonCredit, ...creditCards];
+
+    setFinanceData(prev => ({ ...prev, accounts: newAll }));
+    playExecutiveSound('click');
+
+    try {
+      await fetch(`${API}/api/finance/accounts/reorder`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ orderedIds: newAll.map(a => a.id) })
+      });
+    } catch (_) {}
   };
 
   // Mover cuenta individualmente hacia la izquierda o derecha (acomodarlas a gusto exacto)
@@ -739,26 +766,26 @@ export default function FinanceView() {
           {/* VISTA MÓVIL: RESUMEN EJECUTIVO COMPACTO (CERO APELOTAMIENTO) */}
           <div className="p-4 sm:hidden rounded-2xl bg-slate-900/80 backdrop-blur-md border border-white/10 space-y-3">
             <div className="flex justify-between items-center">
-              <span className="text-xs text-slate-400 font-medium">Disponible Total Líquido</span>
+              <span className="text-xs text-slate-400 font-medium">Disponible Operativo (Gasto Diario)</span>
               <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-bold uppercase">
-                En Cuentas
+                Líquido
               </span>
             </div>
-            <div className="text-2xl font-bold font-mono text-white">
-              ₡{(financeData.balance || 0).toLocaleString()}
+            <div className="text-2xl font-bold font-mono text-emerald-400">
+              ₡{(financeData.liquidBalanceCRC !== undefined ? financeData.liquidBalanceCRC : (financeData.balance || 0)).toLocaleString()}
             </div>
             <div className="grid grid-cols-3 gap-2 pt-2.5 border-t border-white/10 text-xs">
               <div>
-                <span className="text-[10px] text-slate-400 block font-medium">Gastos Mes</span>
-                <span className="font-bold text-rose-400 font-mono text-[11px]">₡{(financeData.monthExpense || 0).toLocaleString()}</span>
+                <span className="text-[10px] text-slate-400 block font-medium">Reservas / CDPs</span>
+                <span className="font-bold text-indigo-400 font-mono text-[11px]">₡{(financeData.savingsBalanceCRC || 0).toLocaleString()}</span>
               </div>
               <div>
                 <span className="text-[10px] text-slate-400 block font-medium">Deuda Tarjetas</span>
-                <span className="font-bold text-purple-400 font-mono text-[11px]">₡{(financeData.creditDebt || 0).toLocaleString()}</span>
+                <span className="font-bold text-rose-400 font-mono text-[11px]">₡{(financeData.creditDebt || 0).toLocaleString()}</span>
               </div>
               <div>
-                <span className="text-[10px] text-slate-400 block font-medium">Ingresos Mes</span>
-                <span className="font-bold text-emerald-400 font-mono text-[11px]">₡{(financeData.monthIncome || 0).toLocaleString()}</span>
+                <span className="text-[10px] text-slate-400 block font-medium">Gastos Mes</span>
+                <span className="font-bold text-slate-300 font-mono text-[11px]">₡{(financeData.monthExpense || 0).toLocaleString()}</span>
               </div>
             </div>
           </div>
@@ -766,12 +793,22 @@ export default function FinanceView() {
           {/* VISTA ESCRITORIO: CUADRÍCULA DE 4 TARJETAS */}
           <div className="hidden sm:grid sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
             <div className="p-6 rounded-3xl bg-slate-900/60 backdrop-blur-md border border-white/10 hover:border-white/20 transition-all shadow-sm">
-              <span className="text-xs font-medium text-slate-400 block mb-2">Disponible en Cuentas</span>
-              <div className="text-2xl md:text-3xl font-bold font-mono text-white tracking-tight">
-                ₡{(financeData.balance || 0).toLocaleString()}
+              <span className="text-xs font-medium text-slate-400 block mb-2">Disponible Operativo</span>
+              <div className="text-2xl md:text-3xl font-bold font-mono text-emerald-400 tracking-tight">
+                ₡{(financeData.liquidBalanceCRC !== undefined ? financeData.liquidBalanceCRC : (financeData.balance || 0)).toLocaleString()}
               </div>
-              <span className="text-xs text-emerald-400 font-medium flex items-center gap-1.5 mt-2">
-                <CheckCircle2 className="w-3.5 h-3.5" /> Fondos líquidos
+              <span className="text-xs text-emerald-300 font-medium flex items-center gap-1.5 mt-2">
+                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" /> Fondos líquidos para gasto
+              </span>
+            </div>
+
+            <div className="p-6 rounded-3xl bg-slate-900/60 backdrop-blur-md border border-white/10 hover:border-white/20 transition-all shadow-sm">
+              <span className="text-xs font-medium text-slate-400 block mb-2">Reservas e Inversiones</span>
+              <div className="text-2xl md:text-3xl font-bold font-mono text-indigo-400 tracking-tight">
+                ₡{(financeData.savingsBalanceCRC || 0).toLocaleString()}
+              </div>
+              <span className="text-xs text-indigo-300 font-medium flex items-center gap-1.5 mt-2">
+                <PieChart className="w-3.5 h-3.5 text-indigo-400" /> Marchamo, Metas y CDPs
               </span>
             </div>
 
@@ -786,22 +823,12 @@ export default function FinanceView() {
             </div>
 
             <div className="p-6 rounded-3xl bg-slate-900/60 backdrop-blur-md border border-white/10 hover:border-white/20 transition-all shadow-sm">
-              <span className="text-xs font-medium text-slate-400 block mb-2">Gastos Registrados</span>
-              <div className="text-2xl md:text-3xl font-bold font-mono text-slate-100 tracking-tight">
-                ₡{(financeData.monthExpense || 0).toLocaleString()}
-              </div>
-              <span className="text-xs text-amber-400 font-medium flex items-center gap-1.5 mt-2">
-                <TrendingDown className="w-3.5 h-3.5" /> {filteredTransactions.filter(t => t.type === 'gasto').length} movimientos
-              </span>
-            </div>
-
-            <div className="p-6 rounded-3xl bg-slate-900/60 backdrop-blur-md border border-white/10 hover:border-white/20 transition-all shadow-sm">
               <span className="text-xs font-medium text-slate-400 block mb-2">Ingresos Registrados</span>
-              <div className="text-2xl md:text-3xl font-bold font-mono text-emerald-400 tracking-tight">
+              <div className="text-2xl md:text-3xl font-bold font-mono text-white tracking-tight">
                 ₡{(financeData.monthIncome || 0).toLocaleString()}
               </div>
-              <span className="text-xs text-emerald-400 font-medium flex items-center gap-1.5 mt-2">
-                <TrendingUp className="w-3.5 h-3.5" /> Depósitos y cobros
+              <span className="text-xs text-slate-400 font-medium flex items-center gap-1.5 mt-2">
+                <TrendingUp className="w-3.5 h-3.5 text-emerald-400" /> Depósitos y rendimientos
               </span>
             </div>
           </div>
@@ -815,23 +842,11 @@ export default function FinanceView() {
                   Cuentas Bancarias
                 </h2>
                 <p className="text-xs text-slate-400">
-                  {financeData.accounts.filter(a => a.type !== 'credito').length} cuentas activas con fondos disponibles • Organizadas a tu gusto
+                  {financeData.accounts.filter(a => a.type !== 'credito').length} cuentas con disponibilidad inmediata • Arrastre para reordenar
                 </p>
               </div>
 
               <div className="flex flex-wrap items-center gap-2.5">
-                {financeData.accounts.filter(a => a.type !== 'credito').length > 1 && (
-                  <button
-                    type="button"
-                    onClick={() => setShowReorderModal(true)}
-                    className="flex items-center gap-1.5 text-xs px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-sky-400 border border-sky-500/30 transition-all font-semibold shadow-sm active:scale-95"
-                    title="Acomodar cuentas en el orden que prefiera"
-                  >
-                    <ArrowRightLeft className="w-3.5 h-3.5" />
-                    <span>Acomodar a mi gusto</span>
-                  </button>
-                )}
-
                 {financeData.accounts.filter(a => a.type !== 'credito').length > 1 && (
                   <button
                     type="button"
@@ -844,16 +859,15 @@ export default function FinanceView() {
                   </button>
                 )}
 
-                {financeData.accounts.filter(a => a.type !== 'credito').length > 0 && (
+                {filterAccountId !== 'all' && (
                   <button
+                    type="button"
                     onClick={() => setFilterAccountId('all')}
-                    className={`text-xs px-3.5 py-2 rounded-xl transition-all ${
-                      filterAccountId === 'all'
-                        ? 'bg-sky-500/20 text-sky-400 border border-sky-500/30 font-semibold'
-                        : 'text-slate-400 hover:text-white'
-                    }`}
+                    className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-xl bg-sky-500/15 text-sky-400 border border-sky-500/30 font-medium hover:bg-sky-500/25 transition-all"
+                    title="Restablecer filtro y ver todas las cuentas"
                   >
-                    Ver Todas
+                    <span>Filtro activo</span>
+                    <X className="w-3.5 h-3.5" />
                   </button>
                 )}
 
@@ -894,7 +908,7 @@ export default function FinanceView() {
               /* REJILLA RESPONSIVE CON CONTROLES MANUALES PARA ACOMODAR A GUSTO */
               <div className="flex gap-3 overflow-x-auto pb-3 sm:pb-0 scrollbar-none snap-x snap-mandatory sm:grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 sm:gap-4">
                 {financeData.accounts
-                  .filter(acc => acc.type !== 'credito')
+                  .filter(acc => acc.type === 'debito' || acc.type === 'efectivo')
                   .map((acc, idx, arr) => {
                     const isSelected = filterAccountId === acc.id;
                     const isCash = acc.type === 'efectivo';
@@ -903,8 +917,24 @@ export default function FinanceView() {
                     return (
                       <div
                         key={acc.id}
+                        draggable={true}
+                        onDragStart={(e) => {
+                          e.dataTransfer.setData('text/plain', String(idx));
+                          e.dataTransfer.effectAllowed = 'move';
+                        }}
+                        onDragOver={(e) => {
+                          e.preventDefault();
+                          e.dataTransfer.dropEffect = 'move';
+                        }}
+                        onDrop={(e) => {
+                          e.preventDefault();
+                          const srcIdx = parseInt(e.dataTransfer.getData('text/plain'), 10);
+                          if (!isNaN(srcIdx) && srcIdx !== idx) {
+                            handleDropAccount(srcIdx, idx);
+                          }
+                        }}
                         onClick={() => setFilterAccountId(isSelected ? 'all' : acc.id)}
-                        className={`min-w-[270px] max-w-[290px] shrink-0 snap-start sm:min-w-0 sm:max-w-none relative p-5 rounded-2xl border transition-all cursor-pointer group shadow-sm flex flex-col justify-between h-44 ${
+                        className={`min-w-[270px] max-w-[290px] shrink-0 snap-start sm:min-w-0 sm:max-w-none relative p-5 rounded-2xl border transition-all cursor-grab active:cursor-grabbing group shadow-sm flex flex-col justify-between h-44 ${
                           isSelected
                             ? 'border-sky-500 ring-2 ring-sky-500/30 bg-slate-900/95 shadow-sky-500/10'
                             : 'border-white/10 bg-slate-900/60 hover:border-white/25 hover:bg-slate-900/80'
@@ -924,7 +954,7 @@ export default function FinanceView() {
                             </div>
 
                             <div className="flex items-center gap-1">
-                              {/* Controles para acomodar a gusto exacto del usuario */}
+                              {/* Controles de reordenación rápida */}
                               <button
                                 type="button"
                                 disabled={idx === 0}
@@ -970,22 +1000,14 @@ export default function FinanceView() {
                               <div className="font-bold text-white text-sm truncate" title={acc.name}>
                                 {acc.name}
                               </div>
-                              <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full shrink-0 ${
-                                isCash
-                                  ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
-                                  : acc.type === 'ahorro'
-                                  ? 'bg-indigo-500/10 text-indigo-400 border border-indigo-500/20'
-                                  : acc.type === 'objetivo'
-                                  ? 'bg-purple-500/10 text-purple-400 border border-purple-500/20'
-                                  : 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
-                              }`}>
-                                {isCash ? 'Efectivo' : acc.type === 'ahorro' ? 'Ahorros' : acc.type === 'objetivo' ? 'Meta' : 'Cuenta Bancaria'}
+                              <span className="text-[9px] font-bold px-2 py-0.5 rounded-full shrink-0 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                                {isCash ? 'Efectivo' : 'Cuenta Bancaria'}
                               </span>
                             </div>
 
                             <div className="text-[11px] text-slate-400 font-mono mt-1 flex items-center justify-between">
                               <span>
-                                {isCash ? 'Billetes / Monedas' : acc.last4 ? `Cuenta •••• ${acc.last4}` : 'Cuenta Bancaria Activa'}
+                                {isCash ? 'Billetes / Monedas' : acc.last4 ? `Cuenta •••• ${acc.last4}` : 'Disponibilidad Inmediata'}
                               </span>
                               <span className="text-[10px] px-1.5 py-0.2 rounded bg-white/10 text-slate-300 font-sans font-bold">
                                 {acc.currency || 'CRC'}
@@ -1011,6 +1033,105 @@ export default function FinanceView() {
                       </div>
                     );
                   })}
+              </div>
+            )}
+
+            {/* SECCIÓN: INVERSIONES Y RESERVAS DE AHORRO (CDP / FONDOS CON DESTINO ESPECÍFICO) */}
+            {financeData.accounts.filter(acc => acc.type === 'ahorro' || acc.type === 'objetivo' || acc.type === 'cdp' || acc.type === 'inversion').length > 0 && (
+              <div className="space-y-4 pt-5 border-t border-white/10">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div>
+                    <h2 className="text-lg font-bold text-white flex items-center gap-2">
+                      <PieChart className="w-5 h-5 text-indigo-400" />
+                      Inversiones y Reservas de Ahorro
+                    </h2>
+                    <p className="text-xs text-slate-400">
+                      Fondos con destino específico y certificados a plazo fijo (CDP). Separados del disponible de gasto diario.
+                    </p>
+                  </div>
+
+                  <button
+                    onClick={() => handleOpenAccountModal(null, 'objetivo')}
+                    className="flex items-center gap-2 text-xs px-4 py-2.5 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 text-white font-semibold hover:from-indigo-500 hover:to-purple-500 transition-all shadow-md shadow-indigo-600/25 active:scale-95"
+                  >
+                    <Plus className="w-4 h-4" />
+                    <span>Nuevo Certificado o Meta</span>
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                  {financeData.accounts
+                    .filter(acc => acc.type === 'ahorro' || acc.type === 'objetivo' || acc.type === 'cdp' || acc.type === 'inversion')
+                    .map((acc) => {
+                      const symbol = acc.currency === 'USD' ? '$' : '₡';
+                      const isMarchamo = (acc.name || '').toLowerCase().includes('marchamo');
+                      const isCDP = acc.type === 'cdp' || acc.type === 'inversion';
+
+                      return (
+                        <div
+                          key={acc.id}
+                          className="relative p-5 rounded-2xl border border-indigo-500/20 bg-slate-900/80 hover:border-indigo-500/40 transition-all shadow-sm flex flex-col justify-between h-44"
+                        >
+                          <div>
+                            <div className="flex items-center justify-between mb-2.5">
+                              <div className="flex items-center gap-2">
+                                <span
+                                  className="w-2.5 h-2.5 rounded-full shadow-sm shrink-0"
+                                  style={{ backgroundColor: acc.color || '#6366f1' }}
+                                />
+                                <span className="text-[11px] font-bold text-slate-300 uppercase tracking-wider truncate max-w-[120px]">
+                                  {acc.entity || 'BAC Credomatic'}
+                                </span>
+                              </div>
+
+                              <div className="flex items-center gap-1">
+                                <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
+                                  {isCDP ? 'Certificado a Plazo' : isMarchamo ? 'Reserva Marchamo' : 'Meta Programada'}
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleOpenAccountModal(acc);
+                                  }}
+                                  className="p-1.5 rounded-lg text-slate-300 hover:text-white bg-slate-950/60 hover:bg-white/10 transition-all border border-white/10 ml-0.5"
+                                  title="Editar Inversión o Meta"
+                                >
+                                  <Edit3 className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+                            </div>
+
+                            <div>
+                              <div className="font-bold text-white text-sm truncate" title={acc.name}>
+                                {acc.name}
+                              </div>
+                              <div className="text-[11px] text-slate-400 font-mono mt-1 flex items-center justify-between">
+                                <span>{isCDP ? 'Rendimientos periódicos' : 'Fondo blindado / Intocable'}</span>
+                                <span className="text-[10px] px-1.5 py-0.2 rounded bg-white/10 text-slate-300 font-sans font-bold">
+                                  {acc.currency || 'CRC'}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="pt-2.5 border-t border-white/10 flex flex-col justify-end">
+                            <span className="text-[10px] uppercase tracking-wider text-slate-400 font-medium block">
+                              Capital Reservado
+                            </span>
+                            <div className="flex items-baseline justify-between mt-0.5">
+                              <span className="text-xl font-bold font-mono tracking-tight text-indigo-400">
+                                {symbol}{(acc.balance || 0).toLocaleString()}
+                              </span>
+                              <span className="text-[10px] text-slate-500 font-mono">
+                                Inicial: {symbol}{(acc.initialBalance || 0).toLocaleString()}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                </div>
               </div>
             )}
 
@@ -1830,24 +1951,6 @@ export default function FinanceView() {
                 <Mail className="w-4 h-4 text-sky-400" />
                 Credenciales del Buzón
               </h3>
-              
-              <div className="p-3.5 rounded-2xl bg-sky-500/10 border border-sky-500/20 text-xs space-y-1.5">
-                <div className="font-semibold flex items-center gap-1.5 text-white">
-                  <ShieldCheck className="w-4 h-4 text-sky-400" />
-                  ¿Tiene Doble Factor (2FA) en Google?
-                </div>
-                <p className="text-[11px] text-slate-300 leading-relaxed">
-                  Google exige generar una <strong>Contraseña de Aplicación de 16 letras</strong> para cuentas con 2FA (no use su clave personal).
-                </p>
-                <a
-                  href="https://myaccount.google.com/apppasswords"
-                  target="_blank"
-                  rel="noreferrer"
-                  className="inline-flex items-center gap-1 text-[11px] text-sky-400 underline hover:text-sky-300 font-semibold pt-0.5"
-                >
-                  Generar contraseña en myaccount.google.com/apppasswords ↗
-                </a>
-              </div>
 
               <form onSubmit={handleSaveMailConfig} className="space-y-4 text-xs">
                 <div>
@@ -2077,9 +2180,10 @@ export default function FinanceView() {
                     }))}
                     className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-white/10 text-white focus:outline-none focus:border-sky-500"
                   >
-                    <option value="debito">Cuenta Bancaria (Corriente / Vista)</option>
+                    <option value="debito">Cuenta Bancaria Operativa (Corriente / Vista)</option>
+                    <option value="cdp">Certificado de Depósito a Plazo (CDP)</option>
+                    <option value="objetivo">Reserva / Meta de Ahorro (Marchamo, Metas)</option>
                     <option value="ahorro">Cuenta de Ahorros</option>
-                    <option value="objetivo">Objetivo / Meta de Ahorro</option>
                     <option value="credito">Tarjeta de Crédito</option>
                     <option value="efectivo">Efectivo Físico / Caja</option>
                   </select>
@@ -2266,107 +2370,6 @@ export default function FinanceView() {
                 </button>
               </div>
             </form>
-          </div>
-        </div>
-      )}
-
-      {/* ======================================================== */}
-      {/* MODAL: ACOMODAR CUENTAS A MI GUSTO                       */}
-      {/* ======================================================== */}
-      {showReorderModal && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
-          <div className="w-full max-w-lg rounded-3xl bg-slate-900 border border-white/15 p-6 md:p-7 space-y-5 shadow-2xl">
-            <div className="flex items-center justify-between border-b border-white/10 pb-4">
-              <div>
-                <h3 className="font-bold text-white text-base flex items-center gap-2">
-                  <ArrowRightLeft className="w-4 h-4 text-sky-400" />
-                  Acomodar Cuentas a su Gusto
-                </h3>
-                <p className="text-xs text-slate-400 mt-0.5">
-                  Suba o baje cada cuenta para elegir el orden exacto en que se muestran en el panel.
-                </p>
-              </div>
-              <button
-                onClick={() => setShowReorderModal(false)}
-                className="p-1.5 rounded-lg text-slate-400 hover:text-white"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            <div className="space-y-2 max-h-[60vh] overflow-y-auto pr-1">
-              {financeData.accounts
-                .filter(a => a.type !== 'credito')
-                .map((acc, idx, arr) => {
-                  const symbol = acc.currency === 'USD' ? '$' : '₡';
-                  return (
-                    <div
-                      key={acc.id}
-                      className="p-3.5 rounded-2xl bg-slate-950/70 border border-white/10 flex items-center justify-between gap-3 hover:border-white/20 transition-all"
-                    >
-                      <div className="flex items-center gap-3 min-w-0">
-                        <span className="font-mono text-xs font-bold text-slate-500 w-5 text-center">
-                          {idx + 1}
-                        </span>
-                        <span
-                          className="w-3 h-3 rounded-full shrink-0 shadow-sm"
-                          style={{ backgroundColor: acc.color || '#0ea5e9' }}
-                        />
-                        <div className="min-w-0">
-                          <div className="font-bold text-white text-xs truncate">
-                            {acc.name}
-                          </div>
-                          <div className="text-[11px] text-slate-400 flex items-center gap-2">
-                            <span>{acc.entity || 'Banco'}</span>
-                            <span>•</span>
-                            <span className="font-mono text-emerald-400">{symbol}{(acc.balance || 0).toLocaleString()}</span>
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="flex items-center gap-1.5 shrink-0">
-                        <button
-                          type="button"
-                          disabled={idx === 0}
-                          onClick={() => handleMoveAccount(idx, -1)}
-                          className="px-2.5 py-1.5 rounded-xl bg-slate-800 text-slate-200 hover:text-white hover:bg-slate-700 disabled:opacity-20 disabled:pointer-events-none text-xs font-semibold flex items-center gap-1 border border-white/10 transition-all"
-                          title="Subir"
-                        >
-                          ↑ Subir
-                        </button>
-                        <button
-                          type="button"
-                          disabled={idx === arr.length - 1}
-                          onClick={() => handleMoveAccount(idx, 1)}
-                          className="px-2.5 py-1.5 rounded-xl bg-slate-800 text-slate-200 hover:text-white hover:bg-slate-700 disabled:opacity-20 disabled:pointer-events-none text-xs font-semibold flex items-center gap-1 border border-white/10 transition-all"
-                          title="Bajar"
-                        >
-                          ↓ Bajar
-                        </button>
-                      </div>
-                    </div>
-                  );
-                })}
-            </div>
-
-            <div className="pt-3 border-t border-white/10 flex items-center justify-between gap-3">
-              <button
-                type="button"
-                onClick={handleGroupByEntity}
-                className="px-3.5 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-sky-400 border border-sky-500/30 text-xs font-semibold flex items-center gap-1.5 transition-all active:scale-95"
-                title="Alinear todas las del BAC juntas, Wink juntas, Banco Popular juntas"
-              >
-                <Layers className="w-3.5 h-3.5" />
-                <span>Agrupar por Banco</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setShowReorderModal(false)}
-                className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-sky-600 to-indigo-600 text-white font-semibold text-xs hover:from-sky-500 hover:to-indigo-500 transition-all shadow-md shadow-sky-600/25"
-              >
-                Listo / Guardar Orden
-              </button>
-            </div>
           </div>
         </div>
       )}

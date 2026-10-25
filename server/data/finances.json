@@ -64,7 +64,7 @@
       "id": "acc_1792968680319",
       "name": "OBJETIVOS",
       "entity": "BAC Credomatic",
-      "type": "debito",
+      "type": "objetivo",
       "last4": "",
       "initialBalance": 100988.62,
       "balance": 100988.62,
@@ -74,21 +74,6 @@
       "paymentDueDay": null,
       "color": "#0ea5e9",
       "createdAt": "2026-10-25T22:51:20.319Z"
-    },
-    {
-      "id": "acc_1792898166116",
-      "name": "Wink Débito 1081",
-      "entity": "Wink",
-      "type": "debito",
-      "last4": "1081",
-      "initialBalance": 40079.02,
-      "balance": 40079.02,
-      "currency": "CRC",
-      "creditLimit": null,
-      "cutOffDay": null,
-      "paymentDueDay": null,
-      "color": "#3b82f6",
-      "createdAt": "2026-10-25T03:16:06.116Z"
     },
     {
       "id": "acc_1792968137777",
@@ -104,6 +89,21 @@
       "paymentDueDay": null,
       "color": "#0ea5e9",
       "createdAt": "2026-10-25T22:42:17.777Z"
+    },
+    {
+      "id": "acc_1792898166116",
+      "name": "Wink Débito 1081",
+      "entity": "Wink",
+      "type": "debito",
+      "last4": "1081",
+      "initialBalance": 40079.02,
+      "balance": 40079.02,
+      "currency": "CRC",
+      "creditLimit": null,
+      "cutOffDay": null,
+      "paymentDueDay": null,
+      "color": "#3b82f6",
+      "createdAt": "2026-10-25T03:16:06.116Z"
     },
     {
       "id": "acc_1792898165885",
@@ -145,6 +145,21 @@
       "rewardPoints": 110,
       "color": "#06b6d4",
       "createdAt": "2026-10-25T03:16:05.999Z"
+    },
+    {
+      "id": "acc_1792970137403",
+      "name": "Ahorro Navideño",
+      "entity": "BAC Credomatic",
+      "type": "debito",
+      "last4": "",
+      "initialBalance": 136000,
+      "balance": 136000,
+      "currency": "CRC",
+      "creditLimit": null,
+      "cutOffDay": null,
+      "paymentDueDay": null,
+      "color": "#e4032b",
+      "createdAt": "2026-10-25T23:15:37.403Z"
     }
   ],
   "loans": [],

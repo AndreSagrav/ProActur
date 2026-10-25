@@ -179,13 +179,24 @@ class FinanceService {
       };
     });
 
-    const liquidAccounts = enrichedAccounts.filter(a => a.type === 'debito' || a.type === 'efectivo' || a.type === 'ahorro' || a.type === 'objetivo');
-    const balanceCRC = liquidAccounts
+    const liquidOperatingAccounts = enrichedAccounts.filter(a => a.type === 'debito' || a.type === 'efectivo');
+    const liquidBalanceCRC = liquidOperatingAccounts
       .filter(a => (a.currency || 'CRC').toUpperCase() === 'CRC')
       .reduce((sum, a) => sum + (Number(a.balance) || 0), 0);
-    const balanceUSD = liquidAccounts
+    const liquidBalanceUSD = liquidOperatingAccounts
       .filter(a => (a.currency || '').toUpperCase() === 'USD')
       .reduce((sum, a) => sum + (Number(a.balance) || 0), 0);
+
+    const savingsAccounts = enrichedAccounts.filter(a => a.type === 'ahorro' || a.type === 'objetivo' || a.type === 'cdp' || a.type === 'inversion');
+    const savingsBalanceCRC = savingsAccounts
+      .filter(a => (a.currency || 'CRC').toUpperCase() === 'CRC')
+      .reduce((sum, a) => sum + (Number(a.balance) || 0), 0);
+    const savingsBalanceUSD = savingsAccounts
+      .filter(a => (a.currency || '').toUpperCase() === 'USD')
+      .reduce((sum, a) => sum + (Number(a.balance) || 0), 0);
+
+    const totalAssetsCRC = liquidBalanceCRC + savingsBalanceCRC;
+    const totalAssetsUSD = liquidBalanceUSD + savingsBalanceUSD;
 
     const creditAccounts = enrichedAccounts.filter(a => a.type === 'credito');
     const creditDebtCRC = creditAccounts
@@ -195,7 +206,7 @@ class FinanceService {
       .filter(a => (a.currency || '').toUpperCase() === 'USD')
       .reduce((sum, a) => sum + (Number(a.balance) || 0), 0);
 
-    const liquidAccountIds = new Set(liquidAccounts.map(a => a.id));
+    const liquidAccountIds = new Set(enrichedAccounts.filter(a => a.type !== 'credito').map(a => a.id));
     const creditAccountIds = new Set(creditAccounts.map(a => a.id));
 
     // Egresos líquidos: ÚNICAMENTE los que salen de cuentas de débito o efectivo
@@ -225,9 +236,15 @@ class FinanceService {
     });
 
     return {
-      balance: balanceCRC,
-      balanceCRC,
-      balanceUSD,
+      balance: liquidBalanceCRC,
+      balanceCRC: liquidBalanceCRC,
+      balanceUSD: liquidBalanceUSD,
+      liquidBalanceCRC,
+      liquidBalanceUSD,
+      savingsBalanceCRC,
+      savingsBalanceUSD,
+      totalAssetsCRC,
+      totalAssetsUSD,
       creditDebt: creditDebtCRC,
       creditDebtCRC,
       creditDebtUSD,
@@ -282,16 +299,37 @@ class FinanceService {
 
   async updateAccount(id, updates) {
     const data = this.readLocal();
-    const idx = data.accounts.findIndex(a => a.id === id);
+    let idx = data.accounts.findIndex(a => a.id === id);
+    if (idx === -1) {
+      const supabase = getSupabaseClient();
+      if (supabase) {
+        try {
+          const { data: supaAcc } = await supabase.from('finance_accounts').select('*').eq('id', id).single();
+          if (supaAcc) {
+            data.accounts.push({
+              id: supaAcc.id,
+              name: supaAcc.name,
+              type: supaAcc.type,
+              balance: supaAcc.balance || 0,
+              initialBalance: supaAcc.initial_balance || 0,
+              currency: supaAcc.currency || 'USD',
+              entity: supaAcc.entity || 'Banco',
+              color: supaAcc.color || '#e4032b'
+            });
+            idx = data.accounts.length - 1;
+          }
+        } catch (_) {}
+      }
+    }
     if (idx === -1) return null;
 
-    const newInit = updates.initialBalance !== undefined ? Number(updates.initialBalance) : data.accounts[idx].initialBalance;
-    const newBal = updates.balance !== undefined ? Number(updates.balance) : (updates.initialBalance !== undefined ? Number(updates.initialBalance) : data.accounts[idx].balance);
+    const newInit = updates.initialBalance !== undefined ? Number(updates.initialBalance) : (data.accounts[idx].initialBalance || 0);
+    const newBal = updates.balance !== undefined ? Number(updates.balance) : (updates.initialBalance !== undefined ? Number(updates.initialBalance) : (data.accounts[idx].balance || 0));
 
     data.accounts[idx] = {
       ...data.accounts[idx],
       ...updates,
-      last4: updates.last4 ? updates.last4.slice(-4) : data.accounts[idx].last4,
+      last4: updates.last4 ? updates.last4.slice(-4) : (data.accounts[idx].last4 || ''),
       initialBalance: newInit,
       balance: newBal
     };
@@ -318,15 +356,29 @@ class FinanceService {
   async deleteAccount(id) {
     const data = this.readLocal();
     const idx = data.accounts.findIndex(a => a.id === id);
-    if (idx === -1) return false;
-
-    data.accounts.splice(idx, 1);
-    this.writeLocal(data);
+    if (idx !== -1) {
+      data.accounts.splice(idx, 1);
+      this.writeLocal(data);
+    }
 
     const supabase = getSupabaseClient();
     if (supabase) {
       try {
         await supabase.from('finance_accounts').delete().eq('id', id);
+        const { data: orderDoc } = await supabase.from('meetings').select('transcript').eq('id', '__sys_accounts_order__').single();
+        if (orderDoc && orderDoc.transcript) {
+          let list = JSON.parse(orderDoc.transcript);
+          if (Array.isArray(list)) {
+            list = list.filter(item => item !== id);
+            await supabase.from('meetings').upsert({
+              id: '__sys_accounts_order__',
+              title: '[SYSTEM] Accounts Order',
+              summary: 'Orden personalizado de cuentas bancarias',
+              transcript: JSON.stringify(list),
+              updated_at: new Date().toISOString()
+            }, { onConflict: 'id' });
+          }
+        }
       } catch (_) {}
     }
 
