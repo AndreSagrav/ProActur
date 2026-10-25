@@ -406,22 +406,37 @@ class FinanceService {
 
     data.transactions.unshift(newTx);
 
-    // Actualizar saldo de la cuenta correspondiente
+    // Actualizar saldo de la cuenta correspondiente (con conversión automática de divisa si difiere)
     const targetAccount = data.accounts.find(a => a.id === newTx.accountId);
     if (targetAccount) {
+      const EXCHANGE_RATE = 520; // 1 USD ≈ 520 CRC (promedio bancario Costa Rica)
+      let effectiveAmount = newTx.amount;
+
+      if (newTx.currency === 'USD' && targetAccount.currency === 'CRC') {
+        effectiveAmount = Math.round(newTx.amount * EXCHANGE_RATE);
+        if (!newTx.note.includes('USD')) {
+          newTx.note += ` (Orig: $${newTx.amount.toFixed(2)} USD @ ₡${EXCHANGE_RATE})`;
+        }
+      } else if (newTx.currency === 'CRC' && targetAccount.currency === 'USD') {
+        effectiveAmount = +(newTx.amount / EXCHANGE_RATE).toFixed(2);
+        if (!newTx.note.includes('CRC')) {
+          newTx.note += ` (Orig: ₡${newTx.amount.toLocaleString()} CRC @ ₡${EXCHANGE_RATE})`;
+        }
+      }
+
       if (targetAccount.type === 'credito') {
         // En tarjeta de crédito: un gasto aumenta el saldo consumido (deuda); un pago/ingreso lo reduce
         if (newTx.type === 'gasto') {
-          targetAccount.balance = (Number(targetAccount.balance) || 0) + newTx.amount;
+          targetAccount.balance = (Number(targetAccount.balance) || 0) + effectiveAmount;
         } else if (newTx.type === 'ingreso') {
-          targetAccount.balance = Math.max(0, (Number(targetAccount.balance) || 0) - newTx.amount);
+          targetAccount.balance = Math.max(0, (Number(targetAccount.balance) || 0) - effectiveAmount);
         }
       } else {
         // En cuenta de débito: un gasto resta; un ingreso suma
         if (newTx.type === 'gasto') {
-          targetAccount.balance = (Number(targetAccount.balance) || 0) - newTx.amount;
+          targetAccount.balance = (Number(targetAccount.balance) || 0) - effectiveAmount;
         } else if (newTx.type === 'ingreso') {
-          targetAccount.balance = (Number(targetAccount.balance) || 0) + newTx.amount;
+          targetAccount.balance = (Number(targetAccount.balance) || 0) + effectiveAmount;
         }
       }
     }

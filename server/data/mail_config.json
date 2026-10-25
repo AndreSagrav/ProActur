@@ -5,6 +5,7 @@
   "port": 993,
   "enabled": true,
   "autoRecord": true,
+  "syncStartDate": "2026-10-25",
   "lastSync": null,
   "syncIntervalMinutes": 15,
   "appPasswordMasked": "••••••••••••••••"

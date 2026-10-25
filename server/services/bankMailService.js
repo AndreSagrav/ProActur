@@ -332,10 +332,15 @@ class BankMailService {
     const summary = await financeService.getSummary();
     const accounts = summary.accounts || [];
 
-    // Buscar la cuenta que coincide con los últimos 4 dígitos
+    // Buscar la cuenta que coincide con los últimos 4 dígitos (priorizando coincidencia de moneda USD vs CRC)
     let targetAccount = null;
     if (parsed.last4) {
-      targetAccount = accounts.find(a => a.last4 === parsed.last4);
+      const matchingLast4 = accounts.filter(a => a.last4 === parsed.last4);
+      if (matchingLast4.length > 1) {
+        targetAccount = matchingLast4.find(a => (a.currency || 'CRC') === (parsed.currency || 'CRC')) || matchingLast4[0];
+      } else if (matchingLast4.length === 1) {
+        targetAccount = matchingLast4[0];
+      }
     }
 
     // Si no coincide por last4, buscar por entidad o usar la primera cuenta
@@ -349,8 +354,6 @@ class BankMailService {
     if (!targetAccount) {
       targetAccount = accounts[0];
     }
-
-    const config = this.getConfig();
 
     if (config.autoRecord && targetAccount) {
       // Contabilizar de inmediato
