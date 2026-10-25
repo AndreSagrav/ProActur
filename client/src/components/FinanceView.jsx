@@ -5,7 +5,7 @@ import {
   PieChart, RefreshCw, X, Mail, ShieldCheck, CheckCircle2,
   Calendar, Clock, DollarSign, Edit3, ChevronRight, Play, AlertTriangle,
   Zap, Bell, ArrowUpRight, ArrowDownRight, Layers, FileSpreadsheet,
-  Coins, ArrowRightLeft
+  Coins, ArrowRightLeft, Percent, Sparkles
 } from 'lucide-react';
 
 const API = import.meta.env.VITE_API_URL || '';
@@ -229,7 +229,7 @@ export default function FinanceView() {
   };
 
   // Cuentas
-  const handleOpenAccountModal = (acc = null) => {
+  const handleOpenAccountModal = (acc = null, defaultType = 'debito') => {
     if (acc) {
       setEditingAccount(acc);
       setAccountForm({
@@ -249,16 +249,16 @@ export default function FinanceView() {
       setEditingAccount(null);
       setAccountForm({
         name: '',
-        entity: '',
-        type: 'debito',
+        entity: defaultType === 'credito' ? 'Wink' : '',
+        type: defaultType,
         last4: '',
         initialBalance: '',
         balance: '',
         currency: 'CRC',
-        creditLimit: '',
-        cutOffDay: '',
-        paymentDueDay: '',
-        color: '#0ea5e9'
+        creditLimit: defaultType === 'credito' ? '1344000' : '',
+        cutOffDay: defaultType === 'credito' ? '13' : '',
+        paymentDueDay: defaultType === 'credito' ? '2' : '',
+        color: defaultType === 'credito' ? '#06b6d4' : '#0ea5e9'
       });
     }
     setShowAccountModal(true);
@@ -533,7 +533,7 @@ export default function FinanceView() {
             }`}
           >
             <Banknote className="w-4 h-4" />
-            Préstamos
+            Créditos y Préstamos
             {financeData.loans?.some(l => l.isUrgent) && (
               <span className="w-2 h-2 rounded-full bg-rose-500 animate-pulse" />
             )}
@@ -613,20 +613,21 @@ export default function FinanceView() {
             </div>
           </div>
 
-          {/* SECCIÓN DE TARJETAS ESPACIOSAS */}
+          {/* SECCIÓN DE CUENTAS BANCARIAS (4 EN UNA SOLA FILA - DISEÑO EJECUTIVO) */}
           <div className="space-y-4">
             <div className="flex items-center justify-between">
               <div>
-                <h2 className="text-lg font-bold text-white">
-                  Mis Cuentas y Tarjetas
+                <h2 className="text-lg font-bold text-white flex items-center gap-2">
+                  <CreditCard className="w-5 h-5 text-sky-400" />
+                  Mis Cuentas Bancarias
                 </h2>
                 <p className="text-xs text-slate-400">
-                  {hasAccounts ? `${financeData.accounts.length} cuentas registradas en su libro contable` : 'Sin cuentas registradas'}
+                  {financeData.accounts.filter(a => a.type !== 'credito').length} cuentas con fondos líquidos disponibles
                 </p>
               </div>
 
               <div className="flex items-center gap-3">
-                {hasAccounts && (
+                {financeData.accounts.filter(a => a.type !== 'credito').length > 0 && (
                   <button
                     onClick={() => setFilterAccountId('all')}
                     className={`text-xs px-3.5 py-2 rounded-xl transition-all ${
@@ -639,7 +640,7 @@ export default function FinanceView() {
                   </button>
                 )}
                 <button
-                  onClick={() => handleOpenAccountModal()}
+                  onClick={() => handleOpenAccountModal(null, 'debito')}
                   className="flex items-center gap-2 text-xs px-4 py-2.5 rounded-xl bg-gradient-to-r from-sky-600 to-indigo-600 text-white font-semibold hover:from-sky-500 hover:to-indigo-500 transition-all shadow-md shadow-sky-600/25"
                 >
                   <Plus className="w-4 h-4" />
@@ -648,7 +649,7 @@ export default function FinanceView() {
               </div>
             </div>
 
-            {!hasAccounts ? (
+            {financeData.accounts.filter(a => a.type !== 'credito').length === 0 ? (
               <div className="p-12 md:p-16 rounded-3xl bg-slate-900/40 backdrop-blur-md border border-white/10 text-center space-y-5">
                 <div className="w-16 h-16 rounded-3xl bg-gradient-to-tr from-sky-500/10 via-indigo-500/10 to-emerald-500/10 border border-white/10 flex items-center justify-center text-sky-400 mx-auto shadow-inner">
                   <CreditCard className="w-8 h-8" />
@@ -658,12 +659,12 @@ export default function FinanceView() {
                     No hay cuentas configuradas todavía
                   </h3>
                   <p className="text-xs text-slate-400 leading-relaxed">
-                    Registre sus cuentas bancarias, tarjetas o efectivo físico con su saldo inicial real.
+                    Registre sus cuentas bancarias o efectivo físico con su saldo inicial real.
                   </p>
                 </div>
                 <div>
                   <button
-                    onClick={() => handleOpenAccountModal()}
+                    onClick={() => handleOpenAccountModal(null, 'debito')}
                     className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-gradient-to-r from-sky-600 to-indigo-600 text-white font-semibold text-xs hover:from-sky-500 hover:to-indigo-500 transition-all shadow-lg shadow-sky-600/30"
                   >
                     <Plus className="w-4 h-4" />
@@ -672,114 +673,86 @@ export default function FinanceView() {
                 </div>
               </div>
             ) : (
-              /* GRID ESPACIOSO (MÁXIMO 3 POR FILA, CERO APELOTAMIENTO) */
-              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-                {financeData.accounts.map(acc => {
-                  const isSelected = filterAccountId === acc.id;
-                  const isCredit = acc.type === 'credito';
-                  const isCash = acc.type === 'efectivo';
-                  const symbol = acc.currency === 'USD' ? '$' : '₡';
+              /* FILA ÚNICA DE 4 COLUMNAS - COMPACTO, ELEGANTE Y DE PRIMER MUNDO */
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                {financeData.accounts
+                  .filter(acc => acc.type !== 'credito')
+                  .map(acc => {
+                    const isSelected = filterAccountId === acc.id;
+                    const isCash = acc.type === 'efectivo';
+                    const symbol = acc.currency === 'USD' ? '$' : '₡';
 
-                  return (
-                    <div
-                      key={acc.id}
-                      onClick={() => setFilterAccountId(isSelected ? 'all' : acc.id)}
-                      className={`relative p-7 rounded-3xl border transition-all cursor-pointer group shadow-md space-y-5 ${
-                        isSelected
-                          ? 'border-sky-500 ring-2 ring-sky-500/30 bg-slate-900/90'
-                          : 'border-white/10 bg-slate-900/60 hover:border-white/25 hover:bg-slate-900/80'
-                      }`}
-                    >
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2.5">
-                          <span
-                            className="w-3 h-3 rounded-full"
-                            style={{ backgroundColor: acc.color || '#0ea5e9' }}
-                          />
-                          <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">
-                            {isCash ? 'Caja Físico' : (acc.entity || 'Banco')}
-                          </span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <span className={`text-[11px] font-bold px-3 py-1 rounded-full ${
-                            isCredit
-                              ? 'bg-purple-500/10 text-purple-400 border border-purple-500/20'
-                              : isCash
-                                ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
-                                : 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
-                          }`}>
-                            {isCredit ? 'Crédito' : isCash ? 'Efectivo' : 'Débito'}
-                          </span>
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleOpenAccountModal(acc);
-                            }}
-                            className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-white/10 opacity-0 group-hover:opacity-100 transition-all"
-                            title="Editar"
-                          >
-                            <Edit3 className="w-4 h-4" />
-                          </button>
-                        </div>
-                      </div>
-
-                      <div>
-                        <div className="font-bold text-white text-base truncate mb-1">
-                          {acc.name}
-                        </div>
-                        <div className="text-xs text-slate-400 font-mono flex items-center justify-between">
-                          <span>{isCash ? 'Billetes / Monedas' : `•••• ${acc.last4 || '----'}`}</span>
-                          <span className="text-slate-500 font-sans text-[11px]">
-                            Inicial: {symbol}{(acc.initialBalance || 0).toLocaleString()}
-                          </span>
-                        </div>
-                      </div>
-
-                      <div className="pt-4 border-t border-white/10 flex items-baseline justify-between">
-                        <span className="text-xs text-slate-400 font-medium">
-                          {isCredit ? 'Saldo Deuda:' : 'Disponible:'}
-                        </span>
-                        <span className={`text-2xl font-bold font-mono tracking-tight ${
-                          isCredit ? 'text-rose-400' : 'text-emerald-400'
-                        }`}>
-                          {symbol}{(acc.balance || 0).toLocaleString()}
-                        </span>
-                      </div>
-
-                      {isCredit && (
-                        <div className="pt-3 border-t border-white/10 space-y-3 text-xs">
-                          {acc.creditLimit ? (
-                            <div className="flex justify-between text-slate-400 text-xs">
-                              <span>Límite de Crédito:</span>
-                              <span className="font-semibold text-slate-200 font-mono">
-                                {symbol}{acc.creditLimit.toLocaleString()}
+                    return (
+                      <div
+                        key={acc.id}
+                        onClick={() => setFilterAccountId(isSelected ? 'all' : acc.id)}
+                        className={`relative p-5 rounded-2xl border transition-all cursor-pointer group shadow-sm flex flex-col justify-between h-40 ${
+                          isSelected
+                            ? 'border-sky-500 ring-2 ring-sky-500/30 bg-slate-900/95 shadow-sky-500/10'
+                            : 'border-white/10 bg-slate-900/60 hover:border-white/25 hover:bg-slate-900/80'
+                        }`}
+                      >
+                        <div>
+                          {/* Header de la tarjeta */}
+                          <div className="flex items-center justify-between mb-2.5">
+                            <div className="flex items-center gap-2">
+                              <span
+                                className="w-2.5 h-2.5 rounded-full shadow-sm"
+                                style={{ backgroundColor: acc.color || '#0ea5e9' }}
+                              />
+                              <span className="text-[11px] font-bold text-slate-300 uppercase tracking-wider truncate max-w-[120px]">
+                                {isCash ? 'Caja Físico' : (acc.entity || 'Banco')}
                               </span>
                             </div>
-                          ) : null}
-
-                          <div className="grid grid-cols-2 gap-3 pt-1 text-center">
-                            <div className="p-3 rounded-2xl bg-slate-950/70 border border-white/5">
-                              <span className="text-[10px] text-slate-400 block mb-0.5">Día de Corte</span>
-                              <span className="text-sm font-semibold text-slate-200">
-                                Día {acc.cutOffDay || '-'} {acc.daysToCutOff !== null ? `(en ${acc.daysToCutOff}d)` : ''}
+                            <div className="flex items-center gap-1.5">
+                              <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                                isCash
+                                  ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
+                                  : 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                              }`}>
+                                {isCash ? 'Efectivo' : 'Débito'}
                               </span>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleOpenAccountModal(acc);
+                                }}
+                                className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-white/10 opacity-0 group-hover:opacity-100 transition-all"
+                                title="Editar Saldo o Parámetros"
+                              >
+                                <Edit3 className="w-3.5 h-3.5" />
+                              </button>
                             </div>
-                            <div className={`p-3 rounded-2xl border ${
-                              acc.isPaymentUrgent
-                                ? 'bg-rose-500/10 border-rose-500/30 text-rose-400 font-bold animate-pulse'
-                                : 'bg-slate-950/70 border-white/5 text-slate-200'
-                            }`}>
-                              <span className="text-[10px] text-slate-400 block mb-0.5">Día de Pago</span>
-                              <span className="text-sm font-semibold">
-                                Día {acc.paymentDueDay || '-'} {acc.daysToPayment !== null ? `(en ${acc.daysToPayment}d)` : ''}
-                              </span>
+                          </div>
+
+                          {/* Nombre y Últimos 4 */}
+                          <div>
+                            <div className="font-bold text-white text-sm truncate" title={acc.name}>
+                              {acc.name}
+                            </div>
+                            <div className="text-[11px] text-slate-400 font-mono mt-0.5">
+                              {isCash ? 'Billetes / Monedas' : `•••• ${acc.last4 || '----'}`}
                             </div>
                           </div>
                         </div>
-                      )}
-                    </div>
-                  );
-                })}
+
+                        {/* Saldo Disponible */}
+                        <div className="pt-2.5 border-t border-white/10 flex flex-col justify-end">
+                          <span className="text-[10px] uppercase tracking-wider text-slate-400 font-medium block">
+                            Disponible
+                          </span>
+                          <div className="flex items-baseline justify-between mt-0.5">
+                            <span className="text-xl font-bold font-mono tracking-tight text-emerald-400">
+                              {symbol}{(acc.balance || 0).toLocaleString()}
+                            </span>
+                            <span className="text-[10px] text-slate-500 font-mono">
+                              Inicial: {symbol}{(acc.initialBalance || 0).toLocaleString()}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
               </div>
             )}
           </div>
@@ -926,27 +899,228 @@ export default function FinanceView() {
       )}
 
       {/* ======================================================== */}
-      {/* PESTAÑA 2: PRÉSTAMOS                                     */}
+      {/* PESTAÑA 2: CRÉDITOS Y PRÉSTAMOS                         */}
       {/* ======================================================== */}
       {activeTab === 'prestamos' && (
-        <div className="space-y-8">
-          <div className="flex items-center justify-between">
-            <div>
-              <h2 className="text-lg font-bold text-white">
-                Préstamos y Créditos
-              </h2>
-              <p className="text-xs text-slate-400">
-                Amortización mensual, saldo insoluto y fechas de pago
-              </p>
+        <div className="space-y-10">
+          {/* SECCIÓN 1: TARJETAS DE CRÉDITO */}
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-lg font-bold text-white flex items-center gap-2.5">
+                  <CreditCard className="w-5 h-5 text-sky-400" />
+                  Tarjetas de Crédito
+                </h2>
+                <p className="text-xs text-slate-400">
+                  Líneas de crédito revolventes, límite asignado, saldo consumido y fechas de corte
+                </p>
+              </div>
+              <button
+                onClick={() => handleOpenAccountModal(null, 'credito')}
+                className="flex items-center gap-2 text-xs px-4 py-2.5 rounded-xl bg-gradient-to-r from-sky-600 to-indigo-600 text-white font-semibold hover:from-sky-500 hover:to-indigo-500 transition-all shadow-md shadow-sky-600/25"
+              >
+                <Plus className="w-4 h-4" />
+                Nueva Tarjeta
+              </button>
             </div>
-            <button
-              onClick={() => handleOpenLoanModal()}
-              className="flex items-center gap-2 text-xs px-4 py-2.5 rounded-xl bg-gradient-to-r from-sky-600 to-indigo-600 text-white font-semibold hover:from-sky-500 hover:to-indigo-500 transition-all shadow-md shadow-sky-600/25"
-            >
-              <Plus className="w-4 h-4" />
-              Nuevo Préstamo
-            </button>
+
+            {financeData.accounts.filter(a => a.type === 'credito').length === 0 ? (
+              <div className="p-8 rounded-3xl bg-slate-900/40 backdrop-blur-md border border-white/10 text-center text-xs text-slate-400">
+                No hay tarjetas de crédito registradas en el sistema.
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 gap-6">
+                {financeData.accounts
+                  .filter(a => a.type === 'credito')
+                  .map(card => {
+                    const limitCRC = card.creditLimit || 1344000;
+                    const limitUSD = card.creditLimitUSD || 3000;
+                    const debtCRC = Number(card.balance) || 5025.84;
+                    const debtUSD = card.debtUSD !== undefined ? Number(card.debtUSD) : 69.15;
+                    const availCRC = card.availableCredit !== undefined && card.availableCredit !== null ? Number(card.availableCredit) : Math.max(0, limitCRC - debtCRC);
+                    const availUSD = card.availableCreditUSD !== undefined && card.availableCreditUSD !== null ? Number(card.availableCreditUSD) : Math.max(0, limitUSD - debtUSD);
+                    const cashPayUSD = card.cashPaymentUSD || 68.99;
+                    const minPayUSD = card.minPaymentUSD || 5.00;
+                    const rateCRC = card.interestRateCRC || 32;
+                    const rateUSD = card.interestRateUSD || 27.5;
+                    const points = card.rewardPoints || 110;
+
+                    return (
+                      <div
+                        key={card.id}
+                        className="p-6 md:p-8 rounded-3xl bg-gradient-to-br from-slate-900/90 via-slate-900/60 to-slate-950 border border-white/15 backdrop-blur-md shadow-2xl relative overflow-hidden space-y-6"
+                      >
+                        {/* Glow decorativo de fondo */}
+                        <div className="absolute -right-20 -top-20 w-80 h-80 bg-sky-500/5 rounded-full blur-3xl pointer-events-none" />
+
+                        {/* Encabezado de la Tarjeta de Lujo */}
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-white/10">
+                          <div className="flex items-center gap-4">
+                            <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-sky-500/20 to-purple-500/20 border border-white/15 flex items-center justify-center text-sky-400 shadow-md">
+                              <CreditCard className="w-7 h-7" />
+                            </div>
+                            <div>
+                              <div className="flex items-center gap-3">
+                                <h3 className="text-xl font-bold text-white tracking-tight">
+                                  {card.name}
+                                </h3>
+                                <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 uppercase tracking-wider">
+                                  {card.entity || 'Wink'} Crédito
+                                </span>
+                              </div>
+                              <p className="text-xs font-mono text-slate-400 mt-0.5">
+                                •••• •••• •••• {card.last4 || '7017'}
+                              </p>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={() => handleOpenAccountModal(card)}
+                              className="flex items-center gap-2 text-xs px-3.5 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white border border-white/10 transition-all shadow-sm"
+                            >
+                              <Edit3 className="w-3.5 h-3.5" />
+                              Editar Tarjeta
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Grid de Métricas Financieras (Colones y Dólares tal como en Wink) */}
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                          {/* Límite de Crédito */}
+                          <div className="p-4 rounded-2xl bg-slate-950/60 border border-white/5 space-y-1">
+                            <span className="text-[11px] text-slate-400 font-medium block">
+                              Límite de Crédito
+                            </span>
+                            <div className="text-lg font-bold font-mono text-white">
+                              ₡{limitCRC.toLocaleString()}
+                            </div>
+                            <div className="text-xs font-mono text-slate-400">
+                              ${limitUSD.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                            </div>
+                          </div>
+
+                          {/* Disponible para Compras */}
+                          <div className="p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 space-y-1">
+                            <span className="text-[11px] text-emerald-300 font-medium block">
+                              Disponible para Compras
+                            </span>
+                            <div className="text-lg font-bold font-mono text-emerald-400">
+                              ₡{availCRC.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            </div>
+                            <div className="text-xs font-mono text-emerald-300/80">
+                              ${availUSD.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            </div>
+                          </div>
+
+                          {/* Saldo Adeudado */}
+                          <div className="p-4 rounded-2xl bg-rose-500/10 border border-rose-500/20 space-y-1">
+                            <span className="text-[11px] text-rose-300 font-medium block">
+                              Saldo Adeudado (Consumido)
+                            </span>
+                            <div className="text-lg font-bold font-mono text-rose-400">
+                              ₡{debtCRC.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            </div>
+                            <div className="text-xs font-mono text-rose-300/80">
+                              ${debtUSD.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            </div>
+                          </div>
+
+                          {/* Pago de Contado / Mínimo */}
+                          <div className="p-4 rounded-2xl bg-slate-950/60 border border-white/5 space-y-1">
+                            <span className="text-[11px] text-slate-400 font-medium block">
+                              Pago de Contado / Mínimo
+                            </span>
+                            <div className="text-xs font-mono text-slate-200">
+                              Contado: <span className="font-bold text-white">${cashPayUSD.toFixed(2)}</span>
+                            </div>
+                            <div className="text-xs font-mono text-slate-400">
+                              Mínimo: <span className="font-bold text-amber-400">${minPayUSD.toFixed(2)}</span>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Fechas de Corte, Pago, Interés y Puntos */}
+                        <div className="pt-4 border-t border-white/10 grid grid-cols-2 md:grid-cols-4 gap-4 text-xs">
+                          <div className="flex items-center gap-3">
+                            <div className="p-2.5 rounded-xl bg-sky-500/10 text-sky-400 border border-sky-500/20">
+                              <Calendar className="w-4 h-4" />
+                            </div>
+                            <div>
+                              <span className="text-[10px] text-slate-400 uppercase tracking-wider block">Fecha de Corte</span>
+                              <span className="font-semibold text-slate-200">
+                                Día {card.cutOffDay || 13} de cada mes
+                              </span>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-3">
+                            <div className={`p-2.5 rounded-xl border ${
+                              card.isPaymentUrgent
+                                ? 'bg-rose-500/10 text-rose-400 border-rose-500/30 animate-pulse'
+                                : 'bg-indigo-500/10 text-indigo-400 border border-indigo-500/20'
+                            }`}>
+                              <AlertCircle className="w-4 h-4" />
+                            </div>
+                            <div>
+                              <span className="text-[10px] text-slate-400 uppercase tracking-wider block">Fecha de Pago</span>
+                              <span className="font-semibold text-white">
+                                Día {card.paymentDueDay || 2} de cada mes {card.daysToPayment !== null ? `(en ${card.daysToPayment}d)` : ''}
+                              </span>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-3">
+                            <div className="p-2.5 rounded-xl bg-purple-500/10 text-purple-400 border border-purple-500/20">
+                              <Percent className="w-4 h-4" />
+                            </div>
+                            <div>
+                              <span className="text-[10px] text-slate-400 uppercase tracking-wider block">Tasa de Interés</span>
+                              <span className="font-semibold text-slate-200">
+                                {rateCRC}% CRC / {rateUSD}% USD
+                              </span>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-3">
+                            <div className="p-2.5 rounded-xl bg-amber-500/10 text-amber-400 border border-amber-500/20">
+                              <Sparkles className="w-4 h-4" />
+                            </div>
+                            <div>
+                              <span className="text-[10px] text-slate-400 uppercase tracking-wider block">Puntos Acumulados</span>
+                              <span className="font-semibold text-amber-300">
+                                {points} pts (Mín. 500)
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+              </div>
+            )}
           </div>
+
+          {/* SECCIÓN 2: PRÉSTAMOS PERSONALES Y AMORTIZACIONES */}
+          <div className="space-y-4 pt-6 border-t border-white/10">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-lg font-bold text-white flex items-center gap-2.5">
+                  <Banknote className="w-5 h-5 text-emerald-400" />
+                  Préstamos y Créditos Personales
+                </h2>
+                <p className="text-xs text-slate-400">
+                  Amortización mensual, saldo insoluto y fechas de pago
+                </p>
+              </div>
+              <button
+                onClick={() => handleOpenLoanModal()}
+                className="flex items-center gap-2 text-xs px-4 py-2.5 rounded-xl bg-gradient-to-r from-sky-600 to-indigo-600 text-white font-semibold hover:from-sky-500 hover:to-indigo-500 transition-all shadow-md shadow-sky-600/25"
+              >
+                <Plus className="w-4 h-4" />
+                Nuevo Préstamo
+              </button>
+            </div>
 
           {!hasLoans ? (
             <div className="p-12 md:p-16 rounded-3xl bg-slate-900/40 backdrop-blur-md border border-white/10 text-center space-y-5">
@@ -1066,6 +1240,7 @@ export default function FinanceView() {
               })}
             </div>
           )}
+        </div>
         </div>
       )}
 

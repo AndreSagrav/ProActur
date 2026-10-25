@@ -84,12 +84,23 @@ class FinanceService {
             return {
               ...local,
               ...sa,
-              last4: sa.last4 || local?.last4 || (sa.name.includes('4120') ? '4120' : sa.name.includes('8841') ? '8841' : sa.name.includes('5201') ? '5201' : sa.name.includes('9312') ? '9312' : null),
-              entity: sa.entity || local?.entity || (sa.name.includes('BAC') ? 'BAC Credomatic' : sa.name.includes('Popular') ? 'Banco Popular' : sa.name.includes('Coopeande') ? 'Coopeande' : 'Entidad Bancaria'),
+              last4: sa.last4 || local?.last4,
+              entity: sa.entity || local?.entity || (sa.name.includes('BAC') ? 'BAC Credomatic' : sa.name.includes('Popular') ? 'Banco Popular' : sa.name.includes('Wink') ? 'Wink' : 'Entidad Bancaria'),
               initialBalance: sa.initial_balance !== undefined ? sa.initial_balance : (local?.initialBalance || 0),
-              creditLimit: sa.credit_limit !== undefined ? sa.credit_limit : (local?.creditLimit || (sa.type === 'credito' ? 1500000 : null)),
-              cutOffDay: sa.cut_off_day !== undefined ? sa.cut_off_day : (local?.cutOffDay || (sa.type === 'credito' ? 22 : null)),
-              paymentDueDay: sa.payment_due_day !== undefined ? sa.payment_due_day : (local?.paymentDueDay || (sa.type === 'credito' ? 7 : null))
+              creditLimit: sa.credit_limit !== undefined ? sa.credit_limit : (local?.creditLimit || (sa.type === 'credito' ? 1344000 : null)),
+              cutOffDay: sa.cut_off_day !== undefined ? sa.cut_off_day : (local?.cutOffDay || (sa.type === 'credito' ? 13 : null)),
+              paymentDueDay: sa.payment_due_day !== undefined ? sa.payment_due_day : (local?.paymentDueDay || (sa.type === 'credito' ? 2 : null)),
+              debtUSD: local?.debtUSD ?? 0,
+              creditLimitUSD: local?.creditLimitUSD ?? (sa.type === 'credito' ? 3000 : null),
+              availableCredit: local?.availableCredit ?? (local?.creditLimit ? Math.max(0, local.creditLimit - (sa.balance || 0)) : null),
+              availableCreditUSD: local?.availableCreditUSD ?? null,
+              cashPaymentCRC: local?.cashPaymentCRC ?? 0,
+              cashPaymentUSD: local?.cashPaymentUSD ?? 0,
+              minPaymentCRC: local?.minPaymentCRC ?? 0,
+              minPaymentUSD: local?.minPaymentUSD ?? 0,
+              interestRateCRC: local?.interestRateCRC ?? 32,
+              interestRateUSD: local?.interestRateUSD ?? 27.5,
+              rewardPoints: local?.rewardPoints ?? 0
             };
           });
         }
