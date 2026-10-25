@@ -56,6 +56,19 @@ function decodeMimeWords(str) {
 class BankMailService {
   constructor() {
     this.ensureFiles();
+    this.startBackgroundPoller();
+  }
+
+  startBackgroundPoller() {
+    // Sincronización automática periódica cada 15 minutos en background
+    setInterval(async () => {
+      try {
+        const config = this.getConfig();
+        if (config.enabled && config.email && config.appPassword) {
+          await this.syncInbox();
+        }
+      } catch (_) {}
+    }, 15 * 60 * 1000);
   }
 
   ensureFiles() {

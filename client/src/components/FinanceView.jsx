@@ -160,6 +160,22 @@ export default function FinanceView() {
         const data = await res.json();
         setMailConfig(data.config || {});
         setMailLogs(data.logs || []);
+
+        // Auto-sincronizar silenciosamente al abrir la vista si lleva más de 10 min sin sincronizar
+        const cfg = data.config;
+        if (cfg?.enabled && cfg?.email) {
+          const last = cfg.lastSync ? new Date(cfg.lastSync).getTime() : 0;
+          if (Date.now() - last > 10 * 60 * 1000) {
+            fetch(`${API}/api/finance/mail-sync`, { method: 'POST' })
+              .then(r => r.json())
+              .then(resData => {
+                if (resData.success && resData.recorded > 0) {
+                  fetchFinanceData();
+                }
+              })
+              .catch(() => {});
+          }
+        }
       }
     } catch (_) {}
   };
