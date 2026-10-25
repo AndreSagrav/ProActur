@@ -164,8 +164,9 @@ export default function FinanceView() {
       const res = await fetch(`${API}/api/finance/mail-config`);
       if (res.ok) {
         const data = await res.json();
+        const validLogs = (data.logs || []).filter(l => l.status === 'recorded' || l.status === 'pending_confirmation');
         setMailConfig(data.config || {});
-        setMailLogs(data.logs || []);
+        setMailLogs(validLogs);
 
         const cfg = data.config;
         if (cfg?.enabled && cfg?.email && triggerSync) {
@@ -179,8 +180,9 @@ export default function FinanceView() {
                 fetch(`${API}/api/finance/mail-config`)
                   .then(r => r.json())
                   .then(d => {
+                    const cleanLogs = (d.logs || []).filter(l => l.status === 'recorded' || l.status === 'pending_confirmation');
                     setMailConfig(d.config || {});
-                    setMailLogs(d.logs || []);
+                    setMailLogs(cleanLogs);
                   }).catch(() => {});
               }
             })
@@ -516,58 +518,86 @@ export default function FinanceView() {
   const hasLoans = financeData.loans && financeData.loans.length > 0;
 
   return (
-    <div className="space-y-8 pb-28 max-w-7xl mx-auto px-3 sm:px-6 animate-fade-in">
+    <div className="space-y-8 pb-44 max-w-7xl mx-auto px-3 sm:px-6 animate-fade-in">
       {/* ======================================================== */}
-      {/* HEADER LIMPIO & NAVEGACIÓN EN 4 PESTAÑAS DIRECTAS         */}
+      {/* HEADER EJECUTIVO & NAVEGACIÓN MODERNA SIN CORTES NI SOLAPES */}
       {/* ======================================================== */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 border-b border-white/10 pb-6">
-        <div>
-          <div className="flex items-center gap-3.5">
-            <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-sky-500/20 to-indigo-500/20 border border-white/15 flex items-center justify-center text-sky-400 shadow-md">
+      <div className="space-y-5 border-b border-white/10 pb-6">
+        {/* FILA 1: TÍTULO PRINCIPAL Y ACCIONES */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="flex items-center gap-3.5 min-w-0">
+            <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-sky-500/20 to-indigo-500/20 border border-white/15 flex items-center justify-center text-sky-400 shadow-md shrink-0">
               <Landmark className="w-6 h-6" />
             </div>
-            <div>
-              <div className="flex items-center gap-2.5">
-                <h1 className="text-2xl font-bold tracking-tight text-white">
-                  Finanzas
+            <div className="min-w-0">
+              <div className="flex items-center gap-3 flex-wrap">
+                <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-white">
+                  Finanzas & Tesorería
                 </h1>
-                <span className="text-[10px] font-semibold tracking-wider uppercase px-2.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/25">
-                  Soberano 24/7
+                <span className="text-[10px] font-semibold tracking-wider uppercase px-2.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/25 shrink-0">
+                  Sincronización Automática
                 </span>
               </div>
-              <p className="text-xs md:text-sm text-slate-400 mt-0.5">
-                Cuentas, préstamos, estados financieros y conciliación automática
+              <p className="text-xs sm:text-sm text-slate-400 mt-0.5">
+                Cuentas bancarias, préstamos, estados financieros y conciliación de comprobantes
               </p>
             </div>
           </div>
+
+          <div className="flex items-center gap-2.5 shrink-0 self-start sm:self-auto">
+            <button
+              onClick={() => handleOpenAddTxModal()}
+              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-r from-sky-600 to-indigo-600 text-white text-xs font-semibold hover:from-sky-500 hover:to-indigo-500 transition-all shadow-md shadow-sky-600/25 active:scale-95"
+            >
+              <Plus className="w-4 h-4" />
+              <span>Nuevo Movimiento</span>
+            </button>
+            <button
+              onClick={fetchFinanceData}
+              disabled={loading}
+              className="p-2 rounded-xl bg-slate-900 border border-white/10 text-slate-400 hover:text-white hover:bg-white/5 transition-all"
+              title="Actualizar datos"
+            >
+              <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+            </button>
+          </div>
         </div>
 
-        {/* NAVEGADOR DE PESTAÑAS DIRECTAS (100% IDÉNTICO EN PC Y MÓVIL) */}
-        <div className="flex items-center gap-1.5 p-1.5 bg-slate-900/90 backdrop-blur-md rounded-2xl border border-white/10 shadow-xl overflow-x-auto max-w-full scrollbar-none">
+        {/* FILA 2: NAVEGADOR DE PESTAÑAS DEDICADO Y FLUIDO */}
+        <div className="flex items-center gap-2 p-1.5 bg-slate-900/90 backdrop-blur-md rounded-2xl border border-white/10 shadow-xl overflow-x-auto scrollbar-none w-full">
           <button
             onClick={() => setActiveTab('cuentas')}
-            className={`flex items-center gap-2 px-3.5 sm:px-5 py-2 sm:py-2.5 rounded-xl text-xs font-semibold transition-all whitespace-nowrap shrink-0 ${
+            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-semibold transition-all whitespace-nowrap shrink-0 ${
               activeTab === 'cuentas'
-                ? 'bg-gradient-to-r from-sky-600 to-indigo-600 text-white shadow-md shadow-sky-600/30'
+                ? 'bg-gradient-to-r from-sky-600 to-indigo-600 text-white shadow-md shadow-sky-600/30 font-bold'
                 : 'text-slate-400 hover:text-white hover:bg-white/5'
             }`}
           >
             <CreditCard className="w-4 h-4 shrink-0" />
             <span>Cuentas</span>
+            {financeData.accounts?.length > 0 && (
+              <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${
+                activeTab === 'cuentas' ? 'bg-white/20 text-white' : 'bg-white/10 text-slate-400'
+              }`}>
+                {financeData.accounts.length}
+              </span>
+            )}
           </button>
 
           <button
             onClick={() => setActiveTab('movimientos')}
-            className={`flex items-center gap-2 px-3.5 sm:px-5 py-2 sm:py-2.5 rounded-xl text-xs font-semibold transition-all whitespace-nowrap shrink-0 ${
+            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-semibold transition-all whitespace-nowrap shrink-0 ${
               activeTab === 'movimientos'
-                ? 'bg-gradient-to-r from-sky-600 to-indigo-600 text-white shadow-md shadow-sky-600/30'
+                ? 'bg-gradient-to-r from-sky-600 to-indigo-600 text-white shadow-md shadow-sky-600/30 font-bold'
                 : 'text-slate-400 hover:text-white hover:bg-white/5'
             }`}
           >
             <Receipt className="w-4 h-4 shrink-0" />
             <span>Movimientos</span>
             {financeData.recentTransactions?.length > 0 && (
-              <span className="px-1.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 text-[10px] font-bold">
+              <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${
+                activeTab === 'movimientos' ? 'bg-emerald-400/20 text-emerald-200' : 'bg-emerald-500/20 text-emerald-400'
+              }`}>
                 {financeData.recentTransactions.length}
               </span>
             )}
@@ -575,9 +605,9 @@ export default function FinanceView() {
 
           <button
             onClick={() => setActiveTab('prestamos')}
-            className={`flex items-center gap-2 px-3.5 sm:px-5 py-2 sm:py-2.5 rounded-xl text-xs font-semibold transition-all whitespace-nowrap shrink-0 ${
+            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-semibold transition-all whitespace-nowrap shrink-0 ${
               activeTab === 'prestamos'
-                ? 'bg-gradient-to-r from-sky-600 to-indigo-600 text-white shadow-md shadow-sky-600/30'
+                ? 'bg-gradient-to-r from-sky-600 to-indigo-600 text-white shadow-md shadow-sky-600/30 font-bold'
                 : 'text-slate-400 hover:text-white hover:bg-white/5'
             }`}
           >
@@ -590,9 +620,9 @@ export default function FinanceView() {
 
           <button
             onClick={() => setActiveTab('contabilidad')}
-            className={`flex items-center gap-2 px-3.5 sm:px-5 py-2 sm:py-2.5 rounded-xl text-xs font-semibold transition-all whitespace-nowrap shrink-0 ${
+            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-semibold transition-all whitespace-nowrap shrink-0 ${
               activeTab === 'contabilidad'
-                ? 'bg-gradient-to-r from-sky-600 to-indigo-600 text-white shadow-md shadow-sky-600/30'
+                ? 'bg-gradient-to-r from-sky-600 to-indigo-600 text-white shadow-md shadow-sky-600/30 font-bold'
                 : 'text-slate-400 hover:text-white hover:bg-white/5'
             }`}
           >
@@ -602,14 +632,14 @@ export default function FinanceView() {
 
           <button
             onClick={() => setActiveTab('gmail')}
-            className={`flex items-center gap-2 px-3.5 sm:px-5 py-2 sm:py-2.5 rounded-xl text-xs font-semibold transition-all whitespace-nowrap shrink-0 ${
+            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-semibold transition-all whitespace-nowrap shrink-0 ${
               activeTab === 'gmail'
-                ? 'bg-gradient-to-r from-sky-600 to-indigo-600 text-white shadow-md shadow-sky-600/30'
+                ? 'bg-gradient-to-r from-sky-600 to-indigo-600 text-white shadow-md shadow-sky-600/30 font-bold'
                 : 'text-slate-400 hover:text-white hover:bg-white/5'
             }`}
           >
             <Mail className="w-4 h-4 shrink-0" />
-            <span>Buzón Gmail</span>
+            <span>Buzón Bancario</span>
           </button>
         </div>
       </div>
@@ -1622,30 +1652,31 @@ export default function FinanceView() {
       )}
 
       {/* ======================================================== */}
-      {/* PESTAÑA 4: BUZÓN GMAIL                                   */}
+      {/* PESTAÑA: BUZÓN BANCARIO                                  */}
       {/* ======================================================== */}
       {activeTab === 'gmail' && (
         <div className="space-y-8">
           <div className="p-6 rounded-3xl bg-gradient-to-r from-emerald-500/10 via-teal-500/10 to-sky-500/10 border border-emerald-500/25 flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div className="flex items-center gap-3.5">
-              <div className="w-12 h-12 rounded-2xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center border border-emerald-500/30">
+              <div className="w-12 h-12 rounded-2xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center border border-emerald-500/30 shrink-0">
                 <ShieldCheck className="w-6 h-6" />
               </div>
               <div>
                 <h3 className="font-bold text-white text-base">
-                  Conciliación Automática Soberana
+                  Sincronización Bancaria Automática
                 </h3>
                 <p className="text-xs text-slate-400 mt-0.5">
-                  Conexión directa vía IMAP SSL con Google. Sin intermediarios, sin tarjetas ni cuotas mensuales.
+                  Conexión directa vía IMAP SSL con Gmail. Monitoreo y conciliación instantánea de comprobantes de pago.
                 </p>
               </div>
             </div>
-            <span className="px-4 py-1.5 rounded-full bg-emerald-500/20 text-emerald-400 text-xs font-bold border border-emerald-500/30 self-start md:self-auto">
-              Activo 24/7 en Supabase
+            <span className="px-4 py-1.5 rounded-full bg-emerald-500/20 text-emerald-400 text-xs font-bold border border-emerald-500/30 self-start md:self-auto shrink-0">
+              Conexión Segura SSL IMAP
             </span>
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            {/* Formulario de Configuración */}
             <div className="lg:col-span-1 p-7 rounded-3xl bg-slate-900/60 backdrop-blur-md border border-white/10 space-y-4">
               <h3 className="font-bold text-white text-sm flex items-center gap-2">
                 <Mail className="w-4 h-4 text-sky-400" />
@@ -1747,18 +1778,19 @@ export default function FinanceView() {
               </form>
             </div>
 
-            <div className="lg:col-span-2 p-7 rounded-3xl bg-slate-900/60 backdrop-blur-md border border-white/10 space-y-4">
+            {/* Lista de Comprobantes Válidos */}
+            <div className="lg:col-span-2 p-7 rounded-3xl bg-slate-900/60 backdrop-blur-md border border-white/10 space-y-5">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div>
                   <h3 className="font-bold text-white text-base flex items-center gap-2">
-                    <Zap className="w-4 h-4 text-amber-400" />
-                    Auditoría de Comprobantes Procesados
+                    <Zap className="w-4 h-4 text-emerald-400" />
+                    Comprobantes Bancarios Válidos
                   </h3>
                   <p className="text-xs text-slate-400">
-                    Historial de notificaciones bancarias procesadas
+                    Notificaciones bancarias detectadas y contabilizadas en tesorería
                     {mailConfig.lastSync && (
                       <span className="ml-2 text-sky-400">
-                        • Última sinc: {new Date(mailConfig.lastSync).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        • Última sincronización: {new Date(mailConfig.lastSync).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                       </span>
                     )}
                   </p>
@@ -1786,78 +1818,79 @@ export default function FinanceView() {
                   <button
                     onClick={fetchMailData}
                     className="p-2 rounded-lg text-slate-400 hover:text-white hover:bg-white/10 transition-all"
-                    title="Refrescar auditoría"
+                    title="Refrescar buzón"
                   >
                     <RefreshCw className="w-4 h-4" />
                   </button>
                 </div>
               </div>
 
-              <div className="space-y-3 max-h-[480px] overflow-y-auto pr-1">
-                {mailLogs.length === 0 ? (
-                  <div className="p-12 text-center text-slate-500 text-xs">
-                    No hay comprobantes en el registro de auditoría aún. En cuanto entren notificaciones a su buzón, se reflejarán aquí de inmediato.
+              {/* Contenedor de Comprobantes Válidos */}
+              <div className="space-y-3 max-h-[500px] overflow-y-auto pr-1">
+                {mailLogs.filter(l => l.status === 'recorded' || l.status === 'pending_confirmation').length === 0 ? (
+                  <div className="p-12 text-center text-slate-500 text-xs rounded-2xl border border-white/5 bg-slate-950/30">
+                    No hay comprobantes en el buzón. En cuanto entren notificaciones bancarias válidas a su correo, se reflejarán aquí de inmediato.
                   </div>
                 ) : (
-                  mailLogs.map(log => {
-                    const isRecorded = log.status === 'recorded';
-                    const isDiscarded = log.status === 'discarded';
+                  mailLogs
+                    .filter(log => log.status === 'recorded' || log.status === 'pending_confirmation')
+                    .map(log => {
+                      const isRecorded = log.status === 'recorded';
 
-                    return (
-                      <div
-                        key={log.id}
-                        className={`p-4 rounded-2xl border text-xs transition-all ${
-                          isRecorded
-                            ? 'bg-emerald-500/5 border-emerald-500/20'
-                            : isDiscarded
-                              ? 'bg-slate-950/60 border-white/5 opacity-75'
-                              : 'bg-amber-500/5 border-amber-500/20'
-                        }`}
-                      >
-                        <div className="flex items-center justify-between mb-1.5">
-                          <span className="font-semibold text-white truncate max-w-[280px] md:max-w-md">
-                            {log.subject || 'Notificación Bancaria'}
-                          </span>
-                          <span className="text-[10px] text-slate-500 font-mono">
-                            {new Date(log.timestamp).toLocaleTimeString('es-CR')}
-                          </span>
-                        </div>
-
-                        <div className="flex items-center justify-between text-xs">
-                          {isRecorded && (
-                            <span className="text-emerald-400 flex items-center gap-1.5 font-medium">
-                              <CheckCircle2 className="w-3.5 h-3.5" />
-                              Contabilizado en: <strong className="text-white">{log.accountName}</strong> {log.last4 ? `(•••• ${log.last4})` : ''}
-                            </span>
-                          )}
-                          {isDiscarded && (
-                            <span className="text-slate-400 flex items-center gap-1.5">
-                              <AlertCircle className="w-3.5 h-3.5 text-amber-400" />
-                              {log.reason}
-                            </span>
-                          )}
-                          {!isRecorded && !isDiscarded && log.parsed && (
-                            <div className="space-y-1">
-                              <div className="flex items-center gap-1.5 text-amber-300 font-medium">
-                                <Clock className="w-3.5 h-3.5 text-amber-400" />
-                                <span>{log.parsed.merchant} ({log.parsed.entity}) {log.parsed.last4 ? `• Tarjeta •••• ${log.parsed.last4}` : ''}</span>
-                              </div>
-                              <span className="text-[10px] text-slate-400">
-                                {financeData.accounts?.length === 0
-                                  ? 'Cree su cuenta en la pestaña "Cuentas" para contabilizar automáticamente.'
-                                  : 'Pendiente de confirmación de cuenta.'}
+                      return (
+                        <div
+                          key={log.id}
+                          className={`p-4 rounded-2xl border text-xs transition-all space-y-2.5 ${
+                            isRecorded
+                              ? 'bg-emerald-500/5 border-emerald-500/25 hover:border-emerald-500/40'
+                              : 'bg-amber-500/5 border-amber-500/25 hover:border-amber-500/40'
+                          }`}
+                        >
+                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                            <div className="flex items-center gap-2 min-w-0">
+                              <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase shrink-0 ${
+                                isRecorded
+                                  ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                                  : 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
+                              }`}>
+                                {isRecorded ? 'Contabilizado' : 'Pendiente Confirmación'}
+                              </span>
+                              <span className="font-semibold text-white truncate max-w-sm sm:max-w-md">
+                                {log.subject || 'Comprobante Bancario'}
                               </span>
                             </div>
-                          )}
-                          {(log.amount || log.parsed?.amount) && (
-                            <span className="font-mono font-bold text-white text-sm">
-                              {(log.currency || log.parsed?.currency) === 'USD' ? '$' : '₡'}{Number(log.amount || log.parsed?.amount).toLocaleString()}
+                            <span className="text-[10px] text-slate-500 font-mono shrink-0">
+                              {new Date(log.timestamp).toLocaleDateString('es-CR')} {new Date(log.timestamp).toLocaleTimeString('es-CR', { hour: '2-digit', minute: '2-digit' })}
                             </span>
-                          )}
+                          </div>
+
+                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pt-2 border-t border-white/5">
+                            <div className="flex items-center gap-2">
+                              {isRecorded ? (
+                                <span className="text-slate-300 flex items-center gap-1.5 font-medium">
+                                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                                  Cuenta destino: <strong className="text-emerald-400">{log.accountName}</strong> {log.last4 ? `(•••• ${log.last4})` : ''}
+                                </span>
+                              ) : (
+                                <span className="text-amber-300 flex items-center gap-1.5 font-medium">
+                                  <Clock className="w-3.5 h-3.5 text-amber-400" />
+                                  <span>{log.parsed?.merchant || 'Comercio'} {log.parsed?.last4 ? `• Tarjeta •••• ${log.parsed.last4}` : ''}</span>
+                                </span>
+                              )}
+                            </div>
+
+                            {(log.amount || log.parsed?.amount) && (
+                              <div className="font-mono font-bold text-white text-base self-end sm:self-auto">
+                                {(log.currency || log.parsed?.currency) === 'USD' ? '$' : '₡'}{Number(log.amount || log.parsed?.amount).toLocaleString()}
+                                <span className="text-[10px] text-slate-400 font-normal ml-1">
+                                  {log.currency || log.parsed?.currency || 'CRC'}
+                                </span>
+                              </div>
+                            )}
+                          </div>
                         </div>
-                      </div>
-                    );
-                  })
+                      );
+                    })
                 )}
               </div>
             </div>

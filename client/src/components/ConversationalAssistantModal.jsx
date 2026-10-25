@@ -329,15 +329,26 @@ export default function ConversationalAssistantModal({
         const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
         audioChunksRef.current = [];
         
-        let mimeType = 'audio/webm';
-        if (typeof MediaRecorder !== 'undefined') {
-          if (MediaRecorder.isTypeSupported('audio/webm;codecs=opus')) mimeType = 'audio/webm;codecs=opus';
-          else if (MediaRecorder.isTypeSupported('audio/webm')) mimeType = 'audio/webm';
-          else if (MediaRecorder.isTypeSupported('audio/mp4')) mimeType = 'audio/mp4';
-          else if (MediaRecorder.isTypeSupported('audio/aac')) mimeType = 'audio/aac';
+        let options = undefined;
+        let finalMime = 'audio/webm';
+        if (typeof MediaRecorder !== 'undefined' && typeof MediaRecorder.isTypeSupported === 'function') {
+          const supportedTypes = [
+            'audio/webm;codecs=opus',
+            'audio/webm',
+            'audio/mp4',
+            'audio/aac',
+            'audio/ogg'
+          ];
+          for (const t of supportedTypes) {
+            if (MediaRecorder.isTypeSupported(t)) {
+              options = { mimeType: t };
+              finalMime = t;
+              break;
+            }
+          }
         }
 
-        const mr = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
+        const mr = options ? new MediaRecorder(stream, options) : new MediaRecorder(stream);
         mr.ondataavailable = (e) => {
           if (e.data && e.data.size > 0) {
             audioChunksRef.current.push(e.data);
@@ -351,13 +362,15 @@ export default function ConversationalAssistantModal({
             return;
           }
 
-          const blob = new Blob(audioChunksRef.current, { type: mimeType });
+          const resolvedMime = mr.mimeType || finalMime || 'audio/webm';
+          const blob = new Blob(audioChunksRef.current, { type: resolvedMime });
           setIsListening(false);
           setIsTranscribingAudio(true);
 
           try {
             const formData = new FormData();
-            formData.append('audio', blob, 'dobby_voice.webm');
+            const ext = resolvedMime.includes('mp4') ? 'mp4' : resolvedMime.includes('ogg') ? 'ogg' : 'webm';
+            formData.append('audio', blob, `dobby_voice.${ext}`);
             const res = await fetch(`${API}/api/assistant/transcribe-audio`, {
               method: 'POST',
               body: formData

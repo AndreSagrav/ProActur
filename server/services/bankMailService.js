@@ -45,9 +45,19 @@ function decodeMimeWords(str) {
       if (encoding.toUpperCase() === 'B') {
         return Buffer.from(text, 'base64').toString('utf8');
       } else if (encoding.toUpperCase() === 'Q') {
-        return text
-          .replace(/_/g, ' ')
-          .replace(/=([0-9A-Fa-f]{2})/g, (__, hex) => String.fromCharCode(parseInt(hex, 16)));
+        const bytes = [];
+        for (let i = 0; i < text.length; i++) {
+          const ch = text[i];
+          if (ch === '_') {
+            bytes.push(0x20);
+          } else if (ch === '=' && i + 2 < text.length && /^[0-9A-Fa-f]{2}$/.test(text.substr(i + 1, 2))) {
+            bytes.push(parseInt(text.substr(i + 1, 2), 16));
+            i += 2;
+          } else {
+            bytes.push(ch.charCodeAt(0));
+          }
+        }
+        return Buffer.from(bytes).toString((charset || 'utf8').toLowerCase().includes('utf-8') ? 'utf8' : 'latin1');
       }
     } catch (_) {}
     return text;
@@ -164,13 +174,24 @@ class BankMailService {
     try {
       if (fs.existsSync(LOGS_FILE)) {
         const raw = fs.readFileSync(LOGS_FILE, 'utf8');
-        return JSON.parse(raw).slice(0, 50);
+        const parsed = JSON.parse(raw);
+        return parsed
+          .filter(log => log.status === 'recorded' || log.status === 'pending_confirmation')
+          .map(log => ({
+            ...log,
+            subject: decodeMimeWords(log.subject || '')
+          }))
+          .slice(0, 50);
       }
     } catch (_) {}
     return [];
   }
 
   addLog(logItem) {
+    // Solo registrar comprobantes válidos (jamás correos descartados o spam)
+    if (logItem.status !== 'recorded' && logItem.status !== 'pending_confirmation') {
+      return;
+    }
     try {
       let logs = [];
       if (fs.existsSync(LOGS_FILE)) {
@@ -185,7 +206,8 @@ class BankMailService {
         subject: cleanSubject,
         from: cleanFrom
       });
-      fs.writeFileSync(LOGS_FILE, JSON.stringify(logs.slice(0, 100), null, 2), 'utf8');
+      const validLogs = logs.filter(l => l.status === 'recorded' || l.status === 'pending_confirmation');
+      fs.writeFileSync(LOGS_FILE, JSON.stringify(validLogs.slice(0, 100), null, 2), 'utf8');
     } catch (_) {}
   }
 
@@ -355,27 +377,15 @@ class BankMailService {
   async processIncomingEmail(emailData) {
     const parsed = this.parseBankNotification(emailData);
     if (!parsed.matched) {
-      this.addLog({
-        status: 'discarded',
-        subject: emailData.subject,
-        from: emailData.from,
-        reason: parsed.reason
-      });
       return { status: 'discarded', reason: parsed.reason };
     }
 
     const config = this.getConfig();
 
-    // Si hay fecha de inicio configurada (ej: a partir de 2026-10-25), descartar anteriores
+    // Si hay fecha de inicio configurada (ej: a partir de 2026-10-25), descartar anteriores sin llenar el buzón de registros basura
     if (config.syncStartDate && parsed.date) {
       const emailDate = parsed.date.slice(0, 10);
       if (emailDate < config.syncStartDate) {
-        this.addLog({
-          status: 'discarded',
-          subject: emailData.subject,
-          from: emailData.from,
-          reason: `Descartado: correo anterior a la fecha de inicio contable (${config.syncStartDate})`
-        });
         return { status: 'discarded', reason: `Anterior a ${config.syncStartDate}` };
       }
     }
@@ -452,7 +462,7 @@ class BankMailService {
 
       this.addLog({
         status: 'recorded',
-        subject: emailData.subject,
+        subject: decodeMimeWords(emailData.subject),
         amount: parsed.amount,
         currency: parsed.currency,
         accountName: targetAccount.name,
@@ -471,7 +481,7 @@ class BankMailService {
       // Registrar en log como pendiente de confirmación
       this.addLog({
         status: 'pending_confirmation',
-        subject: emailData.subject,
+        subject: decodeMimeWords(emailData.subject),
         parsed,
         suggestedAccount: targetAccount ? targetAccount.name : 'No asignada'
       });

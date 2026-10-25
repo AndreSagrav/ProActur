@@ -2,14 +2,14 @@
   "accounts": [
     {
       "id": "acc_1792898165250",
-      "name": "BAC Crédito 0095",
+      "name": "BAC Débito 0095",
       "entity": "BAC Credomatic",
-      "type": "credito",
+      "type": "debito",
       "last4": "0095",
       "initialBalance": 14598,
       "balance": 12048,
       "currency": "CRC",
-      "creditLimit": 1500000,
+      "creditLimit": null,
       "cutOffDay": null,
       "paymentDueDay": null,
       "color": "#e4032b",
@@ -93,13 +93,13 @@
       "id": "tx_1792936782903",
       "accountId": "acc_1792898165250",
       "type": "gasto",
-      "category": "Gasolina y Transporte",
+      "category": "Alimentación y Reuniones",
       "note": "Compra: AM PM TRES RIOS (BAC Credomatic)",
       "merchant": "AM PM TRES RIOS",
       "amount": 2550,
       "currency": "CRC",
       "source": "gmail_auto",
-      "rawSnippet": "=?UTF-8?Q?Notificaci=C3=B3n_de_transacci=C3=B3n_AM_?=",
+      "rawSnippet": "Notificación de transacción AM PM TRES RIOS",
       "date": "2026-10-25T13:59:42.903Z"
     }
   ],
