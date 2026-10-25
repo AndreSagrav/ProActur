@@ -742,6 +742,16 @@ router.get('/finance/summary', async (req, res) => {
   }
 });
 
+router.get('/finance/statements', async (req, res) => {
+  try {
+    const statements = await financeService.getFinancialStatements();
+    res.json(statements);
+  } catch (err) {
+    console.error('[Finance Statements Error]:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 router.post('/finance/transactions', async (req, res) => {
   try {
     const { accountId, type, category, note, amount, date } = req.body;

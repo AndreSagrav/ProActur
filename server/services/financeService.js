@@ -139,7 +139,7 @@ class FinanceService {
     });
 
     const totalBalance = enrichedAccounts
-      .filter(a => a.type === 'debito')
+      .filter(a => a.type === 'debito' || a.type === 'efectivo')
       .reduce((sum, a) => sum + (Number(a.balance) || 0), 0);
 
     const totalCreditDebt = enrichedAccounts
@@ -466,6 +466,83 @@ class FinanceService {
     }
 
     return true;
+  }
+
+  async getFinancialStatements() {
+    const summary = await this.getSummary();
+    const accounts = summary.accounts || [];
+    const loans = summary.loans || [];
+    const transactions = summary.recentTransactions || [];
+
+    // 1. Activos
+    const liquidAssets = accounts
+      .filter(a => a.type === 'debito' || a.type === 'efectivo')
+      .map(a => ({ name: a.name, entity: a.entity || 'Tesorería', amount: Number(a.balance) || 0, currency: a.currency || 'CRC' }));
+    const totalLiquidAssets = liquidAssets.reduce((sum, a) => sum + a.amount, 0);
+
+    // 2. Pasivos
+    const shortTermDebt = accounts
+      .filter(a => a.type === 'credito')
+      .map(a => ({ name: a.name, entity: a.entity || 'Tarjeta de Crédito', amount: Number(a.balance) || 0, currency: a.currency || 'CRC' }));
+    const totalShortTermDebt = shortTermDebt.reduce((sum, a) => sum + a.amount, 0);
+
+    const longTermDebt = loans
+      .filter(l => l.status === 'active')
+      .map(l => ({ name: l.name, entity: l.entity || 'Entidad', amount: Number(l.remainingBalance) || 0, currency: l.currency || 'CRC' }));
+    const totalLongTermDebt = longTermDebt.reduce((sum, l) => sum + l.amount, 0);
+
+    const totalLiabilities = totalShortTermDebt + totalLongTermDebt;
+    const netWorth = totalLiquidAssets - totalLiabilities;
+
+    // 3. Estado de Resultados (P&L)
+    const incomeItems = transactions.filter(t => t.type === 'ingreso');
+    const expenseItems = transactions.filter(t => t.type === 'gasto');
+
+    const grossRevenue = incomeItems.reduce((sum, t) => sum + (Number(t.amount) || 0), 0);
+    const operatingExpenses = expenseItems
+      .filter(t => !t.category?.toLowerCase().includes('financiero') && !t.category?.toLowerCase().includes('interes'))
+      .reduce((sum, t) => sum + (Number(t.amount) || 0), 0);
+    const financialCosts = expenseItems
+      .filter(t => t.category?.toLowerCase().includes('financiero') || t.category?.toLowerCase().includes('interes'))
+      .reduce((sum, t) => sum + (Number(t.amount) || 0), 0);
+
+    const totalExpenses = operatingExpenses + financialCosts;
+    const netProfit = grossRevenue - totalExpenses;
+    const profitMargin = grossRevenue > 0 ? ((netProfit / grossRevenue) * 100).toFixed(1) : '0.0';
+
+    return {
+      balanceSheet: {
+        assets: {
+          items: liquidAssets,
+          total: totalLiquidAssets
+        },
+        liabilities: {
+          shortTerm: { items: shortTermDebt, total: totalShortTermDebt },
+          longTerm: { items: longTermDebt, total: totalLongTermDebt },
+          total: totalLiabilities
+        },
+        equity: {
+          netWorth,
+          status: netWorth >= 0 ? 'Solvente' : 'Déficit Pasivo'
+        }
+      },
+      incomeStatement: {
+        grossRevenue,
+        operatingExpenses,
+        financialCosts,
+        totalExpenses,
+        netProfit,
+        profitMargin,
+        isProfitable: netProfit >= 0
+      },
+      cashFlow: {
+        beginningBalance: totalLiquidAssets - grossRevenue + totalExpenses,
+        totalInflow: grossRevenue,
+        totalOutflow: totalExpenses,
+        netCashFlow: grossRevenue - totalExpenses,
+        endingBalance: totalLiquidAssets
+      }
+    };
   }
 }
 
