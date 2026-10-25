@@ -58,7 +58,7 @@ const playExecutiveSound = (type = 'success') => {
 };
 
 export default function FinanceView() {
-  const [activeTab, setActiveTab] = useState('tesoreria'); // 'tesoreria' | 'pasivos' | 'estados' | 'conciliacion'
+  const [activeTab, setActiveTab] = useState('cuentas'); // 'cuentas' | 'prestamos' | 'contabilidad' | 'gmail'
   const [financeData, setFinanceData] = useState({
     balance: 0,
     creditDebt: 0,
@@ -82,7 +82,7 @@ export default function FinanceView() {
   const [showLoanModal, setShowLoanModal] = useState(false);
   const [editingLoan, setEditingLoan] = useState(null);
 
-  // Estados de buzón Gmail
+  // Estados Gmail
   const [mailConfig, setMailConfig] = useState({ email: '', appPassword: '', enabled: false, autoRecord: true });
   const [mailLogs, setMailLogs] = useState([]);
   const [mailTesting, setMailTesting] = useState(false);
@@ -256,7 +256,7 @@ export default function FinanceView() {
 
       const payload = {
         ...accountForm,
-        entity: accountForm.type === 'efectivo' ? 'Caja Chica' : accountForm.entity,
+        entity: accountForm.type === 'efectivo' ? 'Efectivo' : accountForm.entity,
         initialBalance: parseFloat(accountForm.initialBalance) || 0,
         balance: editingAccount ? parseFloat(accountForm.balance) : (parseFloat(accountForm.initialBalance) || 0),
         creditLimit: accountForm.type === 'credito' ? (parseFloat(accountForm.creditLimit) || 0) : null,
@@ -384,7 +384,7 @@ export default function FinanceView() {
     }
   };
 
-  // Buzón Gmail
+  // Gmail
   const handleSaveMailConfig = async (e) => {
     e.preventDefault();
     try {
@@ -438,153 +438,152 @@ export default function FinanceView() {
   const hasLoans = financeData.loans && financeData.loans.length > 0;
 
   return (
-    <div className="space-y-6 pb-24 max-w-7xl mx-auto px-2 sm:px-4 animate-fade-in">
+    <div className="space-y-8 pb-28 max-w-7xl mx-auto px-3 sm:px-6 animate-fade-in">
       {/* ======================================================== */}
-      {/* HEADER CORPORATIVO & NAVEGADOR DE 4 PESTAÑAS            */}
+      {/* HEADER LIMPIO & NAVEGACIÓN EN 4 PESTAÑAS DIRECTAS         */}
       {/* ======================================================== */}
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-white/10 pb-5">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 border-b border-white/10 pb-6">
         <div>
-          <div className="flex items-center gap-3">
-            <div className="w-11 h-11 rounded-2xl bg-gradient-to-tr from-sky-500/20 via-indigo-500/20 to-emerald-500/20 border border-white/15 flex items-center justify-center text-sky-400 shadow-inner">
-              <Landmark className="w-5 h-5" />
+          <div className="flex items-center gap-3.5">
+            <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-sky-500/20 to-indigo-500/20 border border-white/15 flex items-center justify-center text-sky-400 shadow-md">
+              <Landmark className="w-6 h-6" />
             </div>
             <div>
-              <div className="flex items-center gap-2">
-                <h1 className="text-xl md:text-2xl font-bold tracking-tight text-white">
-                  Contabilidad y Tesorería Ejecutiva
+              <div className="flex items-center gap-2.5">
+                <h1 className="text-2xl font-bold tracking-tight text-white">
+                  Finanzas
                 </h1>
                 <span className="text-[10px] font-semibold tracking-wider uppercase px-2.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/25">
                   Soberano 24/7
                 </span>
               </div>
-              <p className="text-xs md:text-sm text-slate-400">
-                Gestión patrimonial multicuenta, pasivos, estados financieros y conciliación IMAP
+              <p className="text-xs md:text-sm text-slate-400 mt-0.5">
+                Cuentas, préstamos, estados financieros y conciliación automática
               </p>
             </div>
           </div>
         </div>
 
-        {/* NAVEGADOR DE PESTAÑAS PROFESIONALES */}
-        <div className="flex flex-wrap items-center gap-1 p-1 bg-slate-900/80 backdrop-blur-md rounded-2xl border border-white/10 shadow-lg">
+        {/* NAVEGADOR DE PESTAÑAS DIRECTAS (CERO TÍTULOS ACADÉMICOS) */}
+        <div className="inline-flex items-center p-1.5 bg-slate-900/90 backdrop-blur-md rounded-2xl border border-white/10 shadow-xl">
           <button
-            onClick={() => setActiveTab('tesoreria')}
-            className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold transition-all ${
-              activeTab === 'tesoreria'
+            onClick={() => setActiveTab('cuentas')}
+            className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-semibold transition-all ${
+              activeTab === 'cuentas'
                 ? 'bg-gradient-to-r from-sky-600 to-indigo-600 text-white shadow-md shadow-sky-600/30'
                 : 'text-slate-400 hover:text-white hover:bg-white/5'
             }`}
           >
             <CreditCard className="w-4 h-4" />
-            Tesorería y Cuentas
+            Cuentas
           </button>
 
           <button
-            onClick={() => setActiveTab('pasivos')}
-            className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold transition-all ${
-              activeTab === 'pasivos'
+            onClick={() => setActiveTab('prestamos')}
+            className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-semibold transition-all ${
+              activeTab === 'prestamos'
                 ? 'bg-gradient-to-r from-sky-600 to-indigo-600 text-white shadow-md shadow-sky-600/30'
                 : 'text-slate-400 hover:text-white hover:bg-white/5'
             }`}
           >
             <Banknote className="w-4 h-4" />
-            Pasivos y Créditos
+            Préstamos
             {financeData.loans?.some(l => l.isUrgent) && (
               <span className="w-2 h-2 rounded-full bg-rose-500 animate-pulse" />
             )}
           </button>
 
           <button
-            onClick={() => setActiveTab('estados')}
-            className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold transition-all ${
-              activeTab === 'estados'
+            onClick={() => setActiveTab('contabilidad')}
+            className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-semibold transition-all ${
+              activeTab === 'contabilidad'
                 ? 'bg-gradient-to-r from-sky-600 to-indigo-600 text-white shadow-md shadow-sky-600/30'
                 : 'text-slate-400 hover:text-white hover:bg-white/5'
             }`}
           >
             <FileSpreadsheet className="w-4 h-4" />
-            Estados Financieros
+            Contabilidad
           </button>
 
           <button
-            onClick={() => setActiveTab('conciliacion')}
-            className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold transition-all ${
-              activeTab === 'conciliacion'
+            onClick={() => setActiveTab('gmail')}
+            className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-semibold transition-all ${
+              activeTab === 'gmail'
                 ? 'bg-gradient-to-r from-sky-600 to-indigo-600 text-white shadow-md shadow-sky-600/30'
                 : 'text-slate-400 hover:text-white hover:bg-white/5'
             }`}
           >
             <Mail className="w-4 h-4" />
-            Conciliación Bancaria
+            Buzón Gmail
           </button>
         </div>
       </div>
 
       {/* ======================================================== */}
-      {/* PESTAÑA 1: TESORERÍA Y CUENTAS                           */}
+      {/* PESTAÑA 1: CUENTAS                                       */}
       {/* ======================================================== */}
-      {activeTab === 'tesoreria' && (
-        <div className="space-y-6">
+      {activeTab === 'cuentas' && (
+        <div className="space-y-8">
           {/* BALANCE GENERAL RÁPIDO */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
-            <div className="p-5 rounded-2xl bg-slate-900/60 backdrop-blur-md border border-white/10 hover:border-white/20 transition-all shadow-sm">
-              <span className="text-xs font-medium text-slate-400 block mb-1">Tesorería Líquida</span>
-              <div className="text-xl md:text-2xl font-bold font-mono text-white tracking-tight">
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
+            <div className="p-6 rounded-3xl bg-slate-900/60 backdrop-blur-md border border-white/10 hover:border-white/20 transition-all shadow-sm">
+              <span className="text-xs font-medium text-slate-400 block mb-2">Disponible en Cuentas</span>
+              <div className="text-2xl md:text-3xl font-bold font-mono text-white tracking-tight">
                 ₡{(financeData.balance || 0).toLocaleString()}
               </div>
-              <span className="text-[11px] text-emerald-400 font-medium flex items-center gap-1 mt-1.5">
-                <CheckCircle2 className="w-3.5 h-3.5" /> Bancos + Efectivo
+              <span className="text-xs text-emerald-400 font-medium flex items-center gap-1.5 mt-2">
+                <CheckCircle2 className="w-3.5 h-3.5" /> Fondos líquidos
               </span>
             </div>
 
-            <div className="p-5 rounded-2xl bg-slate-900/60 backdrop-blur-md border border-white/10 hover:border-white/20 transition-all shadow-sm">
-              <span className="text-xs font-medium text-slate-400 block mb-1">Deuda en Tarjetas</span>
-              <div className="text-xl md:text-2xl font-bold font-mono text-rose-400 tracking-tight">
+            <div className="p-6 rounded-3xl bg-slate-900/60 backdrop-blur-md border border-white/10 hover:border-white/20 transition-all shadow-sm">
+              <span className="text-xs font-medium text-slate-400 block mb-2">Deuda en Tarjetas</span>
+              <div className="text-2xl md:text-3xl font-bold font-mono text-rose-400 tracking-tight">
                 ₡{(financeData.creditDebt || 0).toLocaleString()}
               </div>
-              <span className="text-[11px] text-rose-300/80 font-medium flex items-center gap-1 mt-1.5">
+              <span className="text-xs text-rose-300/80 font-medium flex items-center gap-1.5 mt-2">
                 <AlertCircle className="w-3.5 h-3.5" /> Consumo acumulado
               </span>
             </div>
 
-            <div className="p-5 rounded-2xl bg-slate-900/60 backdrop-blur-md border border-white/10 hover:border-white/20 transition-all shadow-sm">
-              <span className="text-xs font-medium text-slate-400 block mb-1">Egresos del Periodo</span>
-              <div className="text-xl md:text-2xl font-bold font-mono text-slate-100 tracking-tight">
+            <div className="p-6 rounded-3xl bg-slate-900/60 backdrop-blur-md border border-white/10 hover:border-white/20 transition-all shadow-sm">
+              <span className="text-xs font-medium text-slate-400 block mb-2">Gastos Registrados</span>
+              <div className="text-2xl md:text-3xl font-bold font-mono text-slate-100 tracking-tight">
                 ₡{(financeData.monthExpense || 0).toLocaleString()}
               </div>
-              <span className="text-[11px] text-amber-400 font-medium flex items-center gap-1 mt-1.5">
-                <TrendingDown className="w-3.5 h-3.5" /> {filteredTransactions.filter(t => t.type === 'gasto').length} registros
+              <span className="text-xs text-amber-400 font-medium flex items-center gap-1.5 mt-2">
+                <TrendingDown className="w-3.5 h-3.5" /> {filteredTransactions.filter(t => t.type === 'gasto').length} movimientos
               </span>
             </div>
 
-            <div className="p-5 rounded-2xl bg-slate-900/60 backdrop-blur-md border border-white/10 hover:border-white/20 transition-all shadow-sm">
-              <span className="text-xs font-medium text-slate-400 block mb-1">Ingresos del Periodo</span>
-              <div className="text-xl md:text-2xl font-bold font-mono text-emerald-400 tracking-tight">
+            <div className="p-6 rounded-3xl bg-slate-900/60 backdrop-blur-md border border-white/10 hover:border-white/20 transition-all shadow-sm">
+              <span className="text-xs font-medium text-slate-400 block mb-2">Ingresos Registrados</span>
+              <div className="text-2xl md:text-3xl font-bold font-mono text-emerald-400 tracking-tight">
                 ₡{(financeData.monthIncome || 0).toLocaleString()}
               </div>
-              <span className="text-[11px] text-emerald-400/80 font-medium flex items-center gap-1 mt-1.5">
-                <TrendingUp className="w-3.5 h-3.5" /> Cobros y abonos
+              <span className="text-xs text-emerald-400 font-medium flex items-center gap-1.5 mt-2">
+                <TrendingUp className="w-3.5 h-3.5" /> Depósitos y cobros
               </span>
             </div>
           </div>
 
-          {/* LISTA / ONBOARDING DE CUENTAS */}
-          <div>
-            <div className="flex items-center justify-between mb-3">
-              <div className="flex items-center gap-2">
-                <h2 className="text-sm md:text-base font-bold text-white">
-                  Cuentas, Tarjetas y Efectivo
+          {/* SECCIÓN DE TARJETAS ESPACIOSAS */}
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-lg font-bold text-white">
+                  Mis Cuentas y Tarjetas
                 </h2>
-                {hasAccounts && (
-                  <span className="text-xs text-slate-400">
-                    ({financeData.accounts.length} activas)
-                  </span>
-                )}
+                <p className="text-xs text-slate-400">
+                  {hasAccounts ? `${financeData.accounts.length} cuentas registradas en su libro contable` : 'Sin cuentas registradas'}
+                </p>
               </div>
-              <div className="flex items-center gap-2">
+
+              <div className="flex items-center gap-3">
                 {hasAccounts && (
                   <button
                     onClick={() => setFilterAccountId('all')}
-                    className={`text-xs px-3 py-1.5 rounded-xl transition-all ${
+                    className={`text-xs px-3.5 py-2 rounded-xl transition-all ${
                       filterAccountId === 'all'
                         ? 'bg-sky-500/20 text-sky-400 border border-sky-500/30 font-semibold'
                         : 'text-slate-400 hover:text-white'
@@ -595,39 +594,40 @@ export default function FinanceView() {
                 )}
                 <button
                   onClick={() => handleOpenAccountModal()}
-                  className="flex items-center gap-1.5 text-xs px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-sky-600 to-indigo-600 text-white font-semibold hover:from-sky-500 hover:to-indigo-500 transition-all shadow-md shadow-sky-600/25"
+                  className="flex items-center gap-2 text-xs px-4 py-2.5 rounded-xl bg-gradient-to-r from-sky-600 to-indigo-600 text-white font-semibold hover:from-sky-500 hover:to-indigo-500 transition-all shadow-md shadow-sky-600/25"
                 >
-                  <Plus className="w-3.5 h-3.5" />
-                  Agregar Cuenta
+                  <Plus className="w-4 h-4" />
+                  Nueva Cuenta
                 </button>
               </div>
             </div>
 
             {!hasAccounts ? (
-              <div className="p-8 md:p-12 rounded-3xl bg-slate-900/40 backdrop-blur-md border border-white/10 text-center space-y-4">
+              <div className="p-12 md:p-16 rounded-3xl bg-slate-900/40 backdrop-blur-md border border-white/10 text-center space-y-5">
                 <div className="w-16 h-16 rounded-3xl bg-gradient-to-tr from-sky-500/10 via-indigo-500/10 to-emerald-500/10 border border-white/10 flex items-center justify-center text-sky-400 mx-auto shadow-inner">
                   <CreditCard className="w-8 h-8" />
                 </div>
-                <div className="max-w-md mx-auto space-y-1.5">
+                <div className="max-w-md mx-auto space-y-2">
                   <h3 className="text-lg font-bold text-white">
-                    Tesorería no iniciada
+                    No hay cuentas configuradas todavía
                   </h3>
                   <p className="text-xs text-slate-400 leading-relaxed">
-                    Registre sus cuentas bancarias, tarjetas o caja de efectivo con su saldo real inicial para activar el control patrimonial.
+                    Registre sus cuentas bancarias, tarjetas o efectivo físico con su saldo inicial real.
                   </p>
                 </div>
-                <div className="pt-2">
+                <div>
                   <button
                     onClick={() => handleOpenAccountModal()}
-                    className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-sky-600 to-indigo-600 text-white font-semibold text-xs hover:from-sky-500 hover:to-indigo-500 transition-all shadow-lg shadow-sky-600/30"
+                    className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-gradient-to-r from-sky-600 to-indigo-600 text-white font-semibold text-xs hover:from-sky-500 hover:to-indigo-500 transition-all shadow-lg shadow-sky-600/30"
                   >
                     <Plus className="w-4 h-4" />
-                    Registrar Cuenta o Efectivo
+                    Registrar Cuenta
                   </button>
                 </div>
               </div>
             ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              /* GRID ESPACIOSO (MÁXIMO 3 POR FILA, CERO APELOTAMIENTO) */
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
                 {financeData.accounts.map(acc => {
                   const isSelected = filterAccountId === acc.id;
                   const isCredit = acc.type === 'credito';
@@ -638,24 +638,24 @@ export default function FinanceView() {
                     <div
                       key={acc.id}
                       onClick={() => setFilterAccountId(isSelected ? 'all' : acc.id)}
-                      className={`relative p-5 rounded-2xl border transition-all cursor-pointer group shadow-sm ${
+                      className={`relative p-7 rounded-3xl border transition-all cursor-pointer group shadow-md space-y-5 ${
                         isSelected
                           ? 'border-sky-500 ring-2 ring-sky-500/30 bg-slate-900/90'
-                          : 'border-white/10 bg-slate-900/50 hover:border-white/20 hover:bg-slate-900/80'
+                          : 'border-white/10 bg-slate-900/60 hover:border-white/25 hover:bg-slate-900/80'
                       }`}
                     >
-                      <div className="flex items-center justify-between mb-3">
-                        <div className="flex items-center gap-2">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2.5">
                           <span
-                            className="w-2.5 h-2.5 rounded-full"
+                            className="w-3 h-3 rounded-full"
                             style={{ backgroundColor: acc.color || '#0ea5e9' }}
                           />
-                          <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider truncate max-w-[130px]">
-                            {isCash ? 'Caja / Efectivo' : (acc.entity || 'Entidad')}
+                          <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">
+                            {isCash ? 'Caja Físico' : (acc.entity || 'Banco')}
                           </span>
                         </div>
-                        <div className="flex items-center gap-1.5">
-                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                        <div className="flex items-center gap-2">
+                          <span className={`text-[11px] font-bold px-3 py-1 rounded-full ${
                             isCredit
                               ? 'bg-purple-500/10 text-purple-400 border border-purple-500/20'
                               : isCash
@@ -669,30 +669,31 @@ export default function FinanceView() {
                               e.stopPropagation();
                               handleOpenAccountModal(acc);
                             }}
-                            className="p-1 rounded-md text-slate-400 hover:text-white hover:bg-white/10 opacity-0 group-hover:opacity-100 transition-all"
-                            title="Editar cuenta"
+                            className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-white/10 opacity-0 group-hover:opacity-100 transition-all"
+                            title="Editar"
                           >
-                            <Edit3 className="w-3.5 h-3.5" />
+                            <Edit3 className="w-4 h-4" />
                           </button>
                         </div>
                       </div>
 
-                      <div className="font-bold text-white text-sm truncate mb-0.5">
-                        {acc.name}
+                      <div>
+                        <div className="font-bold text-white text-base truncate mb-1">
+                          {acc.name}
+                        </div>
+                        <div className="text-xs text-slate-400 font-mono flex items-center justify-between">
+                          <span>{isCash ? 'Billetes / Monedas' : `•••• ${acc.last4 || '----'}`}</span>
+                          <span className="text-slate-500 font-sans text-[11px]">
+                            Inicial: {symbol}{(acc.initialBalance || 0).toLocaleString()}
+                          </span>
+                        </div>
                       </div>
 
-                      <div className="flex items-center justify-between text-xs text-slate-400 font-mono mb-4">
-                        <span>{isCash ? 'Billetes / Monedas' : `•••• ${acc.last4 || '----'}`}</span>
-                        <span className="text-[11px] font-sans text-slate-500">
-                          Inicial: {symbol}{(acc.initialBalance || 0).toLocaleString()}
-                        </span>
-                      </div>
-
-                      <div className="pt-3 border-t border-white/10 flex items-baseline justify-between">
-                        <span className="text-xs text-slate-400">
+                      <div className="pt-4 border-t border-white/10 flex items-baseline justify-between">
+                        <span className="text-xs text-slate-400 font-medium">
                           {isCredit ? 'Saldo Deuda:' : 'Disponible:'}
                         </span>
-                        <span className={`text-lg font-bold font-mono tracking-tight ${
+                        <span className={`text-2xl font-bold font-mono tracking-tight ${
                           isCredit ? 'text-rose-400' : 'text-emerald-400'
                         }`}>
                           {symbol}{(acc.balance || 0).toLocaleString()}
@@ -700,31 +701,31 @@ export default function FinanceView() {
                       </div>
 
                       {isCredit && (
-                        <div className="mt-3 pt-3 border-t border-white/10 space-y-2 text-xs">
+                        <div className="pt-3 border-t border-white/10 space-y-3 text-xs">
                           {acc.creditLimit ? (
-                            <div className="flex justify-between text-[11px]">
-                              <span className="text-slate-400">Límite:</span>
+                            <div className="flex justify-between text-slate-400 text-xs">
+                              <span>Límite de Crédito:</span>
                               <span className="font-semibold text-slate-200 font-mono">
                                 {symbol}{acc.creditLimit.toLocaleString()}
                               </span>
                             </div>
                           ) : null}
 
-                          <div className="grid grid-cols-2 gap-2 pt-1 text-center">
-                            <div className="p-2 rounded-xl bg-slate-950/60 border border-white/5">
-                              <span className="text-[10px] text-slate-400 block">Corte (Día {acc.cutOffDay || '-'})</span>
-                              <span className="text-xs font-semibold text-slate-200">
-                                {acc.daysToCutOff !== null ? `En ${acc.daysToCutOff}d` : '-'}
+                          <div className="grid grid-cols-2 gap-3 pt-1 text-center">
+                            <div className="p-3 rounded-2xl bg-slate-950/70 border border-white/5">
+                              <span className="text-[10px] text-slate-400 block mb-0.5">Día de Corte</span>
+                              <span className="text-sm font-semibold text-slate-200">
+                                Día {acc.cutOffDay || '-'} {acc.daysToCutOff !== null ? `(en ${acc.daysToCutOff}d)` : ''}
                               </span>
                             </div>
-                            <div className={`p-2 rounded-xl border ${
+                            <div className={`p-3 rounded-2xl border ${
                               acc.isPaymentUrgent
                                 ? 'bg-rose-500/10 border-rose-500/30 text-rose-400 font-bold animate-pulse'
-                                : 'bg-slate-950/60 border-white/5 text-slate-200'
+                                : 'bg-slate-950/70 border-white/5 text-slate-200'
                             }`}>
-                              <span className="text-[10px] text-slate-400 block">Pago (Día {acc.paymentDueDay || '-'})</span>
-                              <span className="text-xs font-semibold">
-                                {acc.daysToPayment !== null ? `En ${acc.daysToPayment}d` : '-'}
+                              <span className="text-[10px] text-slate-400 block mb-0.5">Día de Pago</span>
+                              <span className="text-sm font-semibold">
+                                Día {acc.paymentDueDay || '-'} {acc.daysToPayment !== null ? `(en ${acc.daysToPayment}d)` : ''}
                               </span>
                             </div>
                           </div>
@@ -737,51 +738,51 @@ export default function FinanceView() {
             )}
           </div>
 
-          {/* LIBRO DE MOVIMIENTOS */}
-          <div className="p-5 md:p-6 rounded-2xl bg-slate-900/60 backdrop-blur-md border border-white/10 space-y-4 shadow-sm">
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+          {/* LIBRO DE MOVIMIENTOS ESPACIOSO */}
+          <div className="p-7 md:p-8 rounded-3xl bg-slate-900/60 backdrop-blur-md border border-white/10 space-y-6 shadow-sm">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
               <div>
-                <h3 className="font-bold text-white text-sm md:text-base flex items-center gap-2">
-                  Libro Contable de Movimientos
+                <h3 className="font-bold text-white text-lg flex items-center gap-2.5">
+                  Movimientos Contables
                   {filterAccountId !== 'all' && (
-                    <span className="text-xs px-2.5 py-0.5 rounded-full bg-sky-500/20 text-sky-400 border border-sky-500/30 font-medium">
-                      Filtrado: {financeData.accounts?.find(a => a.id === filterAccountId)?.name}
+                    <span className="text-xs px-3 py-1 rounded-full bg-sky-500/20 text-sky-400 border border-sky-500/30 font-medium">
+                      Filtrado por cuenta
                     </span>
                   )}
                 </h3>
-                <p className="text-xs text-slate-400">
-                  {filteredTransactions.length} asientos registrados
+                <p className="text-xs text-slate-400 mt-0.5">
+                  {filteredTransactions.length} asientos registrados en el sistema
                 </p>
               </div>
 
-              <div className="flex flex-wrap items-center gap-2">
+              <div className="flex flex-wrap items-center gap-3">
                 <div className="relative">
-                  <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
                   <input
                     type="text"
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    placeholder="Filtrar concepto o comercio..."
-                    className="pl-8 pr-3 py-1.5 text-xs rounded-xl bg-slate-950/80 border border-white/10 text-white placeholder-slate-500 focus:outline-none focus:border-sky-500 w-44 md:w-56"
+                    placeholder="Buscar concepto o comercio..."
+                    className="pl-9 pr-4 py-2 text-xs rounded-xl bg-slate-950/80 border border-white/10 text-white placeholder-slate-500 focus:outline-none focus:border-sky-500 w-48 md:w-64"
                   />
                 </div>
 
                 <div className="flex rounded-xl border border-white/10 overflow-hidden text-xs bg-slate-950/80">
                   <button
                     onClick={() => setFilterType('all')}
-                    className={`px-3 py-1.5 font-medium transition-all ${filterType === 'all' ? 'bg-sky-600 text-white' : 'text-slate-400 hover:text-white'}`}
+                    className={`px-3.5 py-2 font-medium transition-all ${filterType === 'all' ? 'bg-sky-600 text-white font-semibold' : 'text-slate-400 hover:text-white'}`}
                   >
                     Todos
                   </button>
                   <button
                     onClick={() => setFilterType('gasto')}
-                    className={`px-3 py-1.5 font-medium transition-all ${filterType === 'gasto' ? 'bg-rose-500 text-white' : 'text-slate-400 hover:text-white'}`}
+                    className={`px-3.5 py-2 font-medium transition-all ${filterType === 'gasto' ? 'bg-rose-500 text-white font-semibold' : 'text-slate-400 hover:text-white'}`}
                   >
                     Gastos
                   </button>
                   <button
                     onClick={() => setFilterType('ingreso')}
-                    className={`px-3 py-1.5 font-medium transition-all ${filterType === 'ingreso' ? 'bg-emerald-500 text-white' : 'text-slate-400 hover:text-white'}`}
+                    className={`px-3.5 py-2 font-medium transition-all ${filterType === 'ingreso' ? 'bg-emerald-500 text-white font-semibold' : 'text-slate-400 hover:text-white'}`}
                   >
                     Ingresos
                   </button>
@@ -790,10 +791,10 @@ export default function FinanceView() {
                 <button
                   onClick={() => setShowAddTxModal(true)}
                   disabled={!hasAccounts}
-                  className="flex items-center gap-1.5 text-xs px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-sky-600 to-indigo-600 text-white font-semibold hover:from-sky-500 hover:to-indigo-500 transition-all disabled:opacity-50"
+                  className="flex items-center gap-2 text-xs px-4 py-2 rounded-xl bg-gradient-to-r from-sky-600 to-indigo-600 text-white font-semibold hover:from-sky-500 hover:to-indigo-500 transition-all disabled:opacity-50 shadow-md shadow-sky-600/25"
                 >
-                  <Plus className="w-3.5 h-3.5" />
-                  Nuevo Movimiento
+                  <Plus className="w-4 h-4" />
+                  Registrar Movimiento
                 </button>
               </div>
             </div>
@@ -802,19 +803,19 @@ export default function FinanceView() {
               <table className="w-full text-left text-xs">
                 <thead>
                   <tr className="border-b border-white/10 text-slate-400">
-                    <th className="pb-3 font-medium">Fecha</th>
-                    <th className="pb-3 font-medium">Concepto / Comercio</th>
-                    <th className="pb-3 font-medium">Categoría</th>
-                    <th className="pb-3 font-medium">Cuenta / Origen</th>
-                    <th className="pb-3 font-medium">Método</th>
-                    <th className="pb-3 font-medium text-right">Monto</th>
-                    <th className="pb-3 font-medium text-right">Acción</th>
+                    <th className="pb-4 font-semibold">Fecha</th>
+                    <th className="pb-4 font-semibold">Concepto / Comercio</th>
+                    <th className="pb-4 font-semibold">Categoría</th>
+                    <th className="pb-4 font-semibold">Cuenta</th>
+                    <th className="pb-4 font-semibold">Origen</th>
+                    <th className="pb-4 font-semibold text-right">Monto</th>
+                    <th className="pb-4 font-semibold text-right">Acción</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-white/5">
                   {filteredTransactions.length === 0 ? (
                     <tr>
-                      <td colSpan="7" className="py-10 text-center text-slate-500 text-xs">
+                      <td colSpan="7" className="py-12 text-center text-slate-500 text-xs">
                         No hay movimientos registrados.
                       </td>
                     </tr>
@@ -826,45 +827,45 @@ export default function FinanceView() {
 
                       return (
                         <tr key={tx.id} className="hover:bg-white/5 transition-colors">
-                          <td className="py-3 text-slate-400 whitespace-nowrap font-mono">
+                          <td className="py-4 text-slate-400 whitespace-nowrap font-mono">
                             {new Date(tx.date).toLocaleDateString('es-CR')}
                           </td>
-                          <td className="py-3 font-medium text-slate-100">
+                          <td className="py-4 font-medium text-slate-100">
                             {tx.note || tx.merchant || 'Movimiento'}
                           </td>
-                          <td className="py-3 text-slate-400">
-                            <span className="px-2 py-0.5 rounded-md bg-slate-800 text-[11px] text-slate-300">
+                          <td className="py-4 text-slate-400">
+                            <span className="px-2.5 py-1 rounded-lg bg-slate-800 text-[11px] text-slate-300">
                               {tx.category}
                             </span>
                           </td>
-                          <td className="py-3">
-                            <span className="flex items-center gap-1.5 font-medium text-slate-200">
-                              <span className="w-2 h-2 rounded-full" style={{ backgroundColor: account?.color || '#0ea5e9' }} />
+                          <td className="py-4">
+                            <span className="flex items-center gap-2 font-medium text-slate-200">
+                              <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: account?.color || '#0ea5e9' }} />
                               {account ? account.name : 'Cuenta Principal'}
                               {account?.last4 && <span className="text-slate-500 font-mono">({account.last4})</span>}
                             </span>
                           </td>
-                          <td className="py-3">
+                          <td className="py-4">
                             {tx.source === 'gmail_auto' ? (
-                              <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-sky-500/10 text-sky-400 border border-sky-500/20">
-                                <Zap className="w-2.5 h-2.5" /> IMAP Auto
+                              <span className="inline-flex items-center gap-1.5 text-[10px] font-semibold px-2.5 py-0.5 rounded-full bg-sky-500/10 text-sky-400 border border-sky-500/20">
+                                <Zap className="w-3 h-3" /> IMAP Auto
                               </span>
                             ) : (
-                              <span className="text-[10px] text-slate-500">Manual</span>
+                              <span className="text-[11px] text-slate-500">Manual</span>
                             )}
                           </td>
-                          <td className={`py-3 font-bold font-mono text-right whitespace-nowrap ${
+                          <td className={`py-4 font-bold font-mono text-right whitespace-nowrap text-sm ${
                             isExpense ? 'text-rose-400' : 'text-emerald-400'
                           }`}>
                             {isExpense ? '-' : '+'} {symbol}{(tx.amount || 0).toLocaleString()}
                           </td>
-                          <td className="py-3 text-right">
+                          <td className="py-4 text-right">
                             <button
                               onClick={() => handleDeleteTx(tx.id)}
-                              className="p-1 text-slate-500 hover:text-rose-400 transition-colors rounded"
+                              className="p-1.5 text-slate-500 hover:text-rose-400 transition-colors rounded-lg"
                               title="Eliminar"
                             >
-                              <Trash2 className="w-3.5 h-3.5" />
+                              <Trash2 className="w-4 h-4" />
                             </button>
                           </td>
                         </tr>
@@ -879,45 +880,45 @@ export default function FinanceView() {
       )}
 
       {/* ======================================================== */}
-      {/* PESTAÑA 2: PASIVOS Y CRÉDITOS                            */}
+      {/* PESTAÑA 2: PRÉSTAMOS                                     */}
       {/* ======================================================== */}
-      {activeTab === 'pasivos' && (
-        <div className="space-y-6">
+      {activeTab === 'prestamos' && (
+        <div className="space-y-8">
           <div className="flex items-center justify-between">
             <div>
-              <h2 className="text-base md:text-lg font-bold text-white">
-                Gestión de Pasivos y Créditos
+              <h2 className="text-lg font-bold text-white">
+                Préstamos y Créditos
               </h2>
               <p className="text-xs text-slate-400">
-                Amortización mensual, saldo insoluto y control de vencimientos de cuotas
+                Amortización mensual, saldo insoluto y fechas de pago
               </p>
             </div>
             <button
               onClick={() => handleOpenLoanModal()}
-              className="flex items-center gap-1.5 text-xs px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-sky-600 to-indigo-600 text-white font-semibold hover:from-sky-500 hover:to-indigo-500 transition-all shadow-md shadow-sky-600/25"
+              className="flex items-center gap-2 text-xs px-4 py-2.5 rounded-xl bg-gradient-to-r from-sky-600 to-indigo-600 text-white font-semibold hover:from-sky-500 hover:to-indigo-500 transition-all shadow-md shadow-sky-600/25"
             >
-              <Plus className="w-3.5 h-3.5" />
+              <Plus className="w-4 h-4" />
               Nuevo Préstamo
             </button>
           </div>
 
           {!hasLoans ? (
-            <div className="p-8 md:p-12 rounded-3xl bg-slate-900/40 backdrop-blur-md border border-white/10 text-center space-y-4">
+            <div className="p-12 md:p-16 rounded-3xl bg-slate-900/40 backdrop-blur-md border border-white/10 text-center space-y-5">
               <div className="w-16 h-16 rounded-3xl bg-gradient-to-tr from-sky-500/10 via-indigo-500/10 to-emerald-500/10 border border-white/10 flex items-center justify-center text-sky-400 mx-auto shadow-inner">
                 <Banknote className="w-8 h-8" />
               </div>
-              <div className="max-w-md mx-auto space-y-1.5">
+              <div className="max-w-md mx-auto space-y-2">
                 <h3 className="text-lg font-bold text-white">
-                  No hay pasivos registrados
+                  No hay préstamos registrados
                 </h3>
                 <p className="text-xs text-slate-400 leading-relaxed">
-                  Ingrese sus créditos activos con su entidad, cuota mensual, saldo adeudado y día de corte/pago para amortizarlos de forma cruzada.
+                  Ingrese sus créditos activos con su entidad, cuota mensual, saldo adeudado real y día de pago para amortizarlos de forma automática.
                 </p>
               </div>
-              <div className="pt-2">
+              <div>
                 <button
                   onClick={() => handleOpenLoanModal()}
-                  className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-sky-600 to-indigo-600 text-white font-semibold text-xs hover:from-sky-500 hover:to-indigo-500 transition-all shadow-lg shadow-sky-600/30"
+                  className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-gradient-to-r from-sky-600 to-indigo-600 text-white font-semibold text-xs hover:from-sky-500 hover:to-indigo-500 transition-all shadow-lg shadow-sky-600/30"
                 >
                   <Plus className="w-4 h-4" />
                   Registrar Primer Préstamo
@@ -925,7 +926,7 @@ export default function FinanceView() {
               </div>
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
               {financeData.loans.map(loan => {
                 const paid = Math.max(0, (loan.totalAmount || 0) - (loan.remainingBalance || 0));
                 const pct = loan.totalAmount > 0 ? Math.round((paid / loan.totalAmount) * 100) : 0;
@@ -935,19 +936,19 @@ export default function FinanceView() {
                 return (
                   <div
                     key={loan.id}
-                    className="p-5 rounded-2xl border border-white/10 bg-slate-900/60 backdrop-blur-md space-y-4 hover:border-white/20 transition-all shadow-sm"
+                    className="p-7 rounded-3xl border border-white/10 bg-slate-900/60 backdrop-blur-md space-y-5 hover:border-white/20 transition-all shadow-md"
                   >
                     <div className="flex items-start justify-between">
                       <div>
-                        <span className="text-[10px] font-bold text-sky-400 uppercase tracking-wider">
+                        <span className="text-[11px] font-bold text-sky-400 uppercase tracking-wider">
                           {loan.entity || 'Entidad'}
                         </span>
-                        <h3 className="font-bold text-white text-sm mt-0.5">
+                        <h3 className="font-bold text-white text-base mt-0.5">
                           {loan.name}
                         </h3>
                       </div>
-                      <div className="flex items-center gap-1.5">
-                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                      <div className="flex items-center gap-2">
+                        <span className={`text-[10px] font-bold px-3 py-1 rounded-full ${
                           loan.status === 'paid'
                             ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
                             : 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
@@ -956,41 +957,41 @@ export default function FinanceView() {
                         </span>
                         <button
                           onClick={() => handleDeleteLoan(loan.id)}
-                          className="p-1 text-slate-500 hover:text-rose-400 transition-colors"
+                          className="p-1.5 text-slate-500 hover:text-rose-400 transition-colors"
                         >
-                          <Trash2 className="w-3.5 h-3.5" />
+                          <Trash2 className="w-4 h-4" />
                         </button>
                       </div>
                     </div>
 
-                    <div className="space-y-1.5">
+                    <div className="space-y-2">
                       <div className="flex justify-between text-xs">
                         <span className="text-slate-400">Amortizado ({pct}%):</span>
                         <span className="font-mono text-emerald-400 font-semibold">
                           {symbol}{paid.toLocaleString()}
                         </span>
                       </div>
-                      <div className="w-full h-2 rounded-full bg-slate-950 overflow-hidden">
+                      <div className="w-full h-2.5 rounded-full bg-slate-950 overflow-hidden">
                         <div
                           className="h-full bg-gradient-to-r from-sky-500 to-emerald-400 transition-all duration-500"
                           style={{ width: `${Math.min(100, pct)}%` }}
                         />
                       </div>
-                      <div className="flex justify-between text-[11px] text-slate-400 font-mono">
+                      <div className="flex justify-between text-xs text-slate-400 font-mono">
                         <span>Adeudado: {symbol}{(loan.remainingBalance || 0).toLocaleString()}</span>
                         <span>Total: {symbol}{(loan.totalAmount || 0).toLocaleString()}</span>
                       </div>
                     </div>
 
-                    <div className="p-3 rounded-xl bg-slate-950/60 border border-white/5 space-y-2 text-xs">
+                    <div className="p-4 rounded-2xl bg-slate-950/70 border border-white/5 space-y-2.5 text-xs">
                       <div className="flex justify-between items-center">
-                        <span className="text-slate-400">Cuota Mensual:</span>
-                        <span className="font-bold font-mono text-white text-sm">
+                        <span className="text-slate-400 font-medium">Cuota Mensual:</span>
+                        <span className="font-bold font-mono text-white text-base">
                           {symbol}{(loan.monthlyInstallment || 0).toLocaleString()}
                         </span>
                       </div>
                       <div className="flex justify-between items-center">
-                        <span className="text-slate-400">Fecha de Pago:</span>
+                        <span className="text-slate-400 font-medium">Fecha de Pago:</span>
                         <span className={`font-semibold ${
                           loan.isUrgent ? 'text-rose-400 font-bold animate-pulse' : 'text-slate-200'
                         }`}>
@@ -998,7 +999,7 @@ export default function FinanceView() {
                         </span>
                       </div>
                       {account && (
-                        <div className="flex justify-between items-center text-[11px] text-slate-400 pt-1 border-t border-white/5">
+                        <div className="flex justify-between items-center text-[11px] text-slate-400 pt-1.5 border-t border-white/5">
                           <span>Cuenta Débito:</span>
                           <span className="text-slate-300 font-medium">{account.name}</span>
                         </div>
@@ -1008,9 +1009,9 @@ export default function FinanceView() {
                     {loan.status !== 'paid' && (
                       <button
                         onClick={() => handlePayInstallment(loan)}
-                        className="w-full flex items-center justify-center gap-2 py-2 rounded-xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/25 hover:bg-emerald-500/20 text-xs font-semibold transition-all"
+                        className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/25 hover:bg-emerald-500/20 text-xs font-semibold transition-all"
                       >
-                        <CheckCircle2 className="w-3.5 h-3.5" />
+                        <CheckCircle2 className="w-4 h-4" />
                         Registrar Pago de Cuota
                       </button>
                     )}
@@ -1023,37 +1024,37 @@ export default function FinanceView() {
       )}
 
       {/* ======================================================== */}
-      {/* PESTAÑA 3: ESTADOS FINANCIEROS (BALANCE Y RESULTADOS)   */}
+      {/* PESTAÑA 3: CONTABILIDAD (ESTADOS FINANCIEROS REALES)      */}
       {/* ======================================================== */}
-      {activeTab === 'estados' && (
-        <div className="space-y-6">
+      {activeTab === 'contabilidad' && (
+        <div className="space-y-8">
           <div className="flex items-center justify-between">
             <div>
-              <h2 className="text-base md:text-lg font-bold text-white">
-                Estados Financieros y Contabilidad de Partida Doble
+              <h2 className="text-lg font-bold text-white">
+                Estados Financieros
               </h2>
               <p className="text-xs text-slate-400">
-                Balance de Situación, Estado de Resultados (P&L) y Flujo de Caja calculados en tiempo real
+                Balance de Situación, Estado de Resultados y Flujo de Caja en tiempo real
               </p>
             </div>
             <button
               onClick={fetchFinanceData}
-              className="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-white/5 transition-all"
-              title="Recalcular balances"
+              className="p-2.5 rounded-xl text-slate-400 hover:text-white hover:bg-white/5 transition-all"
+              title="Recalcular"
             >
               <RefreshCw className="w-4 h-4" />
             </button>
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            {/* 1. BALANCE DE SITUACIÓN (BALANCE GENERAL) */}
-            <div className="p-6 rounded-3xl bg-slate-900/60 backdrop-blur-md border border-white/10 space-y-4">
-              <div className="flex items-center justify-between border-b border-white/10 pb-3">
-                <div className="flex items-center gap-2">
-                  <Landmark className="w-4 h-4 text-sky-400" />
-                  <h3 className="font-bold text-white text-sm">Balance de Situación</h3>
+            {/* 1. BALANCE DE SITUACIÓN */}
+            <div className="p-7 rounded-3xl bg-slate-900/60 backdrop-blur-md border border-white/10 space-y-5">
+              <div className="flex items-center justify-between border-b border-white/10 pb-4">
+                <div className="flex items-center gap-2.5">
+                  <Landmark className="w-5 h-5 text-sky-400" />
+                  <h3 className="font-bold text-white text-base">Balance de Situación</h3>
                 </div>
-                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full ${
                   (statements?.balanceSheet?.equity?.netWorth || 0) >= 0
                     ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
                     : 'bg-rose-500/10 text-rose-400 border border-rose-500/20'
@@ -1063,16 +1064,16 @@ export default function FinanceView() {
               </div>
 
               {/* ACTIVOS */}
-              <div className="space-y-2 text-xs">
-                <div className="flex justify-between font-semibold text-slate-300">
+              <div className="space-y-2.5 text-xs">
+                <div className="flex justify-between font-bold text-slate-200">
                   <span>TOTAL ACTIVOS (Tesorería)</span>
-                  <span className="font-mono text-emerald-400">
+                  <span className="font-mono text-emerald-400 text-sm">
                     ₡{(statements?.balanceSheet?.assets?.total || 0).toLocaleString()}
                   </span>
                 </div>
-                <div className="space-y-1 pl-2 text-[11px] text-slate-400">
+                <div className="space-y-1.5 pl-2 text-xs text-slate-400">
                   {(statements?.balanceSheet?.assets?.items || []).length === 0 ? (
-                    <span className="text-slate-600 block">Sin cuentas líquidas</span>
+                    <span className="text-slate-600 block">Sin activos registrados</span>
                   ) : (
                     statements.balanceSheet.assets.items.map((it, idx) => (
                       <div key={idx} className="flex justify-between">
@@ -1085,22 +1086,22 @@ export default function FinanceView() {
               </div>
 
               {/* PASIVOS */}
-              <div className="space-y-2 text-xs border-t border-white/10 pt-3">
-                <div className="flex justify-between font-semibold text-slate-300">
+              <div className="space-y-2.5 text-xs border-t border-white/10 pt-4">
+                <div className="flex justify-between font-bold text-slate-200">
                   <span>TOTAL PASIVOS (Obligaciones)</span>
-                  <span className="font-mono text-rose-400">
+                  <span className="font-mono text-rose-400 text-sm">
                     ₡{(statements?.balanceSheet?.liabilities?.total || 0).toLocaleString()}
                   </span>
                 </div>
-                <div className="space-y-1 pl-2 text-[11px] text-slate-400">
+                <div className="space-y-1.5 pl-2 text-xs text-slate-400">
                   <div className="flex justify-between">
-                    <span>Tarjetas de Crédito</span>
+                    <span>Deuda Tarjetas</span>
                     <span className="font-mono text-slate-300">
                       ₡{(statements?.balanceSheet?.liabilities?.shortTerm?.total || 0).toLocaleString()}
                     </span>
                   </div>
                   <div className="flex justify-between">
-                    <span>Créditos y Préstamos</span>
+                    <span>Deuda Préstamos</span>
                     <span className="font-mono text-slate-300">
                       ₡{(statements?.balanceSheet?.liabilities?.longTerm?.total || 0).toLocaleString()}
                     </span>
@@ -1109,9 +1110,9 @@ export default function FinanceView() {
               </div>
 
               {/* PATRIMONIO NETO */}
-              <div className="pt-3 border-t border-white/10 flex items-center justify-between text-xs">
+              <div className="pt-4 border-t border-white/10 flex items-center justify-between text-xs">
                 <span className="font-bold text-white uppercase tracking-wider">Patrimonio Neto Real</span>
-                <span className={`text-base font-bold font-mono ${
+                <span className={`text-lg font-bold font-mono ${
                   (statements?.balanceSheet?.equity?.netWorth || 0) >= 0 ? 'text-emerald-400' : 'text-rose-400'
                 }`}>
                   ₡{(statements?.balanceSheet?.equity?.netWorth || 0).toLocaleString()}
@@ -1120,21 +1121,21 @@ export default function FinanceView() {
             </div>
 
             {/* 2. ESTADO DE RESULTADOS (P&L) */}
-            <div className="p-6 rounded-3xl bg-slate-900/60 backdrop-blur-md border border-white/10 space-y-4">
-              <div className="flex items-center justify-between border-b border-white/10 pb-3">
-                <div className="flex items-center gap-2">
-                  <TrendingUp className="w-4 h-4 text-emerald-400" />
-                  <h3 className="font-bold text-white text-sm">Estado de Resultados (P&L)</h3>
+            <div className="p-7 rounded-3xl bg-slate-900/60 backdrop-blur-md border border-white/10 space-y-5">
+              <div className="flex items-center justify-between border-b border-white/10 pb-4">
+                <div className="flex items-center gap-2.5">
+                  <TrendingUp className="w-5 h-5 text-emerald-400" />
+                  <h3 className="font-bold text-white text-base">Estado de Resultados (P&L)</h3>
                 </div>
-                <span className="text-[10px] font-mono font-semibold px-2 py-0.5 rounded-full bg-sky-500/10 text-sky-400">
+                <span className="text-xs font-mono font-semibold px-2.5 py-0.5 rounded-full bg-sky-500/10 text-sky-400">
                   Margen: {statements?.incomeStatement?.profitMargin || '0.0'}%
                 </span>
               </div>
 
-              <div className="space-y-3 text-xs">
-                <div className="flex justify-between items-center text-slate-300">
-                  <span>Ingresos Brutos Operativos</span>
-                  <span className="font-mono font-bold text-emerald-400">
+              <div className="space-y-3.5 text-xs">
+                <div className="flex justify-between items-center text-slate-200">
+                  <span>Ingresos Brutos</span>
+                  <span className="font-mono font-bold text-emerald-400 text-sm">
                     ₡{(statements?.incomeStatement?.grossRevenue || 0).toLocaleString()}
                   </span>
                 </div>
@@ -1153,7 +1154,7 @@ export default function FinanceView() {
                   </span>
                 </div>
 
-                <div className="border-t border-white/10 pt-2 flex justify-between items-center text-slate-400 font-medium">
+                <div className="border-t border-white/10 pt-2.5 flex justify-between items-center text-slate-400 font-medium">
                   <span>Total Egresos y Costos</span>
                   <span className="font-mono text-rose-400">
                     ₡{(statements?.incomeStatement?.totalExpenses || 0).toLocaleString()}
@@ -1163,10 +1164,10 @@ export default function FinanceView() {
 
               <div className="pt-4 border-t border-white/10 flex items-center justify-between">
                 <div>
-                  <span className="text-xs font-bold text-white block">Utilidad Neta del Periodo</span>
-                  <span className="text-[10px] text-slate-400">Rendimiento después de intereses</span>
+                  <span className="text-xs font-bold text-white block">Utilidad Neta</span>
+                  <span className="text-[11px] text-slate-400">Limpio tras intereses</span>
                 </div>
-                <span className={`text-lg font-bold font-mono ${
+                <span className={`text-xl font-bold font-mono ${
                   (statements?.incomeStatement?.netProfit || 0) >= 0 ? 'text-emerald-400' : 'text-rose-400'
                 }`}>
                   ₡{(statements?.incomeStatement?.netProfit || 0).toLocaleString()}
@@ -1175,16 +1176,16 @@ export default function FinanceView() {
             </div>
 
             {/* 3. FLUJO DE CAJA (CASH FLOW) */}
-            <div className="p-6 rounded-3xl bg-slate-900/60 backdrop-blur-md border border-white/10 space-y-4">
-              <div className="flex items-center justify-between border-b border-white/10 pb-3">
-                <div className="flex items-center gap-2">
-                  <ArrowRightLeft className="w-4 h-4 text-indigo-400" />
-                  <h3 className="font-bold text-white text-sm">Flujo de Caja (Cash Flow)</h3>
+            <div className="p-7 rounded-3xl bg-slate-900/60 backdrop-blur-md border border-white/10 space-y-5">
+              <div className="flex items-center justify-between border-b border-white/10 pb-4">
+                <div className="flex items-center gap-2.5">
+                  <ArrowRightLeft className="w-5 h-5 text-indigo-400" />
+                  <h3 className="font-bold text-white text-base">Flujo de Caja</h3>
                 </div>
-                <span className="text-[10px] font-semibold text-slate-400">Tesorería</span>
+                <span className="text-xs font-semibold text-slate-400">Liquidez</span>
               </div>
 
-              <div className="space-y-3 text-xs">
+              <div className="space-y-3.5 text-xs">
                 <div className="flex justify-between items-center text-slate-400">
                   <span>Saldo Inicial Estimado</span>
                   <span className="font-mono text-slate-200">
@@ -1200,14 +1201,14 @@ export default function FinanceView() {
                 </div>
 
                 <div className="flex justify-between items-center text-rose-400 font-medium">
-                  <span>(-) Salidas y Pagos Ejecutados</span>
+                  <span>(-) Salidas y Pagos</span>
                   <span className="font-mono">
                     ₡{(statements?.cashFlow?.totalOutflow || 0).toLocaleString()}
                   </span>
                 </div>
 
-                <div className="border-t border-white/10 pt-2 flex justify-between items-center text-slate-300 font-semibold">
-                  <span>Variación Neta de Liquidez</span>
+                <div className="border-t border-white/10 pt-2.5 flex justify-between items-center text-slate-300 font-semibold">
+                  <span>Variación Neta</span>
                   <span className={`font-mono ${
                     (statements?.cashFlow?.netCashFlow || 0) >= 0 ? 'text-emerald-400' : 'text-rose-400'
                   }`}>
@@ -1220,9 +1221,9 @@ export default function FinanceView() {
               <div className="pt-4 border-t border-white/10 flex items-center justify-between">
                 <div>
                   <span className="text-xs font-bold text-white block">Saldo Final Disponible</span>
-                  <span className="text-[10px] text-slate-400">Fondos líquidos en caja y bancos</span>
+                  <span className="text-[11px] text-slate-400">Total en cuentas y caja</span>
                 </div>
-                <span className="text-lg font-bold font-mono text-white">
+                <span className="text-xl font-bold font-mono text-white">
                   ₡{(statements?.cashFlow?.endingBalance || 0).toLocaleString()}
                 </span>
               </div>
@@ -1232,32 +1233,31 @@ export default function FinanceView() {
       )}
 
       {/* ======================================================== */}
-      {/* PESTAÑA 4: CONCILIACIÓN BANCARIA (IMAP GMAIL)            */}
+      {/* PESTAÑA 4: BUZÓN GMAIL                                   */}
       {/* ======================================================== */}
-      {activeTab === 'conciliacion' && (
-        <div className="space-y-6">
-          <div className="p-5 rounded-2xl bg-gradient-to-r from-emerald-500/10 via-teal-500/10 to-sky-500/10 border border-emerald-500/25 flex flex-col md:flex-row md:items-center justify-between gap-4">
-            <div className="flex items-center gap-3">
-              <div className="w-11 h-11 rounded-2xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center border border-emerald-500/30">
+      {activeTab === 'gmail' && (
+        <div className="space-y-8">
+          <div className="p-6 rounded-3xl bg-gradient-to-r from-emerald-500/10 via-teal-500/10 to-sky-500/10 border border-emerald-500/25 flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div className="flex items-center gap-3.5">
+              <div className="w-12 h-12 rounded-2xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center border border-emerald-500/30">
                 <ShieldCheck className="w-6 h-6" />
               </div>
               <div>
-                <h3 className="font-bold text-white text-sm md:text-base">
+                <h3 className="font-bold text-white text-base">
                   Conciliación Automática Soberana
                 </h3>
-                <p className="text-xs text-slate-400">
+                <p className="text-xs text-slate-400 mt-0.5">
                   Conexión directa vía IMAP SSL con Google. Sin intermediarios, sin tarjetas ni cuotas mensuales.
                 </p>
               </div>
             </div>
-            <span className="px-3.5 py-1 rounded-full bg-emerald-500/20 text-emerald-400 text-xs font-bold border border-emerald-500/30 self-start md:self-auto">
+            <span className="px-4 py-1.5 rounded-full bg-emerald-500/20 text-emerald-400 text-xs font-bold border border-emerald-500/30 self-start md:self-auto">
               Activo 24/7 en Supabase
             </span>
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            {/* CREDENCIALES */}
-            <div className="lg:col-span-1 p-6 rounded-2xl bg-slate-900/60 backdrop-blur-md border border-white/10 space-y-4">
+            <div className="lg:col-span-1 p-7 rounded-3xl bg-slate-900/60 backdrop-blur-md border border-white/10 space-y-4">
               <h3 className="font-bold text-white text-sm flex items-center gap-2">
                 <Mail className="w-4 h-4 text-sky-400" />
                 Credenciales del Buzón
@@ -1266,26 +1266,26 @@ export default function FinanceView() {
                 Configure el correo a donde llegan sus comprobantes y la Contraseña de Aplicación de Google (16 caracteres).
               </p>
 
-              <form onSubmit={handleSaveMailConfig} className="space-y-3.5 text-xs">
+              <form onSubmit={handleSaveMailConfig} className="space-y-4 text-xs">
                 <div>
-                  <label className="text-slate-300 block mb-1 font-medium">Correo Gmail Bancario</label>
+                  <label className="text-slate-300 block mb-1.5 font-medium">Correo Gmail Bancario</label>
                   <input
                     type="email"
                     value={mailConfig.email || ''}
                     onChange={(e) => setMailConfig(prev => ({ ...prev, email: e.target.value }))}
                     placeholder="usuario.bancos@gmail.com"
-                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950/80 border border-white/10 text-white focus:outline-none focus:border-sky-500"
+                    className="w-full px-4 py-2.5 rounded-xl bg-slate-950/80 border border-white/10 text-white focus:outline-none focus:border-sky-500"
                   />
                 </div>
 
                 <div>
-                  <label className="text-slate-300 block mb-1 font-medium">Contraseña de Aplicación Google</label>
+                  <label className="text-slate-300 block mb-1.5 font-medium">Contraseña de Aplicación Google</label>
                   <input
                     type="password"
                     value={mailConfig.appPassword || ''}
                     onChange={(e) => setMailConfig(prev => ({ ...prev, appPassword: e.target.value }))}
                     placeholder="xxxx xxxx xxxx xxxx"
-                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950/80 border border-white/10 text-white focus:outline-none focus:border-sky-500 font-mono"
+                    className="w-full px-4 py-2.5 rounded-xl bg-slate-950/80 border border-white/10 text-white focus:outline-none focus:border-sky-500 font-mono"
                   />
                   <span className="text-[10px] text-slate-500 block mt-1">
                     Generada en: myaccount.google.com/apppasswords
@@ -1293,7 +1293,7 @@ export default function FinanceView() {
                 </div>
 
                 <div className="pt-2">
-                  <label className="flex items-center gap-2 cursor-pointer">
+                  <label className="flex items-center gap-2.5 cursor-pointer">
                     <input
                       type="checkbox"
                       checked={mailConfig.autoRecord ?? true}
@@ -1314,7 +1314,7 @@ export default function FinanceView() {
                   </div>
                 )}
 
-                <div className="pt-2 flex gap-2">
+                <div className="pt-2 flex gap-3">
                   <button
                     type="button"
                     onClick={handleTestMailConnection}
@@ -1333,31 +1333,30 @@ export default function FinanceView() {
               </form>
             </div>
 
-            {/* AUDITORÍA */}
-            <div className="lg:col-span-2 p-6 rounded-2xl bg-slate-900/60 backdrop-blur-md border border-white/10 space-y-4">
+            <div className="lg:col-span-2 p-7 rounded-3xl bg-slate-900/60 backdrop-blur-md border border-white/10 space-y-4">
               <div className="flex items-center justify-between">
                 <div>
-                  <h3 className="font-bold text-white text-sm flex items-center gap-2">
+                  <h3 className="font-bold text-white text-base flex items-center gap-2">
                     <Zap className="w-4 h-4 text-amber-400" />
                     Auditoría de Comprobantes Procesados
                   </h3>
                   <p className="text-xs text-slate-400">
-                    Historial de correos clasificados, tarjetas asignadas y filtros de descarte
+                    Historial de notificaciones bancarias procesadas
                   </p>
                 </div>
                 <button
                   onClick={fetchMailData}
-                  className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-white/10 transition-all"
-                  title="Refrescar auditoría"
+                  className="p-2 rounded-lg text-slate-400 hover:text-white hover:bg-white/10 transition-all"
+                  title="Refrescar"
                 >
                   <RefreshCw className="w-4 h-4" />
                 </button>
               </div>
 
-              <div className="space-y-2.5 max-h-[480px] overflow-y-auto pr-1">
+              <div className="space-y-3 max-h-[480px] overflow-y-auto pr-1">
                 {mailLogs.length === 0 ? (
-                  <div className="p-10 text-center text-slate-500 text-xs">
-                    No hay comprobantes en el registro de auditoría aún. En cuanto entren notificaciones bancarias o XMLs de facturas electrónicas a su buzón, se reflejarán aquí de inmediato.
+                  <div className="p-12 text-center text-slate-500 text-xs">
+                    No hay comprobantes en el registro de auditoría aún. En cuanto entren notificaciones a su buzón, se reflejarán aquí de inmediato.
                   </div>
                 ) : (
                   mailLogs.map(log => {
@@ -1367,7 +1366,7 @@ export default function FinanceView() {
                     return (
                       <div
                         key={log.id}
-                        className={`p-3.5 rounded-xl border text-xs transition-all ${
+                        className={`p-4 rounded-2xl border text-xs transition-all ${
                           isRecorded
                             ? 'bg-emerald-500/5 border-emerald-500/20'
                             : isDiscarded
@@ -1384,7 +1383,7 @@ export default function FinanceView() {
                           </span>
                         </div>
 
-                        <div className="flex items-center justify-between text-[11px]">
+                        <div className="flex items-center justify-between text-xs">
                           {isRecorded && (
                             <span className="text-emerald-400 flex items-center gap-1.5 font-medium">
                               <CheckCircle2 className="w-3.5 h-3.5" />
@@ -1398,7 +1397,7 @@ export default function FinanceView() {
                             </span>
                           )}
                           {log.amount && (
-                            <span className="font-mono font-bold text-white">
+                            <span className="font-mono font-bold text-white text-sm">
                               {log.currency === 'USD' ? '$' : '₡'}{Number(log.amount).toLocaleString()}
                             </span>
                           )}
@@ -1418,31 +1417,31 @@ export default function FinanceView() {
       {/* ======================================================== */}
       {showAccountModal && (
         <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
-          <div className="w-full max-w-md rounded-3xl bg-slate-900 border border-white/15 p-6 space-y-4 shadow-2xl">
-            <div className="flex items-center justify-between border-b border-white/10 pb-3">
+          <div className="w-full max-w-md rounded-3xl bg-slate-900 border border-white/15 p-7 space-y-5 shadow-2xl">
+            <div className="flex items-center justify-between border-b border-white/10 pb-4">
               <h3 className="font-bold text-white text-base">
                 {editingAccount ? 'Editar Cuenta o Efectivo' : 'Registrar Cuenta o Efectivo'}
               </h3>
               <button
                 onClick={() => setShowAccountModal(false)}
-                className="p-1 rounded-lg text-slate-400 hover:text-white"
+                className="p-1.5 rounded-lg text-slate-400 hover:text-white"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
 
-            <form onSubmit={handleSaveAccount} className="space-y-3.5 text-xs">
+            <form onSubmit={handleSaveAccount} className="space-y-4 text-xs">
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="text-slate-300 block mb-1 font-medium">Tipo de Recurso</label>
+                  <label className="text-slate-300 block mb-1.5 font-medium">Tipo</label>
                   <select
                     value={accountForm.type}
                     onChange={(e) => setAccountForm(prev => ({
                       ...prev,
                       type: e.target.value,
-                      entity: e.target.value === 'efectivo' ? 'Caja / Efectivo' : prev.entity
+                      entity: e.target.value === 'efectivo' ? 'Efectivo' : prev.entity
                     }))}
-                    className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-white/10 text-white focus:outline-none focus:border-sky-500"
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-white/10 text-white focus:outline-none focus:border-sky-500"
                   >
                     <option value="debito">Cuenta Bancaria (Débito)</option>
                     <option value="credito">Tarjeta de Crédito</option>
@@ -1450,45 +1449,45 @@ export default function FinanceView() {
                   </select>
                 </div>
                 <div>
-                  <label className="text-slate-300 block mb-1 font-medium">Entidad / Banco</label>
+                  <label className="text-slate-300 block mb-1.5 font-medium">Entidad / Banco</label>
                   <input
                     type="text"
                     required={accountForm.type !== 'efectivo'}
                     disabled={accountForm.type === 'efectivo'}
-                    value={accountForm.type === 'efectivo' ? 'Caja Chica' : accountForm.entity}
+                    value={accountForm.type === 'efectivo' ? 'Efectivo' : accountForm.entity}
                     onChange={(e) => setAccountForm(prev => ({ ...prev, entity: e.target.value }))}
                     placeholder="BAC, Popular, Coopeande"
-                    className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-white/10 text-white disabled:opacity-50"
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-white/10 text-white disabled:opacity-50"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="text-slate-300 block mb-1 font-medium">Nombre Descriptivo</label>
+                <label className="text-slate-300 block mb-1.5 font-medium">Nombre Descriptivo</label>
                 <input
                   type="text"
                   required
                   value={accountForm.name}
                   onChange={(e) => setAccountForm(prev => ({ ...prev, name: e.target.value }))}
                   placeholder={accountForm.type === 'efectivo' ? 'ej. Efectivo Personal o Billetera' : 'ej. BAC Débito o Tarjeta Titular'}
-                  className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-white/10 text-white focus:outline-none focus:border-sky-500"
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-white/10 text-white focus:outline-none focus:border-sky-500"
                 />
               </div>
 
               <div className="grid grid-cols-3 gap-3">
                 <div>
-                  <label className="text-slate-300 block mb-1 font-medium">Moneda</label>
+                  <label className="text-slate-300 block mb-1.5 font-medium">Moneda</label>
                   <select
                     value={accountForm.currency}
                     onChange={(e) => setAccountForm(prev => ({ ...prev, currency: e.target.value }))}
-                    className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-white/10 text-white"
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-white/10 text-white"
                   >
                     <option value="CRC">CRC (₡)</option>
                     <option value="USD">USD ($)</option>
                   </select>
                 </div>
                 <div>
-                  <label className="text-slate-300 block mb-1 font-medium">Últimos 4 Dígitos</label>
+                  <label className="text-slate-300 block mb-1.5 font-medium">Últimos 4 Dígitos</label>
                   <input
                     type="text"
                     maxLength={4}
@@ -1496,11 +1495,11 @@ export default function FinanceView() {
                     value={accountForm.type === 'efectivo' ? 'N/A' : accountForm.last4}
                     onChange={(e) => setAccountForm(prev => ({ ...prev, last4: e.target.value }))}
                     placeholder="1234"
-                    className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-white/10 text-white font-mono disabled:opacity-50"
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-white/10 text-white font-mono disabled:opacity-50"
                   />
                 </div>
                 <div>
-                  <label className="text-slate-300 block mb-1 font-medium">
+                  <label className="text-slate-300 block mb-1.5 font-medium">
                     {accountForm.type === 'credito' ? 'Deuda Actual' : 'Saldo Inicial'}
                   </label>
                   <input
@@ -1509,13 +1508,13 @@ export default function FinanceView() {
                     value={accountForm.initialBalance}
                     onChange={(e) => setAccountForm(prev => ({ ...prev, initialBalance: e.target.value }))}
                     placeholder="0.00"
-                    className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-white/10 text-white font-mono"
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-white/10 text-white font-mono"
                   />
                 </div>
               </div>
 
               {accountForm.type === 'credito' && (
-                <div className="p-3.5 rounded-2xl bg-slate-950/80 border border-white/10 space-y-3">
+                <div className="p-4 rounded-2xl bg-slate-950/80 border border-white/10 space-y-3">
                   <span className="text-[11px] font-bold text-sky-400 block">Parámetros de Crédito:</span>
                   <div>
                     <label className="text-slate-400 block mb-1 font-medium">Límite de Crédito Otorgado</label>
@@ -1525,10 +1524,10 @@ export default function FinanceView() {
                       value={accountForm.creditLimit}
                       onChange={(e) => setAccountForm(prev => ({ ...prev, creditLimit: e.target.value }))}
                       placeholder="Monto total del límite"
-                      className="w-full px-3 py-2 rounded-xl bg-slate-900 border border-white/10 text-white font-mono"
+                      className="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-white/10 text-white font-mono"
                     />
                   </div>
-                  <div className="grid grid-cols-2 gap-2">
+                  <div className="grid grid-cols-2 gap-3">
                     <div>
                       <label className="text-slate-400 block mb-1 font-medium">Día de Corte</label>
                       <input
@@ -1538,7 +1537,7 @@ export default function FinanceView() {
                         value={accountForm.cutOffDay}
                         onChange={(e) => setAccountForm(prev => ({ ...prev, cutOffDay: e.target.value }))}
                         placeholder="22"
-                        className="w-full px-3 py-2 rounded-xl bg-slate-900 border border-white/10 text-white font-mono"
+                        className="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-white/10 text-white font-mono"
                       />
                     </div>
                     <div>
@@ -1550,19 +1549,19 @@ export default function FinanceView() {
                         value={accountForm.paymentDueDay}
                         onChange={(e) => setAccountForm(prev => ({ ...prev, paymentDueDay: e.target.value }))}
                         placeholder="7"
-                        className="w-full px-3 py-2 rounded-xl bg-slate-900 border border-white/10 text-white font-mono"
+                        className="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-white/10 text-white font-mono"
                       />
                     </div>
                   </div>
                 </div>
               )}
 
-              <div className="pt-3 flex gap-2">
+              <div className="pt-3 flex gap-3">
                 {editingAccount && (
                   <button
                     type="button"
                     onClick={() => handleDeleteAccount(editingAccount.id)}
-                    className="px-3 py-2.5 rounded-xl bg-rose-500/10 border border-rose-500/25 text-rose-400 hover:bg-rose-500/20"
+                    className="px-4 py-2.5 rounded-xl bg-rose-500/10 border border-rose-500/25 text-rose-400 hover:bg-rose-500/20 font-medium"
                   >
                     Eliminar
                   </button>
@@ -1591,38 +1590,38 @@ export default function FinanceView() {
       {/* ======================================================== */}
       {showLoanModal && (
         <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
-          <div className="w-full max-w-md rounded-3xl bg-slate-900 border border-white/15 p-6 space-y-4 shadow-2xl">
-            <div className="flex items-center justify-between border-b border-white/10 pb-3">
+          <div className="w-full max-w-md rounded-3xl bg-slate-900 border border-white/15 p-7 space-y-5 shadow-2xl">
+            <div className="flex items-center justify-between border-b border-white/10 pb-4">
               <h3 className="font-bold text-white text-base">
                 {editingLoan ? 'Editar Préstamo' : 'Registrar Nuevo Préstamo'}
               </h3>
               <button
                 onClick={() => setShowLoanModal(false)}
-                className="p-1 rounded-lg text-slate-400 hover:text-white"
+                className="p-1.5 rounded-lg text-slate-400 hover:text-white"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
 
-            <form onSubmit={handleSaveLoan} className="space-y-3.5 text-xs">
+            <form onSubmit={handleSaveLoan} className="space-y-4 text-xs">
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="text-slate-300 block mb-1 font-medium">Entidad Financiera</label>
+                  <label className="text-slate-300 block mb-1.5 font-medium">Entidad Financiera</label>
                   <input
                     type="text"
                     required
                     value={loanForm.entity}
                     onChange={(e) => setLoanForm(prev => ({ ...prev, entity: e.target.value }))}
                     placeholder="ej. Coopeande / Popular"
-                    className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-white/10 text-white"
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-white/10 text-white"
                   />
                 </div>
                 <div>
-                  <label className="text-slate-300 block mb-1 font-medium">Moneda</label>
+                  <label className="text-slate-300 block mb-1.5 font-medium">Moneda</label>
                   <select
                     value={loanForm.currency}
                     onChange={(e) => setLoanForm(prev => ({ ...prev, currency: e.target.value }))}
-                    className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-white/10 text-white"
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-white/10 text-white"
                   >
                     <option value="CRC">CRC (₡)</option>
                     <option value="USD">USD ($)</option>
@@ -1631,20 +1630,20 @@ export default function FinanceView() {
               </div>
 
               <div>
-                <label className="text-slate-300 block mb-1 font-medium">Nombre del Préstamo</label>
+                <label className="text-slate-300 block mb-1.5 font-medium">Nombre del Préstamo</label>
                 <input
                   type="text"
                   required
                   value={loanForm.name}
                   onChange={(e) => setLoanForm(prev => ({ ...prev, name: e.target.value }))}
                   placeholder="ej. Crédito Personal"
-                  className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-white/10 text-white"
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-white/10 text-white"
                 />
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="text-slate-300 block mb-1 font-medium">Monto Total Original</label>
+                  <label className="text-slate-300 block mb-1.5 font-medium">Monto Total Original</label>
                   <input
                     type="number"
                     step="0.01"
@@ -1652,25 +1651,25 @@ export default function FinanceView() {
                     value={loanForm.totalAmount}
                     onChange={(e) => setLoanForm(prev => ({ ...prev, totalAmount: e.target.value }))}
                     placeholder="Monto otorgado"
-                    className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-white/10 text-white font-mono"
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-white/10 text-white font-mono"
                   />
                 </div>
                 <div>
-                  <label className="text-slate-300 block mb-1 font-medium">Saldo Pendiente Actual</label>
+                  <label className="text-slate-300 block mb-1.5 font-medium">Saldo Pendiente Actual</label>
                   <input
                     type="number"
                     step="0.01"
                     value={loanForm.remainingBalance}
                     onChange={(e) => setLoanForm(prev => ({ ...prev, remainingBalance: e.target.value }))}
                     placeholder="Saldo adeudado"
-                    className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-white/10 text-white font-mono"
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-white/10 text-white font-mono"
                   />
                 </div>
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="text-slate-300 block mb-1 font-medium">Cuota Mensual</label>
+                  <label className="text-slate-300 block mb-1.5 font-medium">Cuota Mensual</label>
                   <input
                     type="number"
                     step="0.01"
@@ -1678,11 +1677,11 @@ export default function FinanceView() {
                     value={loanForm.monthlyInstallment}
                     onChange={(e) => setLoanForm(prev => ({ ...prev, monthlyInstallment: e.target.value }))}
                     placeholder="Monto cuota"
-                    className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-white/10 text-white font-mono"
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-white/10 text-white font-mono"
                   />
                 </div>
                 <div>
-                  <label className="text-slate-300 block mb-1 font-medium">Día de Pago del Mes</label>
+                  <label className="text-slate-300 block mb-1.5 font-medium">Día de Pago del Mes</label>
                   <input
                     type="number"
                     min="1"
@@ -1691,17 +1690,17 @@ export default function FinanceView() {
                     value={loanForm.paymentDay}
                     onChange={(e) => setLoanForm(prev => ({ ...prev, paymentDay: e.target.value }))}
                     placeholder="Día (1-31)"
-                    className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-white/10 text-white font-mono"
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-white/10 text-white font-mono"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="text-slate-300 block mb-1 font-medium">Cuenta de Débito Asociada</label>
+                <label className="text-slate-300 block mb-1.5 font-medium">Cuenta de Débito Asociada</label>
                 <select
                   value={loanForm.sourceAccountId}
                   onChange={(e) => setLoanForm(prev => ({ ...prev, sourceAccountId: e.target.value }))}
-                  className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-white/10 text-white"
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-white/10 text-white"
                 >
                   <option value="">Ninguna / Débito en ventanilla</option>
                   {(financeData.accounts || []).filter(a => a.type === 'debito').map(acc => (
@@ -1712,7 +1711,7 @@ export default function FinanceView() {
                 </select>
               </div>
 
-              <div className="pt-3 flex gap-2">
+              <div className="pt-3 flex gap-3">
                 <button
                   type="button"
                   onClick={() => setShowLoanModal(false)}
@@ -1737,38 +1736,38 @@ export default function FinanceView() {
       {/* ======================================================== */}
       {showAddTxModal && (
         <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
-          <div className="w-full max-w-md rounded-3xl bg-slate-900 border border-white/15 p-6 space-y-4 shadow-2xl">
-            <div className="flex items-center justify-between border-b border-white/10 pb-3">
+          <div className="w-full max-w-md rounded-3xl bg-slate-900 border border-white/15 p-7 space-y-5 shadow-2xl">
+            <div className="flex items-center justify-between border-b border-white/10 pb-4">
               <h3 className="font-bold text-white text-base">
-                Registrar Asiento Contable
+                Registrar Movimiento
               </h3>
               <button
                 onClick={() => setShowAddTxModal(false)}
-                className="p-1 rounded-lg text-slate-400 hover:text-white"
+                className="p-1.5 rounded-lg text-slate-400 hover:text-white"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
 
-            <form onSubmit={handleCreateTx} className="space-y-3.5 text-xs">
+            <form onSubmit={handleCreateTx} className="space-y-4 text-xs">
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="text-slate-300 block mb-1 font-medium">Tipo</label>
+                  <label className="text-slate-300 block mb-1.5 font-medium">Tipo</label>
                   <select
                     value={newTx.type}
                     onChange={(e) => setNewTx(prev => ({ ...prev, type: e.target.value, category: CATEGORIES[e.target.value][0] }))}
-                    className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-white/10 text-white"
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-white/10 text-white"
                   >
                     <option value="gasto">Gasto (Débito, Tarjeta o Efectivo)</option>
                     <option value="ingreso">Ingreso (Abono o Depósito)</option>
                   </select>
                 </div>
                 <div>
-                  <label className="text-slate-300 block mb-1 font-medium">Cuenta / Recurso</label>
+                  <label className="text-slate-300 block mb-1.5 font-medium">Cuenta / Recurso</label>
                   <select
                     value={newTx.accountId}
                     onChange={(e) => setNewTx(prev => ({ ...prev, accountId: e.target.value }))}
-                    className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-white/10 text-white"
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-white/10 text-white"
                   >
                     {(financeData.accounts || []).map(acc => (
                       <option key={acc.id} value={acc.id}>
@@ -1780,11 +1779,11 @@ export default function FinanceView() {
               </div>
 
               <div>
-                <label className="text-slate-300 block mb-1 font-medium">Categoría Contable</label>
+                <label className="text-slate-300 block mb-1.5 font-medium">Categoría</label>
                 <select
                   value={newTx.category}
                   onChange={(e) => setNewTx(prev => ({ ...prev, category: e.target.value }))}
-                  className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-white/10 text-white"
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-white/10 text-white"
                 >
                   {(CATEGORIES[newTx.type] || []).map(cat => (
                     <option key={cat} value={cat}>{cat}</option>
@@ -1793,20 +1792,20 @@ export default function FinanceView() {
               </div>
 
               <div>
-                <label className="text-slate-300 block mb-1 font-medium">Concepto o Comercio</label>
+                <label className="text-slate-300 block mb-1.5 font-medium">Concepto o Comercio</label>
                 <input
                   type="text"
                   required
                   value={newTx.note}
                   onChange={(e) => setNewTx(prev => ({ ...prev, note: e.target.value }))}
                   placeholder="ej. Súper, Gasolina, Pago de Servicios"
-                  className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-white/10 text-white"
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-white/10 text-white"
                 />
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="text-slate-300 block mb-1 font-medium">Monto</label>
+                  <label className="text-slate-300 block mb-1.5 font-medium">Monto</label>
                   <input
                     type="number"
                     step="0.01"
@@ -1814,22 +1813,22 @@ export default function FinanceView() {
                     value={newTx.amount}
                     onChange={(e) => setNewTx(prev => ({ ...prev, amount: e.target.value }))}
                     placeholder="0.00"
-                    className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-white/10 text-white font-mono"
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-white/10 text-white font-mono"
                   />
                 </div>
                 <div>
-                  <label className="text-slate-300 block mb-1 font-medium">Fecha</label>
+                  <label className="text-slate-300 block mb-1.5 font-medium">Fecha</label>
                   <input
                     type="date"
                     required
                     value={newTx.date}
                     onChange={(e) => setNewTx(prev => ({ ...prev, date: e.target.value }))}
-                    className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-white/10 text-white"
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-white/10 text-white"
                   />
                 </div>
               </div>
 
-              <div className="pt-3 flex gap-2">
+              <div className="pt-3 flex gap-3">
                 <button
                   type="button"
                   onClick={() => setShowAddTxModal(false)}
@@ -1841,7 +1840,7 @@ export default function FinanceView() {
                   type="submit"
                   className="flex-1 py-2.5 rounded-xl bg-gradient-to-r from-sky-600 to-indigo-600 text-white font-semibold hover:from-sky-500 hover:to-indigo-500 transition-all shadow-md shadow-sky-600/25"
                 >
-                  Registrar Asiento
+                  Registrar Movimiento
                 </button>
               </div>
             </form>
