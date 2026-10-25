@@ -12,6 +12,7 @@ const noteService = require('../services/noteService');
 const financeService = require('../services/financeService');
 const taskService = require('../services/taskService');
 const assistantService = require('../services/assistantService');
+const edusService = require('../services/edusService');
 
 const router = express.Router();
 
@@ -835,6 +836,52 @@ router.post('/assistant/command', async (req, res) => {
     res.json(result);
   } catch (err) {
     console.error('[Assistant Command Error]:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Conversación Continua y Humana (Estilo Gemini Live)
+router.post('/assistant/chat', async (req, res) => {
+  try {
+    const { message, history } = req.body || {};
+    const result = await assistantService.processConversationalChat({
+      message: message || '',
+      history: history || []
+    });
+    res.json(result);
+  } catch (err) {
+    console.error('[Assistant Chat Error]:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Monitoreo EDUS (CCSS) y Bots de Citas Médicas
+router.get('/assistant/edus-jobs', (req, res) => {
+  try {
+    const jobs = edusService.getActiveJobs();
+    res.json(jobs);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post('/assistant/edus-jobs', async (req, res) => {
+  try {
+    const { preferredDay, timeSlot, notes } = req.body || {};
+    const job = await edusService.createEdusJob({ preferredDay, timeSlot, notes });
+    res.json(job);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Consulta de Promociones en Comercios (KFC, etc.)
+router.get('/assistant/promos', (req, res) => {
+  try {
+    const merchant = req.query.merchant || 'KFC';
+    const result = edusService.searchPromotions(merchant);
+    res.json(result);
+  } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });

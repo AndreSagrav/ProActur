@@ -23,6 +23,7 @@ import ExecutiveCommandBar from './components/ExecutiveCommandBar';
 import { useDeviceType } from './hooks/useDeviceType';
 import MobileCommandCenter from './components/mobile/MobileCommandCenter';
 import MobileFinanceView from './components/mobile/MobileFinanceView';
+import ConversationalAssistantModal from './components/ConversationalAssistantModal';
 
 const API = import.meta.env.VITE_API_URL || '';
 
@@ -41,6 +42,7 @@ export default function App() {
   const [healthData, setHealthData] = useState(null);
   const [keepAliveData, setKeepAliveData] = useState(null);
   const [isSecondBrainOpen, setIsSecondBrainOpen] = useState(false);
+  const [isConversationalAssistantOpen, setIsConversationalAssistantOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isThemeOpen, setIsThemeOpen] = useState(false);
 
@@ -353,6 +355,16 @@ const handleNewNote = (linkedMeeting = null) => {
                 <span className="hidden sm:inline">Accesibilidad</span>
               </button>
 
+              {/* Botón Asistente IA Conversacional (Gemini Live) */}
+              <button
+                onClick={() => setIsConversationalAssistantOpen(true)}
+                className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold text-cyan-300 bg-cyan-500/10 hover:bg-cyan-500/20 border border-cyan-500/30 transition-all shadow-sm active:scale-95 cursor-pointer"
+                title="Abrir Asistente Ejecutivo Conversacional (Voz y Diálogo)"
+              >
+                <Sparkles className="w-4 h-4 text-cyan-400 animate-pulse" />
+                <span className="hidden sm:inline">Asistente IA</span>
+              </button>
+
               {/* Ajustes */}
               <button
                 onClick={() => setIsSettingsOpen(true)}
@@ -483,7 +495,7 @@ const handleNewNote = (linkedMeeting = null) => {
               }}
               onStartRecording={() => setActiveTab('meetings')}
               onNewNote={() => setShowNotebookOverlay(true)}
-              onOpenAssistant={() => setIsSecondBrainOpen(true)}
+              onOpenAssistant={() => setIsConversationalAssistantOpen(true)}
             />
           ) : (
             <CommandCenterView
@@ -893,6 +905,19 @@ const handleNewNote = (linkedMeeting = null) => {
         totalMeetings={meetings.length}
       />
 
+      {/* Asistente Ejecutivo Conversacional Humano (Gemini Live) */}
+      <ConversationalAssistantModal
+        isOpen={isConversationalAssistantOpen}
+        onClose={() => setIsConversationalAssistantOpen(false)}
+        onNavigate={(tab) => {
+          setActiveTab(tab);
+          if (tab === 'meetings') setShowMobileDetail(false);
+        }}
+        onRefreshData={() => {
+          fetchMeetings();
+        }}
+      />
+
       <ThemeSelectorModal
         isOpen={isThemeOpen}
         onClose={() => setIsThemeOpen(false)}
@@ -1033,6 +1058,7 @@ const handleNewNote = (linkedMeeting = null) => {
         onRefreshData={() => {
           fetchMeetings();
         }}
+        onOpenVoiceAssistant={() => setIsConversationalAssistantOpen(true)}
       />
 
     </div>

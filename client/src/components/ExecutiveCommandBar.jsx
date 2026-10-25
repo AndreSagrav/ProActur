@@ -10,7 +10,8 @@ const API = import.meta.env.VITE_API_URL || '';
 export default function ExecutiveCommandBar({
   onStartRecording,
   onNavigate,
-  onRefreshData
+  onRefreshData,
+  onOpenVoiceAssistant
 }) {
   const [commandText, setCommandText] = useState('');
   const [isListening, setIsListening] = useState(false);
@@ -49,6 +50,10 @@ export default function ExecutiveCommandBar({
   }, []);
 
   const toggleListening = () => {
+    if (onOpenVoiceAssistant) {
+      onOpenVoiceAssistant();
+      return;
+    }
     if (!recognitionRef.current) {
       alert('El reconocimiento de voz no está disponible en este navegador. Puede escribir la orden directamente.');
       return;
@@ -202,6 +207,18 @@ export default function ExecutiveCommandBar({
               : 'border-white/[0.12] ring-white/[0.04] focus-within:border-indigo-500/80 focus-within:ring-indigo-500/25'
           }`}
         >
+          {/* Botón Asistente Conversacional Humano (Gemini Live) */}
+          {onOpenVoiceAssistant && (
+            <button
+              type="button"
+              onClick={onOpenVoiceAssistant}
+              className="p-2 sm:p-2.5 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-500/30 transition-all flex items-center justify-center shrink-0 cursor-pointer active:scale-95"
+              title="Abrir conversación continua con IA (Gemini Live)"
+            >
+              <Sparkles className="w-4 h-4 text-amber-400 animate-pulse" />
+            </button>
+          )}
+
           {/* Botón de Dictado por Voz */}
           <button
             type="button"

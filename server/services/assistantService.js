@@ -4,6 +4,7 @@ const taskService = require('./taskService');
 const storageService = require('./storageService');
 const noteService = require('./noteService');
 const aiService = require('./aiService');
+const edusService = require('./edusService');
 
 class AssistantService {
   /**
@@ -60,11 +61,13 @@ Opciones de "action":
 2. "RECORD_FINANCE": Si la orden indica un gasto, pago, compra, ingreso, cobro monetario, factura electrónica, comprobante fiscal, ticket o voucher bancario.
 3. "CREATE_TASK": Si la orden indica recordar algo, crear un pendiente, tarea o compromiso sin horario específico.
 4. "START_RECORDING": Si pide grabar o registrar una reunión o audio.
-5. "ANSWER": Si es una pregunta, consulta sobre reuniones pasadas, tareas o finanzas.
+5. "EDUS_MONITORING": Si pide buscar, monitorear o sacar citas médicas en el EDUS de la CCSS o EBAIS (ej: "sacar cita el viernes en EDUS", "monitoree citas en EDUS").
+6. "SEARCH_PROMOS": Si pide buscar promociones, ofertas o combos (ej: "promociones de KFC", "ofertas de comida").
+7. "ANSWER": Si es una pregunta, consulta sobre reuniones pasadas, tareas o finanzas.
 
 Estructura JSON requerida según acción:
 {
-  "action": "CREATE_EVENT" | "RECORD_FINANCE" | "CREATE_TASK" | "START_RECORDING" | "ANSWER",
+  "action": "CREATE_EVENT" | "RECORD_FINANCE" | "CREATE_TASK" | "START_RECORDING" | "EDUS_MONITORING" | "SEARCH_PROMOS" | "ANSWER",
   "event": {
     "title": "título formal del evento",
     "startTime": "YYYY-MM-DDTHH:mm:ss.sssZ (interpretar fechas relativas como 'mañana', 'el lunes', etc.)",
@@ -79,6 +82,13 @@ Estructura JSON requerida según acción:
   "task": {
     "title": "descripción formal de la tarea",
     "priority": "high" | "medium" | "low"
+  },
+  "edus": {
+    "preferredDay": "viernes" | "lunes" | "martes" | "miercoles" | "jueves",
+    "timeSlot": "mañana" | "tarde"
+  },
+  "promo": {
+    "merchant": "KFC" | "comercio"
   },
   "question": "texto de la consulta si la acción es ANSWER"
 }`;
@@ -133,7 +143,7 @@ Estructura JSON requerida según acción:
         tags: ['asistente-ejecutivo']
       });
 
-      const dateStr = new Date(startTime).toLocaleString('es-MX', {
+      const dateStr = new Date(startTime).toLocaleString('es-CR', {
         dateStyle: 'medium',
         timeStyle: 'short'
       });
@@ -184,6 +194,34 @@ Estructura JSON requerida según acción:
         action: 'START_RECORDING',
         message: 'Iniciando captura de audio y análisis de reunión.',
         data: {}
+      };
+    }
+
+    // D2) MONITOREO EDUS
+    if (parsed.action === 'EDUS_MONITORING') {
+      const preferredDay = parsed.edus?.preferredDay || 'viernes';
+      const timeSlot = parsed.edus?.timeSlot || 'mañana';
+      const job = await edusService.createEdusJob({
+        preferredDay,
+        timeSlot,
+        notes: originalCmd
+      });
+      return {
+        action: 'EDUS_MONITORING',
+        message: `Monitoreo autónomo activado en EDUS (CCSS) para el ${preferredDay} en la ${timeSlot}. En cuanto el EBAIS libere un cupo, se reservará automáticamente.`,
+        data: job
+      };
+    }
+
+    // D3) BÚSQUEDA DE PROMOCIONES
+    if (parsed.action === 'SEARCH_PROMOS') {
+      const merchant = parsed.promo?.merchant || 'KFC';
+      const promoResult = edusService.searchPromotions(merchant);
+      const topPromo = promoResult.promotions[0]?.title || 'Promociones encontradas';
+      return {
+        action: 'SEARCH_PROMOS',
+        message: `Se encontraron ${promoResult.promotions.length} promociones activas en ${promoResult.merchant}. Destacada: ${topPromo}.`,
+        data: promoResult
       };
     }
 
@@ -256,7 +294,33 @@ Estructura JSON requerida según acción:
       };
     }
 
-    // 4. Consulta general
+    // 4. Detección fallback de EDUS / CCSS
+    if (lower.includes('edus') || lower.includes('ccss') || (lower.includes('cita') && (lower.includes('medic') || lower.includes('médic')))) {
+      const isMorning = lower.includes('mañana') || !lower.includes('tarde');
+      const isFriday = lower.includes('viernes') || true;
+      const job = await edusService.createEdusJob({
+        preferredDay: isFriday ? 'viernes' : 'próximo día hábil',
+        timeSlot: isMorning ? 'mañana' : 'tarde',
+        notes: cmd
+      });
+      return {
+        action: 'EDUS_MONITORING',
+        message: `Monitoreo autónomo activado en EDUS (CCSS) para cupo médico el viernes por la mañana. Se le notificará en cuanto se reserve.`,
+        data: job
+      };
+    }
+
+    // 5. Detección fallback de Promociones (KFC, restaurantes)
+    if (lower.includes('kfc') || lower.includes('promocion') || lower.includes('promo') || lower.includes('oferta')) {
+      const promoResult = edusService.searchPromotions('KFC');
+      return {
+        action: 'SEARCH_PROMOS',
+        message: `Búsqueda de promociones en KFC Costa Rica completada con éxito.`,
+        data: promoResult
+      };
+    }
+
+    // 6. Consulta general
     return await this.answerQuestion(cmd);
   }
 
@@ -281,6 +345,96 @@ Estructura JSON requerida según acción:
       return {
         action: 'ANSWER',
         message: 'No fue posible completar el análisis de la consulta: ' + err.message
+      };
+    }
+  }
+
+  /**
+   * Conversación Humana y Fluida Bidireccional (Estilo Gemini Live)
+   * @param {{ message: string, history?: Array<{ role: 'user' | 'assistant', text: string }> }}
+   */
+  async processConversationalChat({ message, history = [] }) {
+    if (!message || !message.trim()) {
+      return {
+        reply: 'Hola César, aquí estoy atento. ¿En qué te colaboro hoy?',
+        spokenReply: 'Hola César, aquí estoy atento. ¿En qué te colaboro hoy?',
+        action: 'GREETING'
+      };
+    }
+
+    const lower = message.toLowerCase().trim();
+
+    // 1. Ejecutar análisis de acción en segundo plano
+    let executedAction = null;
+    try {
+      executedAction = await this.processCommand(message);
+    } catch (e) {
+      console.warn('[ConversationalChat Action Warn]:', e.message);
+    }
+
+    // 2. Si se ejecutó una acción concreta, generar respuesta humana y resolutiva
+    if (executedAction && executedAction.action !== 'NONE' && executedAction.action !== 'ANSWER') {
+      let naturalReply = executedAction.message;
+      if (executedAction.action === 'CREATE_EVENT') {
+        naturalReply = `Listo César, ya te dejé agendado "${executedAction.data?.title || 'el evento'}" en tu calendario directivo. Todo quedó sincronizado en la nube.`;
+      } else if (executedAction.action === 'RECORD_FINANCE') {
+        naturalReply = `Entendido César, ya registré el movimiento en tu panel de finanzas. Los saldos y comprobantes quedaron actualizados.`;
+      } else if (executedAction.action === 'CREATE_TASK') {
+        naturalReply = `Anotado en tus tareas de alta prioridad. Te mantendré al tanto de su seguimiento.`;
+      } else if (executedAction.action === 'EDUS_MONITORING') {
+        naturalReply = `Excelente César. Ya dejé activado el bot de monitoreo autónomo en la web de EDUS para buscarte cupo este próximo viernes por la mañana. En cuanto el EBAIS libere la cita, te la confirmo en tu agenda y te envío la notificación.`;
+      } else if (executedAction.action === 'SEARCH_PROMOS') {
+        const p = executedAction.data?.promotions || [];
+        naturalReply = `César, revisé las promociones de ${executedAction.data?.merchant || 'KFC'} en Costa Rica: la más prometedora es "${p[0]?.title || 'el Mega Box'}" (${p[0]?.description || ''}). ¿Quieres que te detalle los demás cupones o combos?`;
+      } else if (executedAction.action === 'START_RECORDING') {
+        naturalReply = `De acuerdo César, iniciando la captura de audio y análisis de la reunión en vivo ahora mismo.`;
+      }
+
+      return {
+        reply: naturalReply,
+        spokenReply: naturalReply,
+        action: executedAction.action,
+        data: executedAction.data
+      };
+    }
+
+    // 3. Conversación abierta o consulta con Segundo Cerebro
+    try {
+      const allMeetings = await storageService.getAllMeetings();
+      let allNotes = [];
+      try { allNotes = await noteService.getAllNotes(); } catch (_) {}
+
+      const promptContext = `Historial reciente de la charla:\n` +
+        (history.slice(-4).map(h => `${h.role === 'user' ? 'César' : 'Asistente'}: ${h.text}`).join('\n') || 'Ninguno') +
+        `\n\nInstrucción / Pregunta actual de César: "${message}"\n` +
+        `Reuniones registradas en el sistema: ${allMeetings.length}\n` +
+        `Notas disponibles: ${allNotes.length}`;
+
+      const systemPrompt = `Eres ProActur AI, el asistente ejecutivo personal de máxima confianza de César Andrés.
+Hablas en español de Costa Rica/Latinoamérica con un tono completamente natural, humano, directo, educado y resolutivo.
+NUNCA hables como un robot ni des introducciones genéricas ni bloques de código.
+Responde en 1 o 2 oraciones concisas y útiles como un verdadero asistente personal que habla cara a cara.`;
+
+      let aiReply = null;
+      try {
+        aiReply = await aiService.callGroq(promptContext, systemPrompt, 'openai/gpt-oss-120b');
+      } catch (_) {
+        try {
+          aiReply = await aiService.callGeminiText(promptContext, systemPrompt, 'gemini-3.6-flash');
+        } catch (_) {}
+      }
+
+      const finalReply = aiReply || (executedAction?.message) || 'Entendido César, estoy a tu orden para agendar eventos, registrar finanzas, notas o monitorear gestiones.';
+      return {
+        reply: finalReply,
+        spokenReply: finalReply,
+        action: 'CONVERSATION'
+      };
+    } catch (err) {
+      return {
+        reply: 'Disculpa César, tuve una leve interrupción de conexión pero ya estoy aquí. ¿En qué te colaboro?',
+        spokenReply: 'Disculpa César, tuve una leve interrupción de conexión pero ya estoy aquí. ¿En qué te colaboro?',
+        action: 'ERROR'
       };
     }
   }

@@ -129,7 +129,34 @@ export default function MobileCommandCenter({
         </div>
       </div>
 
-      {/* 2. Acciones Rápidas (Diseño Armónico, Delicado y de Proporciones Sobrias) */}
+      {/* 2. Banner Asistente Ejecutivo Conversacional (Gemini Live) */}
+      {onOpenAssistant && (
+        <div 
+          onClick={onOpenAssistant}
+          className="p-3.5 rounded-2xl bg-gradient-to-r from-indigo-950/60 via-slate-900 to-emerald-950/60 border border-indigo-500/30 hover:border-indigo-500/50 cursor-pointer shadow-md flex items-center justify-between gap-3 active:scale-[0.99] transition-all"
+        >
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="w-9 h-9 rounded-xl bg-indigo-500/20 border border-indigo-500/40 text-indigo-400 flex items-center justify-center shrink-0">
+              <Sparkles className="w-4 h-4 text-indigo-300 animate-pulse" />
+            </div>
+            <div className="min-w-0">
+              <div className="flex items-center gap-2">
+                <h4 className="text-xs font-bold text-white tracking-tight">Asistente Ejecutivo Humano</h4>
+                <span className="text-[9px] font-mono px-1.5 py-0.2 rounded bg-indigo-500/20 text-indigo-300 font-bold">Voz Live</span>
+              </div>
+              <p className="text-[11px] text-slate-400 truncate mt-0.5">Habla de forma fluida y gestiona EDUS, agenda y finanzas</p>
+            </div>
+          </div>
+          <button
+            type="button"
+            className="p-2 rounded-xl bg-indigo-600 text-white font-bold text-xs shrink-0 shadow-sm"
+          >
+            <Mic className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      )}
+
+      {/* 3. Acciones Rápidas (Diseño Armónico, Delicado y de Proporciones Sobrias) */}
       <div className="grid grid-cols-2 gap-2.5">
         {/* Grabar Reunión */}
         <button

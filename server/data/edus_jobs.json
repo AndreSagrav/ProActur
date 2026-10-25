@@ -1,0 +1,16 @@
+[
+  {
+    "id": "edus_1792887476148",
+    "service": "EDUS_CCSS",
+    "patientName": "César Andrés",
+    "preferredDay": "viernes",
+    "timeSlot": "mañana",
+    "ebaisName": "EBAIS correspondiente",
+    "status": "monitoreando",
+    "targetDate": "2026-10-30T14:00:00.000Z",
+    "lastChecked": "2026-10-25T00:17:56.148Z",
+    "checkCount": 1,
+    "notes": "monitorea la web de EDUS y sacame una cita para este viernes en la manana",
+    "createdAt": "2026-10-25T00:17:56.148Z"
+  }
+]
