@@ -156,7 +156,10 @@ export default function CommandCenterView({
 
   const latestMeeting = meetings[0] || null;
   const pendingActionsCount = meetings.reduce((acc, m) => acc + (m.actionItems?.filter(a => !a.done)?.length || 0), 0);
-  const budgetPercent = Math.min(100, Math.round((financeSummary.monthExpense / financeSummary.budgetLimit) * 100));
+  const hasBudget = Number(financeSummary.budgetLimit) > 0;
+  const budgetPercent = hasBudget
+    ? Math.min(100, Math.round(((financeSummary.monthExpense || 0) / financeSummary.budgetLimit) * 100))
+    : 0;
 
   return (
     <div className="space-y-6 animate-fade-in pb-12">
@@ -174,7 +177,11 @@ export default function CommandCenterView({
             </h2>
             <p className="text-sm sm:text-base text-slate-300 leading-relaxed font-normal">
               Tienes <strong className="text-amber-300">{tasks.filter(t => !t.done).length} tareas prioritarias</strong> para hoy, 
-              un gasto mensual al <strong className="text-amber-300">{budgetPercent}%</strong> de tu presupuesto y 
+              {hasBudget ? (
+                <> un gasto mensual al <strong className="text-amber-300">{budgetPercent}%</strong> de tu presupuesto y </>
+              ) : (
+                <> un gasto registrado de <strong className="text-white">₡{Number(financeSummary.monthExpense || 0).toLocaleString('es-CR')}</strong> este mes y </>
+              )}
               <strong className="text-white"> {pendingActionsCount} acuerdos pendientes</strong> de tus reuniones.
             </p>
           </div>
@@ -258,16 +265,28 @@ export default function CommandCenterView({
                 </div>
               </div>
               <div className="text-left sm:text-right">
-                <span className="text-[11px] text-slate-400">Presupuesto Mes</span>
+                <span className="text-[11px] text-slate-400 font-medium">
+                  {hasBudget ? 'Presupuesto Mes' : 'Gastos del Mes'}
+                </span>
                 <div className="text-xs font-bold text-slate-200 mt-1 font-mono">
-                  ₡{Number(financeSummary.monthExpense || 0).toLocaleString('es-CR', { minimumFractionDigits: 0 })} / ₡{Number(financeSummary.budgetLimit || 0).toLocaleString('es-CR', { minimumFractionDigits: 0 })}
+                  {hasBudget ? (
+                    `₡${Number(financeSummary.monthExpense || 0).toLocaleString('es-CR')} / ₡${Number(financeSummary.budgetLimit || 0).toLocaleString('es-CR')}`
+                  ) : (
+                    `₡${Number(financeSummary.monthExpense || 0).toLocaleString('es-CR')}`
+                  )}
                 </div>
-                <div className="w-28 bg-slate-800 h-2 rounded-full overflow-hidden mt-1.5 sm:ml-auto">
-                  <div 
-                    className={`h-full rounded-full ${budgetPercent > 85 ? 'bg-rose-500' : 'bg-amber-400'}`}
-                    style={{ width: `${budgetPercent}%` }}
-                  />
-                </div>
+                {hasBudget ? (
+                  <div className="w-28 bg-slate-800 h-2 rounded-full overflow-hidden mt-1.5 sm:ml-auto">
+                    <div 
+                      className={`h-full rounded-full ${budgetPercent > 85 ? 'bg-rose-500' : 'bg-emerald-400'}`}
+                      style={{ width: `${budgetPercent}%` }}
+                    />
+                  </div>
+                ) : (
+                  <span className="text-[10px] text-slate-500 block mt-0.5 font-medium">
+                    Sin límite configurado
+                  </span>
+                )}
               </div>
             </div>
 
