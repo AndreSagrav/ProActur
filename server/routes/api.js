@@ -15,6 +15,7 @@ const assistantService = require('../services/assistantService');
 const edusService = require('../services/edusService');
 const bankMailService = require('../services/bankMailService');
 const dobyBrowserService = require('../services/dobyBrowserService');
+const voiceService = require('../services/voiceService');
 
 const router = express.Router();
 
@@ -1182,9 +1183,9 @@ router.post('/assistant/doby-browser/auto-solve', handleSolveCaptcha);
 
 const handleSubmitCaptcha = async (req, res) => {
   try {
-    const { captchaCode } = req.body || {};
+    const { captchaCode, userCedula, userClave } = req.body || {};
     if (!captchaCode) return res.status(400).json({ error: 'Debe ingresar el código de seguridad (Captcha).' });
-    const result = await dobyBrowserService.submitCaptcha(captchaCode);
+    const result = await dobyBrowserService.submitLogin({ captchaCode, userCedula, userClave });
     res.json(result);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -1192,6 +1193,38 @@ const handleSubmitCaptcha = async (req, res) => {
 };
 router.post('/assistant/dobby-browser/captcha', handleSubmitCaptcha);
 router.post('/assistant/doby-browser/captcha', handleSubmitCaptcha);
+
+const handleLoginDobby = async (req, res) => {
+  try {
+    const { userCedula, userClave, captchaCode } = req.body || {};
+    const result = await dobyBrowserService.submitLogin({ userCedula, userClave, captchaCode });
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
+router.post('/assistant/dobby-browser/login', handleLoginDobby);
+router.post('/assistant/doby-browser/login', handleLoginDobby);
+
+// Endpoint de síntesis de voz natural neural (Costa Rica / Estudio)
+router.post('/assistant/tts', async (req, res) => {
+  try {
+    const { text, voice } = req.body || {};
+    if (!text || !text.trim()) {
+      return res.status(400).json({ error: 'Texto requerido' });
+    }
+    const audioBuffer = await voiceService.synthesizeSpeech(text, voice);
+    res.set({
+      'Content-Type': 'audio/mpeg',
+      'Content-Length': audioBuffer.length,
+      'Cache-Control': 'public, max-age=3600'
+    });
+    res.send(audioBuffer);
+  } catch (err) {
+    console.error('[TTS Error]:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
 
 const handleGetStatus = async (req, res) => {
   try {

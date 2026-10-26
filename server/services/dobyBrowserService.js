@@ -261,24 +261,55 @@ class DobbyBrowserService {
   }
 
   /**
-   * Ingresa el código de seguridad (Captcha) y presiona "Ingresar"
+   * Ingresa las credenciales y el captcha de seguridad en EDUS y ejecuta el login
    */
-  async submitCaptcha(captchaCode) {
+  async submitLogin({ captchaCode = '', userCedula = '', userClave = '' } = {}) {
     if (!this.activePage) {
       return { success: false, error: 'No hay ninguna sesión activa del navegador de Dobby.' };
     }
 
     try {
-      this._log(`Digitando código de seguridad captcha: ${captchaCode}`);
-      const inputSelector = '[id="formInicioSesion:captchaDigitado"]';
-      await this.activePage.click(inputSelector);
-      await this.activePage.evaluate((sel) => {
-        const el = document.querySelector(sel);
-        if (el) el.value = '';
-      }, inputSelector);
-      await this.activePage.type(inputSelector, captchaCode, { delay: 60 });
+      // 1. Digitar Cédula si fue provista
+      if (userCedula) {
+        this._log(`Digitando identificación: ${userCedula}`);
+        const userSelector = '[id="formInicioSesion:usuario"]';
+        await this.activePage.waitForSelector(userSelector, { timeout: 8000 });
+        await this.activePage.click(userSelector);
+        await this.activePage.evaluate((sel) => {
+          const el = document.querySelector(sel);
+          if (el) el.value = '';
+        }, userSelector);
+        await this.activePage.type(userSelector, userCedula.trim(), { delay: 40 });
+      }
 
-      this._log('Dobby está haciendo clic en Ingresar...');
+      // 2. Digitar Clave si fue provista
+      if (userClave) {
+        this._log('Digitando clave de acceso...');
+        const claveSelector = '[id="formInicioSesion:clave"]';
+        await this.activePage.waitForSelector(claveSelector, { timeout: 8000 });
+        await this.activePage.click(claveSelector);
+        await this.activePage.evaluate((sel) => {
+          const el = document.querySelector(sel);
+          if (el) el.value = '';
+        }, claveSelector);
+        await this.activePage.type(claveSelector, userClave, { delay: 40 });
+      }
+
+      // 3. Digitar Captcha si fue provisto
+      if (captchaCode) {
+        this._log(`Digitando código de seguridad captcha: ${captchaCode}`);
+        const captchaSelector = '[id="formInicioSesion:captchaDigitado"]';
+        await this.activePage.waitForSelector(captchaSelector, { timeout: 8000 });
+        await this.activePage.click(captchaSelector);
+        await this.activePage.evaluate((sel) => {
+          const el = document.querySelector(sel);
+          if (el) el.value = '';
+        }, captchaSelector);
+        await this.activePage.type(captchaSelector, captchaCode.trim(), { delay: 50 });
+      }
+
+      // 4. Presionar botón "Ingresar"
+      this._log('Haciendo clic en "Ingresar"...');
       const btn = await this.activePage.$('[id="formInicioSesion:ejecutarPaso1"]');
       if (btn) {
         await Promise.all([
@@ -287,22 +318,53 @@ class DobbyBrowserService {
         ]);
       }
 
+      // 5. Breve pausa para estabilizar pantalla
+      await new Promise(r => setTimeout(r, 1500));
+
       const buffer = await this.activePage.screenshot({ encoding: 'base64' });
       this.lastScreenshot = `data:image/png;base64,${buffer}`;
+
+      // 6. Verificar si superamos el login
+      const currentUrl = this.activePage.url();
+      const pageText = await this.activePage.evaluate(() => document.body.innerText || '');
+      const hasError = pageText.includes('incorrectos') || pageText.includes('no coincide') || pageText.includes('invalido');
+
+      if (hasError) {
+        this._log('Aviso en EDUS: Verifique que la cédula, contraseña y captcha sean correctos.');
+        return {
+          success: false,
+          error: 'Credenciales o captcha incorrectos en EDUS.',
+          screenshot: this.lastScreenshot,
+          logs: this.lastLogs
+        };
+      }
+
       this.currentStatus = 'ingresado';
-      this._log('Sesión procesada en EDUS.');
+      this._log('🎉 ¡Sesión iniciada con éxito en el portal EDUS CCSS!');
+
+      // 7. Intentar navegar automáticamente a citas si ya estamos adentro
+      this.clickAddAppointment().then(clicked => {
+        if (clicked) {
+          this._log('Navegando a la sección de citas...');
+        }
+      }).catch(() => {});
 
       return {
         success: true,
         status: this.currentStatus,
-        url: this.activePage.url(),
-        message: 'Código de seguridad enviado. Sesión de EDUS procesada.',
+        url: currentUrl,
+        message: 'Sesión iniciada con éxito en EDUS.',
         screenshot: this.lastScreenshot,
         logs: this.lastLogs
       };
     } catch (err) {
+      this._log(`Error en autenticación: ${err.message}`);
       return { success: false, error: err.message };
     }
+  }
+
+  async submitCaptcha(captchaCode) {
+    return this.submitLogin({ captchaCode });
   }
 
   /**

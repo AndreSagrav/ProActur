@@ -43,10 +43,19 @@ export default function ConversationalAssistantModal({
   const [loopInfo, setLoopInfo] = useState({ attempts: 0, service: 'ODONTOLOGIA', targetDay: 'viernes' });
   const [isTranscribingAudio, setIsTranscribingAudio] = useState(false);
   const [isBrowserExpanded, setIsBrowserExpanded] = useState(false);
+  const [edusCedula, setEdusCedula] = useState(() => {
+    try { return localStorage.getItem('proactur_edus_cedula') || ''; } catch (_) { return ''; }
+  });
+  const [edusClave, setEdusClave] = useState(() => {
+    try { return localStorage.getItem('proactur_edus_clave') || ''; } catch (_) { return ''; }
+  });
+  const [rememberCredentials, setRememberCredentials] = useState(true);
+  const [isLoggingIn, setIsLoggingIn] = useState(false);
 
   const messagesEndRef = useRef(null);
   const recognitionRef = useRef(null);
   const synthRef = useRef(null);
+  const audioPlayerRef = useRef(null);
   const mediaRecorderRef = useRef(null);
   const audioChunksRef = useRef([]);
 
@@ -82,7 +91,12 @@ export default function ConversationalAssistantModal({
       const res = await fetch(`${API}/api/assistant/dobby-browser/launch`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ headless: false, autoSolve: true })
+        body: JSON.stringify({
+          headless: false,
+          autoSolve: true,
+          userCedula: edusCedula.trim(),
+          userClave: edusClave
+        })
       });
       const data = await res.json();
       if (data.success) {
@@ -106,6 +120,34 @@ export default function ConversationalAssistantModal({
       alert(err.message);
     } finally {
       setIsLaunchingBrowser(false);
+    }
+  };
+
+  const handleLoginAndStart = async () => {
+    try {
+      setIsLoggingIn(true);
+      const res = await fetch(`${API}/api/assistant/dobby-browser/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userCedula: edusCedula.trim(),
+          userClave: edusClave,
+          captchaCode: captchaInput.trim()
+        })
+      });
+      const data = await res.json();
+      if (data.success) {
+        checkBrowserStatus();
+        speakText('Sesión iniciada con éxito en el portal de EDUS. Iniciando búsqueda de cupos en tiempo real.');
+        handleStartLoop();
+      } else {
+        alert(data.error || 'Aviso en EDUS: Verifique que la cédula, contraseña y captcha sean correctos.');
+        checkBrowserStatus();
+      }
+    } catch (err) {
+      alert(err.message);
+    } finally {
+      setIsLoggingIn(false);
     }
   };
 
@@ -283,48 +325,73 @@ export default function ConversationalAssistantModal({
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
 
-  // Hablar texto con voz natural
-  const speakText = (text) => {
-    if (isVoiceMuted || !synthRef.current) return;
-    synthRef.current.cancel();
+  // Hablar texto con voz humana natural (Neural TTS Costa Rica / Estudio)
+  const speakText = async (text) => {
+    if (isVoiceMuted) return;
 
-    // Limpiar marcadores o caracteres raros para lectura humana limpia
+    // Detener audio previo si está activo
+    if (audioPlayerRef.current) {
+      try {
+        audioPlayerRef.current.pause();
+        audioPlayerRef.current = null;
+      } catch (_) {}
+    }
+    if (synthRef.current) {
+      try { synthRef.current.cancel(); } catch (_) {}
+    }
+
     const cleanText = text
       .replace(/https?:\/\/\S+/g, '')
-      .replace(/[*_#`~]/g, '')
+      .replace(/[*_#`~›•\(\)\[\]]/g, ' ')
       .trim();
 
     if (!cleanText) return;
 
-    const utterance = new SpeechSynthesisUtterance(cleanText);
-    utterance.lang = 'es-CR';
-    utterance.rate = 0.98;
-    utterance.pitch = 0.95;
+    setIsSpeaking(true);
 
-    // Buscar una voz neural o natural de alta fidelidad en español
-    const voices = synthRef.current.getVoices();
-    const neuralVoice = voices.find(v => v.lang.startsWith('es') && (
-      v.name.toLowerCase().includes('neural') ||
-      v.name.toLowerCase().includes('natural') ||
-      v.name.toLowerCase().includes('online') ||
-      v.name.toLowerCase().includes('google') ||
-      v.name.toLowerCase().includes('sabina') ||
-      v.name.toLowerCase().includes('paulina') ||
-      v.name.toLowerCase().includes('jorge') ||
-      v.name.toLowerCase().includes('alvaro')
-    ));
-    const fallbackVoice = voices.find(v => v.lang.startsWith('es') || v.lang.includes('es'));
-    if (neuralVoice) {
-      utterance.voice = neuralVoice;
-    } else if (fallbackVoice) {
-      utterance.voice = fallbackVoice;
+    try {
+      // 1. Invocar voz neural humana hiperrealista desde el servidor
+      const res = await fetch(`${API}/api/assistant/tts`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: cleanText })
+      });
+
+      if (res.ok) {
+        const blob = await res.blob();
+        const audioUrl = URL.createObjectURL(blob);
+        const audio = new Audio(audioUrl);
+        audioPlayerRef.current = audio;
+
+        audio.onended = () => {
+          setIsSpeaking(false);
+          audioPlayerRef.current = null;
+          URL.revokeObjectURL(audioUrl);
+        };
+        audio.onerror = () => {
+          setIsSpeaking(false);
+          audioPlayerRef.current = null;
+          URL.revokeObjectURL(audioUrl);
+        };
+
+        await audio.play();
+        return;
+      }
+    } catch (_) {}
+
+    // 2. Fallback de respaldo: Web Speech API si no hay conexión
+    if (synthRef.current) {
+      const utterance = new SpeechSynthesisUtterance(cleanText);
+      utterance.lang = 'es-CR';
+      utterance.rate = 1.0;
+      utterance.pitch = 0.98;
+      utterance.onstart = () => setIsSpeaking(true);
+      utterance.onend = () => setIsSpeaking(false);
+      utterance.onerror = () => setIsSpeaking(false);
+      synthRef.current.speak(utterance);
+    } else {
+      setIsSpeaking(false);
     }
-
-    utterance.onstart = () => setIsSpeaking(true);
-    utterance.onend = () => setIsSpeaking(false);
-    utterance.onerror = () => setIsSpeaking(false);
-
-    synthRef.current.speak(utterance);
   };
 
   const toggleVoiceMute = () => {
@@ -670,39 +737,89 @@ export default function ConversationalAssistantModal({
               </div>
             )}
 
-            {/* 3. Panel de Captcha y Acceso: Diseño en grid limpio sin solapamientos */}
-            <div className="grid grid-cols-1 sm:grid-cols-12 gap-2.5 items-center">
-              <div className="sm:col-span-6 relative">
-                <input
-                  type="text"
-                  value={captchaInput}
-                  onChange={(e) => setCaptchaInput(e.target.value)}
-                  placeholder="Código de seguridad"
-                  className="w-full bg-slate-950 border border-slate-700/80 rounded-xl px-3.5 py-2 text-xs text-white placeholder-slate-400 focus:outline-none focus:border-sky-500 font-mono tracking-widest uppercase transition-all"
-                />
+            {/* 3. Panel de Credenciales y Acceso Autónomo */}
+            <div className="p-3.5 rounded-xl bg-slate-950/80 border border-sky-500/20 space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-sky-300 flex items-center gap-1.5">
+                  <ShieldCheck className="w-4 h-4 text-sky-400" />
+                  Credenciales de Acceso a EDUS
+                </span>
+                <label className="text-[11px] text-slate-400 flex items-center gap-1.5 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={rememberCredentials}
+                    onChange={(e) => setRememberCredentials(e.target.checked)}
+                    className="rounded border-slate-700 bg-slate-900 text-sky-500 focus:ring-0"
+                  />
+                  <span>Recordar credenciales</span>
+                </label>
               </div>
 
-              <div className="sm:col-span-3">
-                <button
-                  type="button"
-                  onClick={handleAutoSolveCaptcha}
-                  disabled={isSolvingCaptcha}
-                  className="w-full px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-sky-300 border border-sky-500/30 hover:border-sky-500/60 font-semibold text-xs flex items-center justify-center gap-1.5 transition-all whitespace-nowrap disabled:opacity-50 cursor-pointer shadow-sm"
-                  title="Descifrar el código con visión IA"
-                >
-                  <Sparkles className="w-3.5 h-3.5 text-sky-400 shrink-0" />
-                  <span>{isSolvingCaptcha ? 'Leyendo...' : 'Descifrar IA'}</span>
-                </button>
+              <div className="grid grid-cols-1 sm:grid-cols-12 gap-2.5 items-center">
+                <div className="sm:col-span-4">
+                  <input
+                    type="text"
+                    value={edusCedula}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setEdusCedula(val);
+                      if (rememberCredentials) {
+                        try { localStorage.setItem('proactur_edus_cedula', val); } catch (_) {}
+                      }
+                    }}
+                    placeholder="Cédula de Identidad"
+                    className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-sky-500 font-mono"
+                  />
+                </div>
+
+                <div className="sm:col-span-4">
+                  <input
+                    type="password"
+                    value={edusClave}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setEdusClave(val);
+                      if (rememberCredentials) {
+                        try { localStorage.setItem('proactur_edus_clave', val); } catch (_) {}
+                      }
+                    }}
+                    placeholder="Contraseña EDUS"
+                    className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-sky-500 font-mono"
+                  />
+                </div>
+
+                <div className="sm:col-span-4 flex items-center gap-1.5">
+                  <input
+                    type="text"
+                    value={captchaInput}
+                    onChange={(e) => setCaptchaInput(e.target.value)}
+                    placeholder="Código Captcha"
+                    className="flex-1 bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-sky-500 font-mono tracking-wider uppercase"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleAutoSolveCaptcha}
+                    disabled={isSolvingCaptcha}
+                    className="px-2.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-sky-300 border border-sky-500/30 hover:border-sky-500/60 font-semibold text-xs shrink-0 transition-all cursor-pointer"
+                    title="Volver a leer el código de seguridad con visión IA"
+                  >
+                    <Sparkles className="w-3.5 h-3.5 text-sky-400" />
+                  </button>
+                </div>
               </div>
 
-              <div className="sm:col-span-3">
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-2 pt-1 border-t border-white/[0.04]">
+                <span className="text-[10px] text-slate-400">
+                  Dobby digita tus datos en Chrome, descifra el captcha y entra al portal de citas.
+                </span>
                 <button
                   type="button"
-                  onClick={handleSendCaptcha}
-                  disabled={!captchaInput.trim()}
-                  className="w-full px-3 py-2 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-xs disabled:opacity-40 transition-all whitespace-nowrap cursor-pointer shadow-md flex items-center justify-center gap-1.5"
+                  onClick={handleLoginAndStart}
+                  disabled={isLoggingIn || !captchaInput.trim()}
+                  className="w-full sm:w-auto px-4 py-2 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-xs disabled:opacity-40 transition-all shadow-md flex items-center justify-center gap-2 cursor-pointer whitespace-nowrap"
                 >
-                  <span>Ingresar a EDUS</span>
+                  {isLoggingIn ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <ShieldCheck className="w-3.5 h-3.5" />}
+                  <span>{isLoggingIn ? 'Iniciando sesión en EDUS...' : 'Iniciar Sesión en EDUS y Ver Citas'}</span>
                 </button>
               </div>
             </div>
