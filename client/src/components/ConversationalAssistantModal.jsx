@@ -526,7 +526,9 @@ export default function ConversationalAssistantModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/80 backdrop-blur-xl animate-fade-in">
-      <div className="bg-slate-900 border border-slate-800 rounded-3xl w-full max-w-xl h-[90vh] max-h-[760px] flex flex-col shadow-2xl overflow-hidden relative">
+      <div className={`bg-slate-900 border border-slate-800 rounded-3xl w-full ${
+        isBrowserExpanded ? 'max-w-4xl h-[94vh] max-h-[920px]' : 'max-w-xl h-[90vh] max-h-[780px]'
+      } flex flex-col shadow-2xl overflow-hidden relative transition-all duration-300`}>
         
         {/* 1. Header Ejecutivo del Asistente */}
         <div className="px-5 py-4 border-b border-slate-800/80 bg-slate-950/50 flex items-center justify-between shrink-0">
@@ -610,135 +612,142 @@ export default function ConversationalAssistantModal({
 
         {/* PANEL DE CONTROL DEL NAVEGADOR EN VIVO (DOBBY WEB AGENT) */}
         {browserSession.active && (
-          <div className="p-3.5 mx-4 mt-2 rounded-2xl bg-slate-950 border border-sky-500/30 space-y-3 shadow-2xl shrink-0 animate-fade-in">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-ping" />
-                <span className="text-xs font-bold text-white flex items-center gap-1.5">
-                  <Globe className="w-4 h-4 text-sky-400" />
-                  Google Chrome En Pantalla • EDUS CCSS
+          <div className="p-4 mx-4 mt-3 rounded-2xl bg-slate-900/90 border border-sky-500/30 space-y-3.5 shadow-2xl shrink-0 backdrop-blur-xl animate-fade-in">
+            {/* 1. Header amplio y balanceado sin textos partidos */}
+            <div className="flex flex-wrap items-center justify-between gap-2.5 pb-2.5 border-b border-white/[0.08]">
+              <div className="flex items-center gap-2 min-w-0">
+                <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-ping shrink-0" />
+                <Globe className="w-4 h-4 text-sky-400 shrink-0" />
+                <span className="text-sm font-bold text-white tracking-tight whitespace-nowrap">
+                  Chrome • EDUS CCSS
                 </span>
-                <span className="px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 font-mono text-[10px] font-bold flex items-center gap-1">
+                <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 font-mono text-[11px] font-bold whitespace-nowrap flex items-center gap-1.5 shrink-0">
                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
                   EN VIVO
                 </span>
                 {browserSession.solvedCaptcha && (
-                  <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 border border-emerald-500/30 text-emerald-300 font-mono text-[10px] font-bold">
+                  <span className="px-2.5 py-0.5 rounded-full bg-indigo-500/20 border border-indigo-500/30 text-indigo-300 font-mono text-[11px] font-bold whitespace-nowrap shrink-0">
                     Captcha: {browserSession.solvedCaptcha}
                   </span>
                 )}
               </div>
-              <div className="flex items-center gap-2">
+
+              <div className="flex items-center gap-2 shrink-0">
                 <button
                   type="button"
                   onClick={() => setIsBrowserExpanded(prev => !prev)}
-                  className="text-[10px] text-sky-400 hover:text-sky-300 font-bold px-2 py-1 rounded-lg bg-sky-500/10 border border-sky-500/20 flex items-center gap-1 transition-all"
-                  title={isBrowserExpanded ? 'Reducir vista' : 'Ampliar pantalla'}
+                  className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-sky-300 border border-slate-700 hover:border-sky-500/40 text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer whitespace-nowrap"
+                  title={isBrowserExpanded ? 'Reducir tamaño' : 'Ampliar pantalla completa'}
                 >
-                  {isBrowserExpanded ? <Minimize2 className="w-3 h-3" /> : <Maximize2 className="w-3 h-3" />}
+                  {isBrowserExpanded ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5" />}
                   <span>{isBrowserExpanded ? 'Reducir' : 'Ampliar'}</span>
                 </button>
                 <button
                   type="button"
                   onClick={handleCloseBrowser}
-                  className="text-[10px] text-rose-400 hover:text-rose-300 font-bold px-2.5 py-1 rounded-lg bg-rose-500/10 border border-rose-500/20 transition-all"
+                  className="px-3 py-1.5 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 border border-rose-500/30 text-xs font-semibold flex items-center gap-1 transition-all cursor-pointer whitespace-nowrap"
                 >
-                  Cerrar Navegador
+                  <X className="w-3.5 h-3.5" />
+                  <span>Cerrar</span>
                 </button>
               </div>
             </div>
 
-            {/* Vista en vivo ampliada y nítida sin recortes */}
+            {/* 2. Pantalla en vivo con tamaño generoso, sin recortes */}
             {browserSession.screenshot && (
-              <div className={`rounded-xl overflow-hidden border border-white/10 bg-black relative group transition-all duration-300 flex items-center justify-center ${
-                isBrowserExpanded ? 'h-[440px] sm:h-[500px]' : 'h-64 sm:h-72'
+              <div className={`rounded-xl overflow-hidden border border-white/10 bg-slate-950 relative group transition-all duration-300 flex items-center justify-center ${
+                isBrowserExpanded ? 'h-[440px] sm:h-[520px]' : 'h-64 sm:h-80'
               }`}>
                 <img
                   src={browserSession.screenshot}
                   alt="Vista en vivo EDUS"
                   className="w-full h-full object-contain bg-black"
                 />
-                <div className="absolute top-2 right-2 flex items-center gap-1.5 bg-black/85 backdrop-blur-md px-2.5 py-1 rounded-full border border-sky-500/40 text-[10px] font-semibold text-sky-300 shadow-lg">
+                <div className="absolute top-2.5 right-2.5 flex items-center gap-1.5 bg-black/85 backdrop-blur-md px-3 py-1 rounded-full border border-sky-500/40 text-xs font-semibold text-sky-200 shadow-xl whitespace-nowrap">
                   <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-                  <span>Transmisión en directo (1.5s)</span>
+                  <span>Directo (1.5s)</span>
                 </div>
               </div>
             )}
 
-            {/* Acciones y Autoresolución de Captcha */}
-            <div className="flex items-center gap-2">
-              <input
-                type="text"
-                value={captchaInput}
-                onChange={(e) => setCaptchaInput(e.target.value)}
-                placeholder="Código captcha (resuelto con visión IA)..."
-                className="flex-1 bg-slate-900 border border-white/10 rounded-xl px-3 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-sky-500 font-mono tracking-wider uppercase"
-              />
-              <button
-                type="button"
-                onClick={handleAutoSolveCaptcha}
-                disabled={isSolvingCaptcha}
-                className="px-2.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-sky-300 border border-sky-500/30 font-semibold text-xs flex items-center gap-1 shrink-0 transition-all"
-                title="Volver a leer el código con visión IA"
-              >
-                <Sparkles className="w-3.5 h-3.5 text-sky-400" />
-                <span>{isSolvingCaptcha ? 'Leyendo...' : 'Descifrar con IA'}</span>
-              </button>
-              <button
-                type="button"
-                onClick={handleSendCaptcha}
-                disabled={!captchaInput.trim()}
-                className="px-3 py-1.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-xs disabled:opacity-50 transition-all shrink-0 shadow-md"
-              >
-                Ingresar a EDUS
-              </button>
-            </div>
-
-            {/* Bucle de Búsqueda de Citas (Odontología / Medicina cada 60s) */}
-            <div className="pt-2 border-t border-white/10 flex flex-col sm:flex-row items-center justify-between gap-2">
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={isLoopActive ? handleStopLoop : handleStartLoop}
-                  className={`px-3 py-1.5 rounded-xl font-bold text-xs flex items-center gap-1.5 transition-all shadow-md ${
-                    isLoopActive
-                      ? 'bg-amber-600 hover:bg-amber-500 text-white animate-pulse'
-                      : 'bg-gradient-to-r from-indigo-600 to-sky-600 hover:from-indigo-500 hover:to-sky-500 text-white'
-                  }`}
-                >
-                  <RefreshCw className={`w-3.5 h-3.5 ${isLoopActive ? 'animate-spin' : ''}`} />
-                  <span>
-                    {isLoopActive
-                      ? `Detener Bucle (Intento #${loopInfo.attempts || 1})`
-                      : 'Iniciar Bucle Autónomo (Cada 60s)'}
-                  </span>
-                </button>
-                {isLoopActive && (
-                  <span className="text-[10px] text-amber-300 font-mono font-semibold">
-                    Monitoreando {loopInfo.service} ({loopInfo.targetDay})...
-                  </span>
-                )}
+            {/* 3. Panel de Captcha y Acceso: Diseño en grid limpio sin solapamientos */}
+            <div className="grid grid-cols-1 sm:grid-cols-12 gap-2.5 items-center">
+              <div className="sm:col-span-6 relative">
+                <input
+                  type="text"
+                  value={captchaInput}
+                  onChange={(e) => setCaptchaInput(e.target.value)}
+                  placeholder="Código de seguridad"
+                  className="w-full bg-slate-950 border border-slate-700/80 rounded-xl px-3.5 py-2 text-xs text-white placeholder-slate-400 focus:outline-none focus:border-sky-500 font-mono tracking-widest uppercase transition-all"
+                />
               </div>
 
-              <span className="text-[10px] text-slate-400">
-                {isLoopActive ? 'Consultando agenda periódicamente' : 'Buscará cupos en Odontología para el viernes'}
-              </span>
+              <div className="sm:col-span-3">
+                <button
+                  type="button"
+                  onClick={handleAutoSolveCaptcha}
+                  disabled={isSolvingCaptcha}
+                  className="w-full px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-sky-300 border border-sky-500/30 hover:border-sky-500/60 font-semibold text-xs flex items-center justify-center gap-1.5 transition-all whitespace-nowrap disabled:opacity-50 cursor-pointer shadow-sm"
+                  title="Descifrar el código con visión IA"
+                >
+                  <Sparkles className="w-3.5 h-3.5 text-sky-400 shrink-0" />
+                  <span>{isSolvingCaptcha ? 'Leyendo...' : 'Descifrar IA'}</span>
+                </button>
+              </div>
+
+              <div className="sm:col-span-3">
+                <button
+                  type="button"
+                  onClick={handleSendCaptcha}
+                  disabled={!captchaInput.trim()}
+                  className="w-full px-3 py-2 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-xs disabled:opacity-40 transition-all whitespace-nowrap cursor-pointer shadow-md flex items-center justify-center gap-1.5"
+                >
+                  <span>Ingresar a EDUS</span>
+                </button>
+              </div>
             </div>
 
-            {/* Logs recientes en vivo */}
+            {/* 4. Bucle Autónomo de Citas con diseño espacioso */}
+            <div className="p-3 rounded-xl bg-slate-950/60 border border-white/[0.06] flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+              <button
+                type="button"
+                onClick={isLoopActive ? handleStopLoop : handleStartLoop}
+                className={`px-4 py-2 rounded-xl font-bold text-xs flex items-center gap-2 transition-all shadow-md whitespace-nowrap shrink-0 cursor-pointer ${
+                  isLoopActive
+                    ? 'bg-amber-600 hover:bg-amber-500 text-white animate-pulse'
+                    : 'bg-gradient-to-r from-indigo-600 to-sky-600 hover:from-indigo-500 hover:to-sky-500 text-white'
+                }`}
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${isLoopActive ? 'animate-spin' : ''}`} />
+                <span>
+                  {isLoopActive
+                    ? `Detener Bucle (Intento #${loopInfo.attempts || 1})`
+                    : 'Iniciar Bucle Autónomo (Cada 60s)'}
+                </span>
+              </button>
+
+              <p className="text-xs text-slate-300 leading-snug">
+                {isLoopActive ? (
+                  <span className="text-amber-300 font-semibold font-mono">
+                    Monitoreando {loopInfo.service} para {loopInfo.targetDay}...
+                  </span>
+                ) : (
+                  <span>Consultará cupos de <strong>Odontología</strong> para el viernes</span>
+                )}
+              </p>
+            </div>
+
+            {/* 5. Terminal de Logs en tiempo real: Sin texto cortado (wrap limpio) */}
             {browserSession.logs && browserSession.logs.length > 0 && (
-              <div className="bg-black/60 rounded-xl p-2.5 border border-white/5 space-y-1 font-mono text-[10px] text-slate-300 max-h-24 overflow-y-auto">
-                {browserSession.logs.slice(0, 4).map((l, i) => (
-                  <p key={i} className="truncate text-slate-400">
-                    <span className="text-sky-400">›</span> {l}
-                  </p>
+              <div className="bg-slate-950 rounded-xl p-3 border border-white/[0.08] space-y-1.5 font-mono text-[11px] text-slate-300 max-h-32 overflow-y-auto scrollbar-thin">
+                {browserSession.logs.slice(0, 5).map((l, i) => (
+                  <div key={i} className="flex items-start gap-1.5 text-slate-300 leading-relaxed">
+                    <span className="text-sky-400 font-bold shrink-0">›</span>
+                    <span className="break-words flex-1">{l}</span>
+                  </div>
                 ))}
               </div>
             )}
-
-            <p className="text-[10px] text-slate-400">
-              💡 Gestiono Chrome en tu pantalla: resuelvo el captcha con visión IA, lo digito y monitoreo cupos en vivo.
-            </p>
           </div>
         )}
 
