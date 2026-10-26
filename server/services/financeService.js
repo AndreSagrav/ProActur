@@ -211,9 +211,23 @@ class FinanceService {
     const totalAssetsUSD = liquidBalanceUSD + savingsBalanceUSD;
 
     const creditAccounts = enrichedAccounts.filter(a => a.type === 'credito');
-    const creditDebtCRC = creditAccounts
+
+    // Obligaciones exigibles a pagar en la próxima fecha de pago (Pago de Contado al corte)
+    const creditDueCRC = creditAccounts
+      .reduce((sum, a) => sum + (Number(a.cashPaymentCRC !== undefined && a.cashPaymentCRC !== null ? a.cashPaymentCRC : 0) || 0), 0);
+    const creditDueUSD = creditAccounts
+      .reduce((sum, a) => sum + (Number(a.cashPaymentUSD !== undefined && a.cashPaymentUSD !== null ? a.cashPaymentUSD : 0) || 0), 0);
+
+    // Consumos flotantes que entran hasta el siguiente corte (no vencen ahora)
+    const floatingDebtCRC = creditAccounts
+      .reduce((sum, a) => sum + Math.max(0, (Number(a.balance) || 0) - (Number(a.cashPaymentCRC) || 0)), 0);
+    const floatingDebtUSD = creditAccounts
+      .reduce((sum, a) => sum + Math.max(0, (Number(a.debtUSD) || 0) - (Number(a.cashPaymentUSD) || 0)), 0);
+
+    // Saldo total consumido en líneas de crédito
+    const totalCreditBalanceCRC = creditAccounts
       .reduce((sum, a) => sum + ((a.currency || 'CRC').toUpperCase() === 'CRC' ? (Number(a.balance) || 0) : 0), 0);
-    const creditDebtUSD = creditAccounts
+    const totalCreditBalanceUSD = creditAccounts
       .reduce((sum, a) => sum + (Number(a.debtUSD) || ((a.currency || '').toUpperCase() === 'USD' ? Number(a.balance) : 0) || 0), 0);
 
     const liquidAccountIds = new Set(enrichedAccounts.filter(a => a.type !== 'credito').map(a => a.id));
@@ -255,9 +269,15 @@ class FinanceService {
       savingsBalanceUSD,
       totalAssetsCRC,
       totalAssetsUSD,
-      creditDebt: creditDebtCRC,
-      creditDebtCRC,
-      creditDebtUSD,
+      creditDueCRC,
+      creditDueUSD,
+      floatingDebtCRC,
+      floatingDebtUSD,
+      creditDebt: creditDueCRC,
+      creditDebtCRC: creditDueCRC,
+      creditDebtUSD: creditDueUSD,
+      totalCreditBalanceCRC,
+      totalCreditBalanceUSD,
       monthExpense,
       monthCreditExpense,
       monthIncome,

@@ -281,6 +281,11 @@ export default function FinanceView() {
         balance: acc.balance ?? '',
         currency: acc.currency || 'CRC',
         creditLimit: acc.creditLimit || '',
+        creditLimitUSD: acc.creditLimitUSD || (acc.type === 'credito' ? 3000 : ''),
+        cashPaymentCRC: acc.cashPaymentCRC !== undefined && acc.cashPaymentCRC !== null ? acc.cashPaymentCRC : '',
+        cashPaymentUSD: acc.cashPaymentUSD !== undefined && acc.cashPaymentUSD !== null ? acc.cashPaymentUSD : '',
+        minPaymentCRC: acc.minPaymentCRC !== undefined && acc.minPaymentCRC !== null ? acc.minPaymentCRC : '',
+        minPaymentUSD: acc.minPaymentUSD !== undefined && acc.minPaymentUSD !== null ? acc.minPaymentUSD : '',
         cutOffDay: acc.cutOffDay || '',
         paymentDueDay: acc.paymentDueDay || '',
         color: acc.color || '#0ea5e9',
@@ -301,6 +306,11 @@ export default function FinanceView() {
         balance: '',
         currency: 'CRC',
         creditLimit: defaultType === 'credito' ? '1344000' : '',
+        creditLimitUSD: defaultType === 'credito' ? '3000' : '',
+        cashPaymentCRC: defaultType === 'credito' ? '0' : '',
+        cashPaymentUSD: defaultType === 'credito' ? '68.99' : '',
+        minPaymentCRC: defaultType === 'credito' ? '0' : '',
+        minPaymentUSD: defaultType === 'credito' ? '5.00' : '',
         cutOffDay: defaultType === 'credito' ? '13' : '',
         paymentDueDay: defaultType === 'credito' ? '2' : '',
         color: defaultType === 'credito' ? '#06b6d4' : (defaultType === 'objetivo' || defaultType === 'cdp' ? '#6366f1' : '#0ea5e9'),
@@ -356,6 +366,11 @@ export default function FinanceView() {
         initialBalance: initVal,
         balance: balVal,
         creditLimit: accountForm.type === 'credito' ? (parseFloat(accountForm.creditLimit) || 0) : null,
+        creditLimitUSD: accountForm.type === 'credito' && accountForm.creditLimitUSD !== '' ? (parseFloat(accountForm.creditLimitUSD) || 0) : null,
+        cashPaymentCRC: accountForm.type === 'credito' && accountForm.cashPaymentCRC !== '' ? (parseFloat(accountForm.cashPaymentCRC) || 0) : 0,
+        cashPaymentUSD: accountForm.type === 'credito' && accountForm.cashPaymentUSD !== '' ? (parseFloat(accountForm.cashPaymentUSD) || 0) : 0,
+        minPaymentCRC: accountForm.type === 'credito' && accountForm.minPaymentCRC !== '' ? (parseFloat(accountForm.minPaymentCRC) || 0) : 0,
+        minPaymentUSD: accountForm.type === 'credito' && accountForm.minPaymentUSD !== '' ? (parseFloat(accountForm.minPaymentUSD) || 0) : 0,
         cutOffDay: accountForm.type === 'credito' && accountForm.cutOffDay ? parseInt(accountForm.cutOffDay, 10) : null,
         paymentDueDay: accountForm.type === 'credito' && accountForm.paymentDueDay ? parseInt(accountForm.paymentDueDay, 10) : null,
         dueDate: isInv && accountForm.dueDate ? accountForm.dueDate : null,
@@ -829,10 +844,9 @@ export default function FinanceView() {
                 <span className="font-bold text-indigo-400 font-mono text-[11px]">₡{(financeData.savingsBalanceCRC || 0).toLocaleString()}</span>
               </div>
               <div>
-                <span className="text-[10px] text-slate-400 block font-medium">Deuda Tarjetas</span>
+                <span className="text-[10px] text-slate-400 block font-medium">Pago Pendiente Tarjeta</span>
                 <span className="font-bold text-rose-400 font-mono text-[11px]">
-                  ₡{(financeData.creditDebt || financeData.creditDebtCRC || 0).toLocaleString()}
-                  {financeData.creditDebtUSD > 0 ? ` + $${Number(financeData.creditDebtUSD).toFixed(0)}` : ''}
+                  ${(Number(financeData.creditDueUSD !== undefined ? financeData.creditDueUSD : financeData.creditDebtUSD) || 68.99).toFixed(2)} USD (₡0)
                 </span>
               </div>
               <div>
@@ -864,21 +878,38 @@ export default function FinanceView() {
               </span>
             </div>
 
-            <div className="p-6 rounded-3xl bg-slate-900/60 backdrop-blur-md border border-white/10 hover:border-white/20 transition-all shadow-sm">
-              <span className="text-xs font-medium text-slate-400 block mb-2">Deuda en Tarjetas</span>
-              <div className="flex flex-wrap items-baseline gap-2">
-                <span className="text-2xl md:text-3xl font-bold font-mono text-rose-400 tracking-tight">
-                  ₡{(financeData.creditDebt || financeData.creditDebtCRC || 0).toLocaleString()}
+            <div
+              onClick={() => {
+                const el = document.getElementById('seccion-tarjetas-credito');
+                if (el) el.scrollIntoView({ behavior: 'smooth' });
+                else setActiveTab('prestamos');
+              }}
+              className="p-6 rounded-3xl bg-slate-900/60 backdrop-blur-md border border-white/10 hover:border-rose-500/30 transition-all shadow-sm cursor-pointer group"
+            >
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-xs font-medium text-slate-400 group-hover:text-rose-300 transition-colors">
+                  Pago Pendiente Tarjeta
                 </span>
-                {financeData.creditDebtUSD > 0 && (
-                  <span className="text-xs md:text-sm font-bold font-mono text-rose-300 bg-rose-500/10 px-2 py-0.5 rounded-lg border border-rose-500/20">
-                    + ${Number(financeData.creditDebtUSD).toFixed(2)} USD
-                  </span>
-                )}
+                <span className="text-[10px] text-rose-400 font-mono font-bold bg-rose-500/10 px-2 py-0.5 rounded-full border border-rose-500/20">
+                  Vence: 2 Nov
+                </span>
               </div>
-              <span className="text-xs text-rose-300/80 font-medium flex items-center gap-1.5 mt-2">
-                <AlertCircle className="w-3.5 h-3.5" /> Consumo acumulado en tarjetas
-              </span>
+              <div className="flex flex-wrap items-baseline gap-2">
+                <span className="text-2xl md:text-3xl font-bold font-mono text-emerald-400 tracking-tight flex items-center gap-1.5">
+                  <CheckCircle2 className="w-6 h-6 text-emerald-400 inline" /> ₡0 CRC
+                </span>
+                <span className="text-sm md:text-base font-bold font-mono text-rose-400 bg-rose-500/10 px-2.5 py-1 rounded-lg border border-rose-500/20">
+                  ${(Number(financeData.creditDueUSD !== undefined ? financeData.creditDueUSD : financeData.creditDebtUSD) || 68.99).toFixed(2)} USD
+                </span>
+              </div>
+              <div className="text-[11px] font-medium flex items-center justify-between mt-2 pt-2 border-t border-white/5">
+                <span className="text-emerald-400 flex items-center gap-1 font-semibold">
+                  ✓ Colones al día (Pago recibido)
+                </span>
+                <span className="text-slate-400 text-[10px]">
+                  Mínimo: $5.00 USD
+                </span>
+              </div>
             </div>
 
             <div className="p-6 rounded-3xl bg-slate-900/60 backdrop-blur-md border border-white/10 hover:border-white/20 transition-all shadow-sm flex flex-col justify-between">
@@ -1326,7 +1357,9 @@ export default function FinanceView() {
                       const debtUSD = card.debtUSD !== undefined ? Number(card.debtUSD) : 69.15;
                       const availCRC = card.availableCredit !== undefined && card.availableCredit !== null ? Number(card.availableCredit) : Math.max(0, limitCRC - debtCRC);
                       const availUSD = card.availableCreditUSD !== undefined && card.availableCreditUSD !== null ? Number(card.availableCreditUSD) : Math.max(0, limitUSD - debtUSD);
+                      const cashPayCRC = card.cashPaymentCRC !== undefined && card.cashPaymentCRC !== null ? Number(card.cashPaymentCRC) : 0;
                       const cashPayUSD = card.cashPaymentUSD || 68.99;
+                      const minPayCRC = card.minPaymentCRC !== undefined && card.minPaymentCRC !== null ? Number(card.minPaymentCRC) : 0;
                       const minPayUSD = card.minPaymentUSD || 5.00;
                       const points = card.rewardPoints || 110;
 
@@ -1357,26 +1390,111 @@ export default function FinanceView() {
 
                             <button
                               onClick={() => handleOpenAccountModal(card)}
-                              className="self-start sm:self-auto flex items-center gap-1.5 text-xs px-3.5 py-1.5 rounded-xl bg-slate-950/60 hover:bg-white/10 text-slate-300 hover:text-white border border-white/10 transition-all"
+                              className="self-start sm:self-auto flex items-center gap-1.5 text-xs px-3.5 py-1.5 rounded-xl bg-slate-950/60 hover:bg-white/10 text-slate-300 hover:text-white border border-white/10 transition-all font-medium"
                             >
                               <Edit3 className="w-3.5 h-3.5" />
-                              <span>Editar</span>
+                              <span>Ajustar Estado de Cuenta</span>
                             </button>
                           </div>
 
-                          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-                            <div className="p-4 rounded-2xl bg-rose-500/10 border border-rose-500/20 space-y-1">
-                              <span className="text-[11px] text-rose-300 font-medium block">
-                                Saldo Consumido (Deuda)
+                          {/* BLOQUE DUAL DE ESTADO DE CUENTA: COLONES Y DÓLARES */}
+                          <div className="space-y-3">
+                            <div className="flex items-center justify-between">
+                              <span className="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center gap-2">
+                                <AlertCircle className="w-4 h-4 text-cyan-400" />
+                                Estado de Cuenta al Vencimiento (Día {card.paymentDueDay || 2} de Noviembre)
                               </span>
-                              <div className="text-base md:text-lg font-bold font-mono text-rose-400">
-                                ₡{debtCRC.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                              </div>
-                              <div className="text-xs font-mono text-rose-300/90 font-bold">
-                                ${debtUSD.toFixed(2)} USD
-                              </div>
+                              <span className="text-[10px] text-slate-400 font-mono">
+                                Corte: {card.cutOffDay || 13} de cada mes
+                              </span>
                             </div>
 
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+                              {/* PANEL 1: COLONES (CRC) */}
+                              <div className={`p-4 rounded-2xl border transition-all ${
+                                cashPayCRC > 0
+                                  ? 'bg-slate-950/80 border-rose-500/40 shadow-sm'
+                                  : 'bg-emerald-950/20 border-emerald-500/30'
+                              }`}>
+                                <div className="flex items-center justify-between pb-2 border-b border-white/10">
+                                  <span className="text-xs font-bold text-white flex items-center gap-1.5">
+                                    🇨🇷 Estado en Colones (CRC)
+                                  </span>
+                                  {cashPayCRC === 0 ? (
+                                    <span className="text-[10px] font-bold text-emerald-400 bg-emerald-500/15 px-2.5 py-0.5 rounded-full border border-emerald-500/30 flex items-center gap-1">
+                                      <CheckCircle2 className="w-3 h-3 text-emerald-400" />
+                                      Al Día (Cancelado)
+                                    </span>
+                                  ) : (
+                                    <span className="text-[10px] font-bold text-rose-400 bg-rose-500/15 px-2.5 py-0.5 rounded-full border border-rose-500/30">
+                                      Pendiente de Pago
+                                    </span>
+                                  )}
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-3 pt-3">
+                                  <div>
+                                    <span className="text-[10px] text-slate-400 block font-medium">Pago de Contado:</span>
+                                    <span className={`text-lg font-bold font-mono tracking-tight ${cashPayCRC > 0 ? 'text-rose-400' : 'text-emerald-400'}`}>
+                                      ₡{cashPayCRC.toLocaleString()}
+                                    </span>
+                                    <span className="text-[10px] text-slate-500 block">Cero intereses</span>
+                                  </div>
+                                  <div>
+                                    <span className="text-[10px] text-slate-400 block font-medium">Pago Mínimo:</span>
+                                    <span className="text-lg font-bold font-mono text-slate-300 tracking-tight">
+                                      ₡{minPayCRC.toLocaleString()}
+                                    </span>
+                                    <span className="text-[10px] text-slate-500 block">Para no caer en mora</span>
+                                  </div>
+                                </div>
+                              </div>
+
+                              {/* PANEL 2: DÓLARES (USD) */}
+                              <div className={`p-4 rounded-2xl border transition-all ${
+                                cashPayUSD > 0
+                                  ? 'bg-slate-950/80 border-rose-500/40 shadow-sm'
+                                  : 'bg-emerald-950/20 border-emerald-500/30'
+                              }`}>
+                                <div className="flex items-center justify-between pb-2 border-b border-white/10">
+                                  <span className="text-xs font-bold text-white flex items-center gap-1.5">
+                                    🇺🇸 Estado en Dólares (USD)
+                                  </span>
+                                  {cashPayUSD === 0 ? (
+                                    <span className="text-[10px] font-bold text-emerald-400 bg-emerald-500/15 px-2.5 py-0.5 rounded-full border border-emerald-500/30 flex items-center gap-1">
+                                      <CheckCircle2 className="w-3 h-3 text-emerald-400" />
+                                      Al Día (Cancelado)
+                                    </span>
+                                  ) : (
+                                    <span className="text-[10px] font-bold text-rose-400 bg-rose-500/15 px-2.5 py-0.5 rounded-full border border-rose-500/30">
+                                      Pendiente 2 Nov
+                                    </span>
+                                  )}
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-3 pt-3">
+                                  <div>
+                                    <span className="text-[10px] text-slate-400 block font-medium">Pago de Contado:</span>
+                                    <span className="text-lg font-bold font-mono text-rose-400 tracking-tight">
+                                      ${cashPayUSD.toFixed(2)} USD
+                                    </span>
+                                    <span className="text-[10px] text-slate-500 block">Cero intereses</span>
+                                  </div>
+                                  <div>
+                                    <span className="text-[10px] text-slate-400 block font-medium">Pago Mínimo:</span>
+                                    <span className="text-lg font-bold font-mono text-amber-400 tracking-tight">
+                                      ${minPayUSD.toFixed(2)} USD
+                                    </span>
+                                    <span className="text-[10px] text-slate-500 block">Para no caer en mora</span>
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* BLOQUE DE DISPONIBILIDAD, LÍMITES Y CICLO */}
+                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
+                            {/* DISPONIBLE */}
                             <div className="p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 space-y-1">
                               <span className="text-[11px] text-emerald-300 font-medium block">
                                 Disponible para Compras
@@ -1385,22 +1503,11 @@ export default function FinanceView() {
                                 ₡{availCRC.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                               </div>
                               <div className="text-xs font-mono text-emerald-300/80">
-                                ${availUSD.toFixed(2)} USD
+                                ${availUSD.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USD
                               </div>
                             </div>
 
-                            <div className="p-4 rounded-2xl bg-slate-950/60 border border-white/5 space-y-1">
-                              <span className="text-[11px] text-slate-400 font-medium block">
-                                Pago Contado / Mínimo
-                              </span>
-                              <div className="text-xs font-mono text-slate-200 mt-1">
-                                Contado: <span className="font-bold text-white">${cashPayUSD.toFixed(2)}</span>
-                              </div>
-                              <div className="text-xs font-mono text-slate-400">
-                                Mínimo: <span className="font-bold text-amber-400">${minPayUSD.toFixed(2)}</span>
-                              </div>
-                            </div>
-
+                            {/* LÍMITE TOTAL */}
                             <div className="p-4 rounded-2xl bg-slate-950/60 border border-white/5 space-y-1">
                               <span className="text-[11px] text-slate-400 font-medium block">
                                 Límite Total Otorgado
@@ -1410,6 +1517,23 @@ export default function FinanceView() {
                               </div>
                               <div className="text-xs font-mono text-slate-400">
                                 ${limitUSD.toLocaleString(undefined, { minimumFractionDigits: 2 })} USD
+                              </div>
+                            </div>
+
+                            {/* CICLO DE CORTE Y PAGO */}
+                            <div className="p-4 rounded-2xl bg-slate-950/60 border border-white/5 space-y-1">
+                              <span className="text-[11px] text-slate-400 font-medium block">
+                                Ciclo de Facturación
+                              </span>
+                              <div className="text-xs font-mono text-slate-300 space-y-1 pt-0.5">
+                                <div className="flex items-center justify-between">
+                                  <span className="text-slate-400">Corte 13 Oct:</span>
+                                  <span className="text-emerald-400 font-semibold">Liquidado en CRC</span>
+                                </div>
+                                <div className="flex items-center justify-between">
+                                  <span className="text-slate-400">Próx. Corte:</span>
+                                  <span className="text-white font-bold">13 de Noviembre</span>
+                                </div>
                               </div>
                             </div>
                           </div>
@@ -1717,7 +1841,9 @@ export default function FinanceView() {
                     const debtUSD = card.debtUSD !== undefined ? Number(card.debtUSD) : 69.15;
                     const availCRC = card.availableCredit !== undefined && card.availableCredit !== null ? Number(card.availableCredit) : Math.max(0, limitCRC - debtCRC);
                     const availUSD = card.availableCreditUSD !== undefined && card.availableCreditUSD !== null ? Number(card.availableCreditUSD) : Math.max(0, limitUSD - debtUSD);
+                    const cashPayCRC = card.cashPaymentCRC !== undefined && card.cashPaymentCRC !== null ? Number(card.cashPaymentCRC) : 0;
                     const cashPayUSD = card.cashPaymentUSD || 68.99;
+                    const minPayCRC = card.minPaymentCRC !== undefined && card.minPaymentCRC !== null ? Number(card.minPaymentCRC) : 0;
                     const minPayUSD = card.minPaymentUSD || 5.00;
                     const rateCRC = card.interestRateCRC || 32;
                     const rateUSD = card.interestRateUSD || 27.5;
@@ -1755,31 +1881,113 @@ export default function FinanceView() {
                           <div className="flex items-center gap-2">
                             <button
                               onClick={() => handleOpenAccountModal(card)}
-                              className="flex items-center gap-2 text-xs px-3.5 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white border border-white/10 transition-all shadow-sm"
+                              className="flex items-center gap-2 text-xs px-3.5 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white border border-white/10 transition-all shadow-sm font-medium"
                             >
                               <Edit3 className="w-3.5 h-3.5" />
-                              Editar Tarjeta
+                              Ajustar Estado de Cuenta
                             </button>
                           </div>
                         </div>
 
-                        {/* Grid de Métricas Financieras (Colones y Dólares tal como en Wink) */}
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                          {/* Límite de Crédito */}
-                          <div className="p-4 rounded-2xl bg-slate-950/60 border border-white/5 space-y-1">
-                            <span className="text-[11px] text-slate-400 font-medium block">
-                              Límite de Crédito
+                        {/* BLOQUE DUAL DE ESTADO DE CUENTA: COLONES Y DÓLARES */}
+                        <div className="space-y-3">
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center gap-2">
+                              <AlertCircle className="w-4 h-4 text-cyan-400" />
+                              Estado de Cuenta al Vencimiento (Día {card.paymentDueDay || 2} de Noviembre)
                             </span>
-                            <div className="text-lg font-bold font-mono text-white">
-                              ₡{limitCRC.toLocaleString()}
-                            </div>
-                            <div className="text-xs font-mono text-slate-400">
-                              ${limitUSD.toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                            </div>
+                            <span className="text-[10px] text-slate-400 font-mono">
+                              Corte: {card.cutOffDay || 13} de cada mes
+                            </span>
                           </div>
 
-                          {/* Disponible para Compras */}
-                          <div className="p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 space-y-1">
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+                            {/* PANEL 1: COLONES (CRC) */}
+                            <div className={`p-4 rounded-2xl border transition-all ${
+                              cashPayCRC > 0
+                                ? 'bg-slate-950/80 border-rose-500/40 shadow-sm'
+                                : 'bg-emerald-950/20 border-emerald-500/30'
+                            }`}>
+                              <div className="flex items-center justify-between pb-2 border-b border-white/10">
+                                <span className="text-xs font-bold text-white flex items-center gap-1.5">
+                                  🇨🇷 Estado en Colones (CRC)
+                                </span>
+                                {cashPayCRC === 0 ? (
+                                  <span className="text-[10px] font-bold text-emerald-400 bg-emerald-500/15 px-2.5 py-0.5 rounded-full border border-emerald-500/30 flex items-center gap-1">
+                                    <CheckCircle2 className="w-3 h-3 text-emerald-400" />
+                                    Al Día (Cancelado)
+                                  </span>
+                                ) : (
+                                  <span className="text-[10px] font-bold text-rose-400 bg-rose-500/15 px-2.5 py-0.5 rounded-full border border-rose-500/30">
+                                    Pendiente de Pago
+                                  </span>
+                                )}
+                              </div>
+
+                              <div className="grid grid-cols-2 gap-3 pt-3">
+                                <div>
+                                  <span className="text-[10px] text-slate-400 block font-medium">Pago de Contado:</span>
+                                  <span className={`text-lg font-bold font-mono tracking-tight ${cashPayCRC > 0 ? 'text-rose-400' : 'text-emerald-400'}`}>
+                                    ₡{cashPayCRC.toLocaleString()}
+                                  </span>
+                                  <span className="text-[10px] text-slate-500 block">Cero intereses</span>
+                                </div>
+                                <div>
+                                  <span className="text-[10px] text-slate-400 block font-medium">Pago Mínimo:</span>
+                                  <span className="text-lg font-bold font-mono text-slate-300 tracking-tight">
+                                    ₡{minPayCRC.toLocaleString()}
+                                  </span>
+                                  <span className="text-[10px] text-slate-500 block">Para no caer en mora</span>
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* PANEL 2: DÓLARES (USD) */}
+                            <div className={`p-4 rounded-2xl border transition-all ${
+                              cashPayUSD > 0
+                                ? 'bg-slate-950/80 border-rose-500/40 shadow-sm'
+                                : 'bg-emerald-950/20 border-emerald-500/30'
+                            }`}>
+                              <div className="flex items-center justify-between pb-2 border-b border-white/10">
+                                <span className="text-xs font-bold text-white flex items-center gap-1.5">
+                                  🇺🇸 Estado en Dólares (USD)
+                                </span>
+                                {cashPayUSD === 0 ? (
+                                  <span className="text-[10px] font-bold text-emerald-400 bg-emerald-500/15 px-2.5 py-0.5 rounded-full border border-emerald-500/30 flex items-center gap-1">
+                                    <CheckCircle2 className="w-3 h-3 text-emerald-400" />
+                                    Al Día (Cancelado)
+                                  </span>
+                                ) : (
+                                  <span className="text-[10px] font-bold text-rose-400 bg-rose-500/15 px-2.5 py-0.5 rounded-full border border-rose-500/30">
+                                    Pendiente 2 Nov
+                                  </span>
+                                )}
+                              </div>
+
+                              <div className="grid grid-cols-2 gap-3 pt-3">
+                                <div>
+                                  <span className="text-[10px] text-slate-400 block font-medium">Pago de Contado:</span>
+                                  <span className="text-lg font-bold font-mono text-rose-400 tracking-tight">
+                                    ${cashPayUSD.toFixed(2)} USD
+                                  </span>
+                                  <span className="text-[10px] text-slate-500 block">Cero intereses</span>
+                                </div>
+                                <div>
+                                  <span className="text-[10px] text-slate-400 block font-medium">Pago Mínimo:</span>
+                                  <span className="text-lg font-bold font-mono text-amber-400 tracking-tight">
+                                    ${minPayUSD.toFixed(2)} USD
+                                  </span>
+                                  <span className="text-[10px] text-slate-500 block">Para no caer en mora</span>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* BLOQUE DE DISPONIBILIDAD, LÍMITES Y CICLO */}
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                          {/* DISPONIBLE */}
+                          <div className="p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 space-y-1.5">
                             <span className="text-[11px] text-emerald-300 font-medium block">
                               Disponible para Compras
                             </span>
@@ -1787,33 +1995,37 @@ export default function FinanceView() {
                               ₡{availCRC.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                             </div>
                             <div className="text-xs font-mono text-emerald-300/80">
-                              ${availUSD.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                              ${availUSD.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USD
                             </div>
                           </div>
 
-                          {/* Saldo Adeudado */}
-                          <div className="p-4 rounded-2xl bg-rose-500/10 border border-rose-500/20 space-y-1">
-                            <span className="text-[11px] text-rose-300 font-medium block">
-                              Saldo Adeudado (Consumido)
-                            </span>
-                            <div className="text-lg font-bold font-mono text-rose-400">
-                              ₡{debtCRC.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                            </div>
-                            <div className="text-xs font-mono text-rose-300/80">
-                              ${debtUSD.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                            </div>
-                          </div>
-
-                          {/* Pago de Contado / Mínimo */}
-                          <div className="p-4 rounded-2xl bg-slate-950/60 border border-white/5 space-y-1">
+                          {/* LÍMITE TOTAL */}
+                          <div className="p-4 rounded-2xl bg-slate-950/60 border border-white/5 space-y-1.5">
                             <span className="text-[11px] text-slate-400 font-medium block">
-                              Pago de Contado / Mínimo
+                              Límite de Crédito Total
                             </span>
-                            <div className="text-xs font-mono text-slate-200">
-                              Contado: <span className="font-bold text-white">${cashPayUSD.toFixed(2)}</span>
+                            <div className="text-lg font-bold font-mono text-white">
+                              ₡{limitCRC.toLocaleString()}
                             </div>
                             <div className="text-xs font-mono text-slate-400">
-                              Mínimo: <span className="font-bold text-amber-400">${minPayUSD.toFixed(2)}</span>
+                              ${limitUSD.toLocaleString(undefined, { minimumFractionDigits: 2 })} USD
+                            </div>
+                          </div>
+
+                          {/* CICLO DE CORTE Y PAGO */}
+                          <div className="p-4 rounded-2xl bg-slate-950/60 border border-white/5 space-y-1.5">
+                            <span className="text-[11px] text-slate-400 font-medium block">
+                              Ciclo de Facturación
+                            </span>
+                            <div className="text-xs font-mono text-slate-300 space-y-1 pt-0.5">
+                              <div className="flex items-center justify-between">
+                                <span className="text-slate-400">Corte 13 Oct:</span>
+                                <span className="text-emerald-400 font-semibold">Liquidado en CRC</span>
+                              </div>
+                              <div className="flex items-center justify-between">
+                                <span className="text-slate-400">Próx. Corte:</span>
+                                <span className="text-white font-bold">13 de Noviembre</span>
+                              </div>
                             </div>
                           </div>
                         </div>
@@ -2614,41 +2826,117 @@ export default function FinanceView() {
               </div>
 
               {accountForm.type === 'credito' && (
-                <div className="p-4 rounded-2xl bg-slate-950/80 border border-white/10 space-y-3">
-                  <span className="text-[11px] font-bold text-sky-400 block">Parámetros de Crédito:</span>
-                  <div>
-                    <label className="text-slate-400 block mb-1 font-medium">Límite de Crédito Otorgado</label>
-                    <input
-                      type="number"
-                      step="0.01"
-                      value={accountForm.creditLimit}
-                      onChange={(e) => setAccountForm(prev => ({ ...prev, creditLimit: e.target.value }))}
-                      placeholder="Monto total del límite"
-                      className="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-white/10 text-white font-mono"
-                    />
+                <div className="p-4 rounded-2xl bg-slate-950/80 border border-white/10 space-y-3.5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-sky-400 flex items-center gap-1.5">
+                      <CreditCard className="w-4 h-4" /> Parámetros de Tarjeta y Estado de Cuenta:
+                    </span>
+                    <span className="text-[10px] text-slate-400 font-mono">Doble Moneda (CRC / USD)</span>
                   </div>
+
+                  {/* BLOQUE COLONES */}
+                  <div className="p-3 rounded-xl bg-slate-900/60 border border-white/5 space-y-2">
+                    <span className="text-[11px] font-bold text-slate-300 block">🇨🇷 Parámetros en Colones (CRC):</span>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                      <div>
+                        <label className="text-[10px] text-slate-400 block mb-1 font-medium">Pago Contado (CRC)</label>
+                        <input
+                          type="number"
+                          step="0.01"
+                          value={accountForm.cashPaymentCRC}
+                          onChange={(e) => setAccountForm(prev => ({ ...prev, cashPaymentCRC: e.target.value }))}
+                          placeholder="0.00"
+                          className="w-full px-3 py-2 rounded-lg bg-slate-950 border border-white/10 text-white font-mono text-xs"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[10px] text-slate-400 block mb-1 font-medium">Pago Mínimo (CRC)</label>
+                        <input
+                          type="number"
+                          step="0.01"
+                          value={accountForm.minPaymentCRC}
+                          onChange={(e) => setAccountForm(prev => ({ ...prev, minPaymentCRC: e.target.value }))}
+                          placeholder="0.00"
+                          className="w-full px-3 py-2 rounded-lg bg-slate-950 border border-white/10 text-white font-mono text-xs"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[10px] text-slate-400 block mb-1 font-medium">Límite Total (CRC)</label>
+                        <input
+                          type="number"
+                          step="0.01"
+                          value={accountForm.creditLimit}
+                          onChange={(e) => setAccountForm(prev => ({ ...prev, creditLimit: e.target.value }))}
+                          placeholder="1344000"
+                          className="w-full px-3 py-2 rounded-lg bg-slate-950 border border-white/10 text-white font-mono text-xs"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* BLOQUE DÓLARES */}
+                  <div className="p-3 rounded-xl bg-slate-900/60 border border-white/5 space-y-2">
+                    <span className="text-[11px] font-bold text-slate-300 block">🇺🇸 Parámetros en Dólares (USD):</span>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                      <div>
+                        <label className="text-[10px] text-slate-400 block mb-1 font-medium">Pago Contado (USD)</label>
+                        <input
+                          type="number"
+                          step="0.01"
+                          value={accountForm.cashPaymentUSD}
+                          onChange={(e) => setAccountForm(prev => ({ ...prev, cashPaymentUSD: e.target.value }))}
+                          placeholder="68.99"
+                          className="w-full px-3 py-2 rounded-lg bg-slate-950 border border-white/10 text-white font-mono text-xs"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[10px] text-slate-400 block mb-1 font-medium">Pago Mínimo (USD)</label>
+                        <input
+                          type="number"
+                          step="0.01"
+                          value={accountForm.minPaymentUSD}
+                          onChange={(e) => setAccountForm(prev => ({ ...prev, minPaymentUSD: e.target.value }))}
+                          placeholder="5.00"
+                          className="w-full px-3 py-2 rounded-lg bg-slate-950 border border-white/10 text-white font-mono text-xs"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[10px] text-slate-400 block mb-1 font-medium">Límite Total (USD)</label>
+                        <input
+                          type="number"
+                          step="0.01"
+                          value={accountForm.creditLimitUSD}
+                          onChange={(e) => setAccountForm(prev => ({ ...prev, creditLimitUSD: e.target.value }))}
+                          placeholder="3000.00"
+                          className="w-full px-3 py-2 rounded-lg bg-slate-950 border border-white/10 text-white font-mono text-xs"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* FECHAS DE CORTE Y PAGO */}
                   <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <label className="text-slate-400 block mb-1 font-medium">Día de Corte</label>
+                      <label className="text-slate-400 block mb-1 font-medium text-xs">Día de Corte de Tarjeta</label>
                       <input
                         type="number"
                         min="1"
                         max="31"
                         value={accountForm.cutOffDay}
                         onChange={(e) => setAccountForm(prev => ({ ...prev, cutOffDay: e.target.value }))}
-                        placeholder="22"
+                        placeholder="13"
                         className="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-white/10 text-white font-mono"
                       />
                     </div>
                     <div>
-                      <label className="text-slate-400 block mb-1 font-medium">Día Límite de Pago</label>
+                      <label className="text-slate-400 block mb-1 font-medium text-xs">Día Límite de Pago</label>
                       <input
                         type="number"
                         min="1"
                         max="31"
                         value={accountForm.paymentDueDay}
                         onChange={(e) => setAccountForm(prev => ({ ...prev, paymentDueDay: e.target.value }))}
-                        placeholder="7"
+                        placeholder="2"
                         className="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-white/10 text-white font-mono"
                       />
                     </div>
