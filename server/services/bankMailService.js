@@ -66,6 +66,7 @@ function decodeMimeWords(str) {
 
 class BankMailService {
   constructor() {
+    this.isSyncing = false;
     this.ensureFiles();
     this.syncFromCloud().catch(() => {});
     this.startBackgroundPoller();
@@ -199,6 +200,16 @@ class BankMailService {
       }
       const cleanSubject = decodeMimeWords(logItem.subject || '');
       const cleanFrom = decodeMimeWords(logItem.from || '');
+
+      // Evitar registrar entradas duplicadas en el log
+      const alreadyInLog = logs.some(l => 
+        (logItem.txId && l.txId === logItem.txId) ||
+        (l.amount === logItem.amount && l.currency === logItem.currency && l.accountName === logItem.accountName && (l.subject === cleanSubject || (l.last4 && l.last4 === logItem.last4)))
+      );
+      if (alreadyInLog) {
+        return;
+      }
+
       logs.unshift({
         id: 'log_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6),
         timestamp: new Date().toISOString(),
@@ -207,7 +218,7 @@ class BankMailService {
         from: cleanFrom
       });
       const validLogs = logs.filter(l => l.status === 'recorded' || l.status === 'pending_confirmation');
-      fs.writeFileSync(LOGS_FILE, JSON.stringify(validLogs.slice(0, 100), null, 2), 'utf8');
+      fs.writeFileSync(LOGS_FILE, JSON.stringify(validLogs.slice(0, 50), null, 2), 'utf8');
     } catch (_) {}
   }
 
@@ -390,9 +401,9 @@ class BankMailService {
       }
     }
 
-    const summary = await financeService.getSummary();
-    const accounts = summary.accounts || [];
-    const transactions = summary.transactions || [];
+    const localData = financeService.readLocal();
+    const accounts = localData.accounts || [];
+    const transactions = localData.transactions || [];
 
     // Helper para obtener los 4 dígitos de la cuenta (de la propiedad last4 o extrayéndolos del nombre ej. "BAC Débito 0095")
     const getAccountLast4 = (a) => {
@@ -426,17 +437,25 @@ class BankMailService {
     }
 
     // CONTROL ESTRICTO Y UNIVERSAL DE DUPLICADOS:
-    // Una compra real (mismo monto, misma moneda, mismo comercio o fecha) jamás debe registrarse más de una vez
+    // Una compra real (mismo monto, misma moneda, mismo comercio dentro de 72 horas) jamás debe registrarse más de una vez
     const isDuplicate = transactions.some(tx => {
       const sameAmount = Math.abs(Number(tx.amount) - Number(parsed.amount)) < 0.01;
       const sameCurrency = (tx.currency || 'CRC').toUpperCase() === (parsed.currency || 'CRC').toUpperCase();
-      const txNote = (tx.merchant || tx.note || '').toLowerCase();
-      const parseNote = (parsed.merchant || parsed.note || '').toLowerCase();
-      const sameMerchant = txNote.includes(parseNote) || parseNote.includes(txNote);
-      const sameDate = tx.date && parsed.date && tx.date.slice(0, 10) === parsed.date.slice(0, 10);
+      const txNote = (tx.merchant || tx.note || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+      const parseNote = (parsed.merchant || parsed.note || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+      const sameMerchant = txNote.includes(parseNote) || parseNote.includes(txNote) || (txNote.includes('ampm') && parseNote.includes('ampm'));
 
-      // Si coincide en monto y moneda con mismo comercio o misma fecha en cualquier cuenta
-      return sameAmount && sameCurrency && (sameMerchant || sameDate);
+      let isRecent = false;
+      if (tx.date && parsed.date) {
+        try {
+          const diffHours = Math.abs(new Date(tx.date).getTime() - new Date(parsed.date).getTime()) / (1000 * 60 * 60);
+          if (diffHours <= 72) isRecent = true;
+        } catch (_) {}
+      } else {
+        isRecent = true;
+      }
+
+      return sameAmount && sameCurrency && sameMerchant && isRecent;
     });
 
     if (isDuplicate) {
@@ -457,8 +476,16 @@ class BankMailService {
         amount: parsed.amount,
         currency: parsed.currency,
         source: 'gmail_auto',
-        rawSnippet: emailData.subject
+        rawSnippet: emailData.subject,
+        date: parsed.date
       });
+
+      if (!tx) {
+        return {
+          status: 'duplicate',
+          reason: `Gasto ya registrado previamente en BD (${parsed.merchant} - ${parsed.currency} ${parsed.amount})`
+        };
+      }
 
       this.addLog({
         status: 'recorded',
@@ -575,11 +602,15 @@ class BankMailService {
    * Sincronización real de correos bancarios vía IMAP SSL
    */
   async syncInbox() {
+    if (this.isSyncing) {
+      return { success: true, message: 'Sincronización ya en curso.' };
+    }
     const config = this.getConfig();
     if (!config.email || !config.appPassword) {
       return { success: false, error: 'Debe configurar y guardar su correo y Contraseña de Aplicación de Google primero.' };
     }
 
+    this.isSyncing = true;
     return new Promise((resolve) => {
       let resolved = false;
       let socket = null;
@@ -589,6 +620,12 @@ class BankMailService {
       const done = (res) => {
         if (!resolved) {
           resolved = true;
+          this.isSyncing = false;
+          try {
+            const currentCfg = this.getConfig();
+            currentCfg.lastSync = new Date().toISOString();
+            fs.writeFileSync(CONFIG_FILE, JSON.stringify(currentCfg, null, 2), 'utf8');
+          } catch (_) {}
           if (socket) {
             try {
               socket.removeAllListeners('data');

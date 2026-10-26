@@ -284,7 +284,8 @@ class FinanceService {
       budgetLimit,
       accounts: enrichedAccounts,
       loans: enrichedLoans,
-      recentTransactions: (data.transactions || []).slice(0, 30)
+      recentTransactions: (data.transactions || []).slice(0, 30),
+      transactions: data.transactions || []
     };
   }
 
@@ -606,6 +607,34 @@ class FinanceService {
             return { isDuplicate: true };
           }
         } catch (_) {}
+      }
+    }
+
+    // CONTROL ESTRICTO ANTI-DUPLICADOS (Especialmente para correos automáticos):
+    if (tx.source === 'gmail_auto' || tx.source === 'auto') {
+      const isDuplicate = (data.transactions || []).some(existing => {
+        const sameAmount = Math.abs(Number(existing.amount) - Number(cleanAmount)) < 0.01;
+        const sameCurrency = (existing.currency || 'CRC').toUpperCase() === cleanCurrency;
+        const exMerch = (existing.merchant || existing.note || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+        const newMerch = (tx.merchant || tx.note || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+        const sameMerchant = exMerch.includes(newMerch) || newMerch.includes(exMerch) || (exMerch.includes('ampm') && newMerch.includes('ampm'));
+
+        let isRecent = false;
+        if (existing.date && cleanDate) {
+          try {
+            const diffHours = Math.abs(new Date(existing.date).getTime() - new Date(cleanDate).getTime()) / (1000 * 60 * 60);
+            if (diffHours <= 72) isRecent = true;
+          } catch (_) {}
+        } else {
+          isRecent = true;
+        }
+
+        return sameAmount && sameCurrency && sameMerchant && isRecent;
+      });
+
+      if (isDuplicate) {
+        console.warn(`[AntiDuplicate] Gasto rechazado en BD por duplicado: ${tx.merchant || tx.note} (${cleanCurrency} ${cleanAmount})`);
+        return null;
       }
     }
 

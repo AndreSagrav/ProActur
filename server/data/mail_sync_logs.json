@@ -1,7 +1,7 @@
 [
   {
-    "id": "log_1792966811216_sc62",
-    "timestamp": "2026-10-25T22:20:11.216Z",
+    "id": "log_1792936782903_orig",
+    "timestamp": "2026-10-25T13:59:42.903Z",
     "status": "recorded",
     "subject": "Notificación de transacción AM PM TRES RIOS",
     "amount": 2550,
@@ -9,6 +9,8 @@
     "accountName": "BAC Débito 0095",
     "accountId": "acc_1792898165250",
     "last4": "0095",
-    "type": "gasto"
+    "type": "gasto",
+    "txId": "tx_1792936782903",
+    "from": ""
   }
 ]
