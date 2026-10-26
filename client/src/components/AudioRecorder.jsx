@@ -111,6 +111,9 @@ export default function AudioRecorder({ onMeetingProcessed, onRecordingStatusCha
   const scriptNodeRef = useRef(null);
   const pcmBufferRef = useRef([]);
   const pcmSampleCountRef = useRef(0);
+  const silentAudioRef = useRef(null);
+  const wakeLockRef = useRef(null);
+  const startTimeRef = useRef(null);
 
   // Referencias mutables para evitar stale closures
   const stateRef = useRef({
@@ -645,9 +648,57 @@ export default function AudioRecorder({ onMeetingProcessed, onRecordingStatusCha
       setIsRecording(true);
       setRecordingTime(0);
 
+      // Calcular tiempo con reloj absoluto para que no se desincronice si la app pasa a segundo plano
+      startTimeRef.current = Date.now();
       timerRef.current = setInterval(() => {
-        setRecordingTime(prev => prev + 1);
+        if (startTimeRef.current) {
+          const elapsed = Math.floor((Date.now() - startTimeRef.current) / 1000);
+          setRecordingTime(elapsed);
+        }
       }, 1000);
+
+      // 1. Silent Audio Loop en elemento HTML5 (mantiene el proceso de audio del WebView vivo en Android en segundo plano)
+      try {
+        const silentBuffer = encodePcmToWav(new Float32Array(16000), 16000);
+        const silentBlob = new Blob([silentBuffer], { type: 'audio/wav' });
+        const silentUrl = URL.createObjectURL(silentBlob);
+        const audioEl = new Audio(silentUrl);
+        audioEl.loop = true;
+        audioEl.volume = 0.001;
+        audioEl.play().catch(() => {});
+        silentAudioRef.current = audioEl;
+      } catch (sErr) {
+        console.warn('[SilentAudio KeepAlive Warn]', sErr);
+      }
+
+      // 2. MediaSession API: informa a Android que hay audio activo y muestra notificación de sistema
+      try {
+        if ('mediaSession' in navigator) {
+          navigator.mediaSession.metadata = new MediaMetadata({
+            title: meetingTitle || 'ProActur AI - Grabando Reunión',
+            artist: 'Grabación activa en segundo plano',
+            album: 'ProActur AI'
+          });
+          navigator.mediaSession.playbackState = 'playing';
+        }
+      } catch (_) {}
+
+      // 3. Screen Wake Lock API
+      try {
+        if ('wakeLock' in navigator) {
+          navigator.wakeLock.request('screen').then(lock => {
+            wakeLockRef.current = lock;
+          }).catch(() => {});
+        }
+      } catch (_) {}
+
+      // Manejo de eventos de tracks para no abortar si el SO silencia temporalmente
+      stream.getAudioTracks().forEach(track => {
+        track.onended = () => console.warn('[AudioTrack] Track finalizado por el sistema');
+        track.onmute = () => console.warn('[AudioTrack] Micrófono silenciado temporalmente por el SO');
+        track.onunmute = () => console.log('[AudioTrack] Micrófono desilenciado por el SO');
+      });
+      mediaRecorder.onerror = (e) => console.warn('[MediaRecorder Error]', e);
 
       // Reconocimiento de voz nativo en paralelo
       recognitionRef.current = initSpeechRecognition();
@@ -724,6 +775,23 @@ export default function AudioRecorder({ onMeetingProcessed, onRecordingStatusCha
       if (recognitionRef.current) {
         try { recognitionRef.current.stop(); } catch (_) {}
       }
+      if (silentAudioRef.current) {
+        try {
+          silentAudioRef.current.pause();
+          silentAudioRef.current.src = '';
+        } catch (_) {}
+        silentAudioRef.current = null;
+      }
+      if (wakeLockRef.current) {
+        try { wakeLockRef.current.release(); } catch (_) {}
+        wakeLockRef.current = null;
+      }
+      try {
+        if ('mediaSession' in navigator) {
+          navigator.mediaSession.playbackState = 'none';
+        }
+      } catch (_) {}
+      startTimeRef.current = null;
       mediaRecorderRef.current.stop();
     }
 

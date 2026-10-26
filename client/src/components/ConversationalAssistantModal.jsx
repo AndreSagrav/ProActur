@@ -481,9 +481,12 @@ export default function ConversationalAssistantModal({
       setMessages(prev => [...prev, assistantMsg]);
       speakText(data.spokenReply || assistantReply);
 
-      // Si generó o actualizó un evento o trabajo de EDUS, refrescar
+      // Si generó o actualizó un evento o trabajo de EDUS, refrescar y activar panel de navegador
       if (data.action === 'EDUS_MONITORING') {
         loadEdusJobs();
+        setTimeout(checkBrowserStatus, 1200);
+        setTimeout(checkBrowserStatus, 3500);
+        setTimeout(checkBrowserStatus, 7000);
       }
       if (onRefreshData) onRefreshData();
 

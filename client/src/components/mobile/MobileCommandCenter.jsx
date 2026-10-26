@@ -382,7 +382,7 @@ export default function MobileCommandCenter({
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-2 shrink-0">
+                  <div className="flex items-center gap-1.5 shrink-0">
                     <span className={`text-[9px] px-2 py-0.5 rounded font-bold uppercase tracking-wider ${
                       t.priority === 'high'
                         ? 'bg-rose-500/20 text-rose-300 border border-rose-500/30'
@@ -395,9 +395,18 @@ export default function MobileCommandCenter({
                     <button
                       type="button"
                       onClick={(e) => { e.stopPropagation(); setEditingTask(t); }}
-                      className="p-1 text-slate-500 hover:text-slate-300 rounded"
+                      title="Editar tarea"
+                      className="p-1.5 text-slate-400 hover:text-indigo-300 active:scale-90 transition-all rounded-lg hover:bg-slate-800"
                     >
                       <Edit3 className="w-3.5 h-3.5" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={(e) => { e.stopPropagation(); handleDeleteTask(t.id); }}
+                      title="Eliminar tarea"
+                      className="p-1.5 text-slate-500 hover:text-rose-400 active:scale-90 transition-all rounded-lg hover:bg-rose-500/10"
+                    >
+                      <Trash2 className="w-3.5 h-3.5 text-rose-400" />
                     </button>
                   </div>
                 </div>

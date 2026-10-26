@@ -6,7 +6,7 @@
   "enabled": true,
   "autoRecord": true,
   "syncStartDate": "2026-10-25",
-  "lastSync": null,
+  "lastSync": "2026-10-26T01:28:23.750Z",
   "syncIntervalMinutes": 15,
   "appPasswordMasked": "••••••••••••••••"
 }
