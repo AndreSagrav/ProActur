@@ -50,7 +50,14 @@ class DobbyBrowserService {
   }
 
   /**
-   * Resuelve automáticamente el captcha de EDUS mediante visión IA (Gemini)
+   * Alias de launchEdusPortal
+   */
+  launchBrowser(opts) {
+    return this.launchEdusPortal(opts);
+  }
+
+  /**
+   * Resuelve automáticamente el captcha de EDUS mediante visión IA
    */
   async autoSolveCaptcha() {
     if (!this.activePage) {
@@ -58,7 +65,7 @@ class DobbyBrowserService {
     }
 
     try {
-      this._log('Dobby está analizando la imagen del Captcha con visión IA...');
+      this._log('Analizando la imagen del Captcha con visión IA...');
       const captchaSelector = '[id="formInicioSesion:captcha"]';
       await this.activePage.waitForSelector(captchaSelector, { timeout: 10000 });
       const captchaEl = await this.activePage.$(captchaSelector);
@@ -69,18 +76,25 @@ class DobbyBrowserService {
 
       const captchaBase64 = await captchaEl.screenshot({ encoding: 'base64' });
 
-      // Modelos candidatos en orden de preferencia
-      const models = ['gemini-3.6-flash', 'gemini-3.5-flash'];
+      // Modelos candidatos probados en orden de preferencia:
+      // gemini-3.5-flash-lite responde en <1s sin agotar cuota
+      const models = [
+        'gemini-3.5-flash-lite',
+        'gemini-3.8-flash',
+        'gemini-3.1-flash-lite',
+        'gemini-flash-lite-latest',
+        'gemini-3.6-flash',
+        'gemini-3.5-flash'
+      ];
       let solvedText = null;
 
       for (const m of models) {
         try {
-          const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent`;
+          const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent?key=${config.GEMINI_API_KEY}`;
           const response = await fetch(endpoint, {
             method: 'POST',
             headers: {
-              'Content-Type': 'application/json',
-              'x-goog-api-key': config.GEMINI_API_KEY
+              'Content-Type': 'application/json'
             },
             body: JSON.stringify({
               contents: [
@@ -93,7 +107,7 @@ class DobbyBrowserService {
                       }
                     },
                     {
-                      text: 'Extract and return ONLY the alphanumeric text inside this security captcha image. Do not output explanations, spaces, or symbols. Just the raw characters.'
+                      text: 'Extract and return ONLY the alphanumeric text inside this security captcha image. Do not output explanations, spaces, punctuation or extra words. Just the raw characters.'
                     }
                   ]
                 }
@@ -109,7 +123,7 @@ class DobbyBrowserService {
             const raw = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
             if (raw) {
               solvedText = raw.replace(/[^a-zA-Z0-9]/g, '');
-              if (solvedText) break;
+              if (solvedText && solvedText.length >= 3) break;
             }
           }
         } catch (mErr) {
@@ -121,7 +135,7 @@ class DobbyBrowserService {
         throw new Error('La IA no pudo decodificar el captcha con suficiente certeza');
       }
 
-      this._log(`Dobby descifró el captcha con éxito: ${solvedText}`);
+      this._log(`Descifré el captcha con éxito: ${solvedText}`);
       this.solvedCaptcha = solvedText;
 
       // Digitar automáticamente el código en el input
@@ -133,7 +147,7 @@ class DobbyBrowserService {
         if (el) el.value = '';
       }, inputSelector);
       await this.activePage.type(inputSelector, solvedText, { delay: 60 });
-      this._log(`Dobby digitó automáticamente "${solvedText}" en el campo de seguridad.`);
+      this._log(`Digité automáticamente "${solvedText}" en el campo de seguridad.`);
 
       return { success: true, code: solvedText };
     } catch (err) {
@@ -214,8 +228,8 @@ class DobbyBrowserService {
         status: this.currentStatus,
         solvedCaptcha: this.solvedCaptcha,
         message: captchaResult?.success
-          ? `Dobby abrió Chrome y descifró el captcha (${this.solvedCaptcha}) automáticamente.`
-          : 'Dobby abrió Chrome en pantalla.',
+          ? `Abrí Chrome y descifré el captcha (${this.solvedCaptcha}) automáticamente.`
+          : 'Abrí Chrome en tu pantalla.',
         screenshot: this.lastScreenshot,
         logs: this.lastLogs
       };
@@ -514,8 +528,13 @@ class DobbyBrowserService {
   async getStatus() {
     if (this.activePage) {
       try {
-        const buffer = await this.activePage.screenshot({ encoding: 'base64' });
-        this.lastScreenshot = `data:image/png;base64,${buffer}`;
+        const buffer = await Promise.race([
+          this.activePage.screenshot({ encoding: 'base64' }),
+          new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 2000))
+        ]);
+        if (buffer) {
+          this.lastScreenshot = `data:image/png;base64,${buffer}`;
+        }
       } catch (_) {}
     }
     return {

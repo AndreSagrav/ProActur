@@ -2,7 +2,8 @@ import React, { useState, useEffect, useRef } from 'react';
 import {
   Mic, MicOff, Send, X, Volume2, VolumeX, Sparkles,
   Calendar, Wallet, CheckSquare, Brain, Radio, ArrowDownRight,
-  ArrowUpRight, ShieldCheck, Clock, ExternalLink, Loader2, Globe, Eye, RefreshCw
+  ArrowUpRight, ShieldCheck, Clock, ExternalLink, Loader2, Globe, Eye, RefreshCw,
+  Maximize2, Minimize2
 } from 'lucide-react';
 
 const API = import.meta.env.VITE_API_URL || '';
@@ -41,6 +42,7 @@ export default function ConversationalAssistantModal({
   const [isLoopActive, setIsLoopActive] = useState(false);
   const [loopInfo, setLoopInfo] = useState({ attempts: 0, service: 'ODONTOLOGIA', targetDay: 'viernes' });
   const [isTranscribingAudio, setIsTranscribingAudio] = useState(false);
+  const [isBrowserExpanded, setIsBrowserExpanded] = useState(false);
 
   const messagesEndRef = useRef(null);
   const recognitionRef = useRef(null);
@@ -93,7 +95,7 @@ export default function ConversationalAssistantModal({
         });
         if (data.solvedCaptcha) {
           setCaptchaInput(data.solvedCaptcha);
-          speakText(`Chrome abierto en pantalla. Dobby descifró el código captcha ${data.solvedCaptcha} automáticamente.`);
+          speakText(`Chrome abierto en pantalla. Descifré el código captcha ${data.solvedCaptcha} automáticamente.`);
         } else {
           speakText('Chrome abierto en tu pantalla en el portal de EDUS.');
         }
@@ -115,7 +117,7 @@ export default function ConversationalAssistantModal({
       if (data.success && data.code) {
         setCaptchaInput(data.code);
         checkBrowserStatus();
-        speakText(`Dobby descifró el código: ${data.code}.`);
+        speakText(`Descifré el código: ${data.code}.`);
       } else {
         alert(data.error || 'No se pudo descifrar el captcha automáticamente.');
       }
@@ -166,7 +168,7 @@ export default function ConversationalAssistantModal({
       const data = await res.json();
       if (data.success) {
         setIsLoopActive(true);
-        speakText('Bucle de búsqueda iniciado. Dobby consultará cupos de odontología cada 60 segundos.');
+        speakText('Bucle de búsqueda iniciado. Consultaré cupos de odontología periódicamente.');
         checkBrowserStatus();
       } else {
         alert(data.error || 'No se pudo iniciar el bucle.');
@@ -248,9 +250,23 @@ export default function ConversationalAssistantModal({
     } catch (_) {}
   };
 
+  // Polling continuo en vivo para actualizar la pantalla de Chrome mientras el navegador esté activo
+  useEffect(() => {
+    let interval = null;
+    if (isOpen && browserSession.active) {
+      interval = setInterval(() => {
+        checkBrowserStatus();
+      }, 1500);
+    }
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [isOpen, browserSession.active]);
+
   useEffect(() => {
     if (isOpen) {
       loadEdusJobs();
+      checkBrowserStatus();
       scrollToBottom();
     } else {
       if (synthRef.current) synthRef.current.cancel();
@@ -594,7 +610,7 @@ export default function ConversationalAssistantModal({
 
         {/* PANEL DE CONTROL DEL NAVEGADOR EN VIVO (DOBBY WEB AGENT) */}
         {browserSession.active && (
-          <div className="p-3.5 mx-4 mt-2 rounded-2xl bg-slate-950 border border-sky-500/30 space-y-2.5 shadow-xl shrink-0 animate-fade-in">
+          <div className="p-3.5 mx-4 mt-2 rounded-2xl bg-slate-950 border border-sky-500/30 space-y-3 shadow-2xl shrink-0 animate-fade-in">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-ping" />
@@ -602,32 +618,50 @@ export default function ConversationalAssistantModal({
                   <Globe className="w-4 h-4 text-sky-400" />
                   Google Chrome En Pantalla • EDUS CCSS
                 </span>
+                <span className="px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 font-mono text-[10px] font-bold flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                  EN VIVO
+                </span>
                 {browserSession.solvedCaptcha && (
                   <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 border border-emerald-500/30 text-emerald-300 font-mono text-[10px] font-bold">
-                    Captcha IA: {browserSession.solvedCaptcha}
+                    Captcha: {browserSession.solvedCaptcha}
                   </span>
                 )}
               </div>
-              <button
-                type="button"
-                onClick={handleCloseBrowser}
-                className="text-[10px] text-rose-400 hover:text-rose-300 font-bold px-2 py-0.5 rounded bg-rose-500/10 border border-rose-500/20"
-              >
-                Cerrar Navegador
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setIsBrowserExpanded(prev => !prev)}
+                  className="text-[10px] text-sky-400 hover:text-sky-300 font-bold px-2 py-1 rounded-lg bg-sky-500/10 border border-sky-500/20 flex items-center gap-1 transition-all"
+                  title={isBrowserExpanded ? 'Reducir vista' : 'Ampliar pantalla'}
+                >
+                  {isBrowserExpanded ? <Minimize2 className="w-3 h-3" /> : <Maximize2 className="w-3 h-3" />}
+                  <span>{isBrowserExpanded ? 'Reducir' : 'Ampliar'}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={handleCloseBrowser}
+                  className="text-[10px] text-rose-400 hover:text-rose-300 font-bold px-2.5 py-1 rounded-lg bg-rose-500/10 border border-rose-500/20 transition-all"
+                >
+                  Cerrar Navegador
+                </button>
+              </div>
             </div>
 
-            {/* Captura en vivo reducida */}
+            {/* Vista en vivo ampliada y nítida sin recortes */}
             {browserSession.screenshot && (
-              <div className="rounded-xl overflow-hidden border border-white/10 max-h-36 bg-black relative group">
+              <div className={`rounded-xl overflow-hidden border border-white/10 bg-black relative group transition-all duration-300 flex items-center justify-center ${
+                isBrowserExpanded ? 'h-[440px] sm:h-[500px]' : 'h-64 sm:h-72'
+              }`}>
                 <img
                   src={browserSession.screenshot}
                   alt="Vista en vivo EDUS"
-                  className="w-full object-cover object-top opacity-90 group-hover:opacity-100 transition-opacity"
+                  className="w-full h-full object-contain bg-black"
                 />
-                <span className="absolute bottom-1.5 right-1.5 bg-black/80 text-[9px] text-sky-300 px-2 py-0.5 rounded-full border border-sky-500/30">
-                  Captura en Vivo
-                </span>
+                <div className="absolute top-2 right-2 flex items-center gap-1.5 bg-black/85 backdrop-blur-md px-2.5 py-1 rounded-full border border-sky-500/40 text-[10px] font-semibold text-sky-300 shadow-lg">
+                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                  <span>Transmisión en directo (1.5s)</span>
+                </div>
               </div>
             )}
 
@@ -637,7 +671,7 @@ export default function ConversationalAssistantModal({
                 type="text"
                 value={captchaInput}
                 onChange={(e) => setCaptchaInput(e.target.value)}
-                placeholder="Código captcha (resuelto por Dobby)..."
+                placeholder="Código captcha (resuelto con visión IA)..."
                 className="flex-1 bg-slate-900 border border-white/10 rounded-xl px-3 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-sky-500 font-mono tracking-wider uppercase"
               />
               <button
@@ -691,10 +725,10 @@ export default function ConversationalAssistantModal({
               </span>
             </div>
 
-            {/* Logs recientes de Dobby en vivo */}
+            {/* Logs recientes en vivo */}
             {browserSession.logs && browserSession.logs.length > 0 && (
-              <div className="bg-black/60 rounded-xl p-2 border border-white/5 space-y-1 font-mono text-[10px] text-slate-300 max-h-20 overflow-y-auto">
-                {browserSession.logs.slice(0, 3).map((l, i) => (
+              <div className="bg-black/60 rounded-xl p-2.5 border border-white/5 space-y-1 font-mono text-[10px] text-slate-300 max-h-24 overflow-y-auto">
+                {browserSession.logs.slice(0, 4).map((l, i) => (
                   <p key={i} className="truncate text-slate-400">
                     <span className="text-sky-400">›</span> {l}
                   </p>
@@ -703,7 +737,7 @@ export default function ConversationalAssistantModal({
             )}
 
             <p className="text-[10px] text-slate-400">
-              💡 Dobby gestiona Chrome en tu escritorio de forma autónoma: lee el captcha con visión IA, lo digita y mantiene tu sesión activa.
+              💡 Gestiono Chrome en tu pantalla: resuelvo el captcha con visión IA, lo digito y monitoreo cupos en vivo.
             </p>
           </div>
         )}
@@ -785,24 +819,7 @@ export default function ConversationalAssistantModal({
           <div ref={messagesEndRef} />
         </div>
 
-        {/* 4. Sugerencias Rápidas para el Directivo */}
-        <div className="px-4 py-2 border-t border-slate-800/60 bg-slate-950/30 flex items-center gap-1.5 overflow-x-auto scrollbar-none shrink-0">
-          {[
-            { label: '🩺 Cita EDUS (Viernes)', text: 'Monitorea la web de EDUS y sácame una cita para este viernes en la mañana' },
-            { label: '🍗 Promos KFC', text: 'Búscame en la web las mejores promociones de KFC' },
-            { label: '📅 ¿Agenda de hoy?', text: '¿Qué eventos y citas tengo programadas para hoy?' },
-            { label: '⛽ Gasto gasolina ₡15.000', text: 'Registra un gasto de 15000 colones en gasolina' }
-          ].map((chip, idx) => (
-            <button
-              key={idx}
-              type="button"
-              onClick={() => handleSendMessage(chip.text)}
-              className="px-2.5 py-1 rounded-full bg-slate-800/80 hover:bg-slate-700 border border-slate-700 text-slate-300 hover:text-white text-[11px] whitespace-nowrap transition-all active:scale-95"
-            >
-              {chip.label}
-            </button>
-          ))}
-        </div>
+
 
         {/* 5. Barra Inferior de Entrada (Voz Continua + Input de Texto) */}
         <form onSubmit={(e) => { e.preventDefault(); handleSendMessage(); }} className="p-3 sm:p-4 border-t border-slate-800 bg-slate-950/90 flex items-center gap-2 shrink-0">

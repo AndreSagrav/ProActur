@@ -1,5 +1,20 @@
 [
   {
+    "id": "edus_1792979558122",
+    "service": "EDUS_CCSS",
+    "specialty": "Odontología",
+    "patientName": "César Andrés",
+    "preferredDay": "viernes",
+    "timeSlot": "mañana",
+    "ebaisName": "EBAIS correspondiente",
+    "status": "programado",
+    "targetDate": "2026-10-30T12:00:00.000Z",
+    "directUrl": "https://edus.ccss.sa.cr/eduscitas/",
+    "lastChecked": "2026-10-26T01:52:38.122Z",
+    "notes": "Me convoco que me saque una cita en el odontólogo. Vaya y se mete y busca citas próximas. A ver si hay alguna disponible.",
+    "createdAt": "2026-10-26T01:52:38.122Z"
+  },
+  {
     "id": "edus_1792953423089",
     "service": "EDUS_CCSS",
     "patientName": "César Andrés",

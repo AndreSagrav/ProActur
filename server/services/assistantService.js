@@ -212,9 +212,9 @@ Estructura JSON requerida según acción:
         notes: originalCmd
       });
 
-      // Poner a Dobby a trabajar inmediatamente con el navegador en vivo
+      // Iniciar inmediatamente la búsqueda en vivo con Chrome en pantalla
       try {
-        dobyBrowserService.launchBrowser({ headless: false, autoSolve: true }).then(() => {
+        dobyBrowserService.launchEdusPortal({ headless: false, autoSolve: true }).then(() => {
           dobyBrowserService.startMonitoringLoop({
             service: isDental ? 'ODONTOLOGIA' : 'MEDICINA GENERAL',
             targetDay: preferredDay,
@@ -227,7 +227,7 @@ Estructura JSON requerida según acción:
 
       return {
         action: 'EDUS_MONITORING',
-        message: `Dobby está ejecutando la búsqueda de citas para ${specialty}. Abrió el portal oficial EDUS CCSS en pantalla, resolviendo el captcha de seguridad e iniciando la búsqueda activa de cupos.`,
+        message: `Inicié la búsqueda de citas para ${specialty}. Abrí el portal oficial de EDUS CCSS en pantalla, resolviendo el captcha de seguridad e iniciando la búsqueda activa de cupos.`,
         data: { ...job, browserStarted: true }
       };
     }
@@ -291,7 +291,7 @@ Estructura JSON requerida según acción:
       });
 
       try {
-        dobyBrowserService.launchBrowser({ headless: false, autoSolve: true }).then(() => {
+        dobyBrowserService.launchEdusPortal({ headless: false, autoSolve: true }).then(() => {
           dobyBrowserService.startMonitoringLoop({
             service: isDental ? 'ODONTOLOGIA' : 'MEDICINA GENERAL',
             targetDay: isFriday ? 'viernes' : 'lunes',
@@ -302,7 +302,7 @@ Estructura JSON requerida según acción:
 
       return {
         action: 'EDUS_MONITORING',
-        message: `Dobby está abriendo el portal de EDUS (CCSS) en vivo para monitorear citas de ${specialty}.`,
+        message: `Estoy abriendo el portal de EDUS CCSS en pantalla para monitorear citas de ${specialty}.`,
         data: { ...job, browserStarted: true }
       };
     }
@@ -480,7 +480,7 @@ Estructura JSON requerida según acción:
         naturalReply = `Anotado en tus tareas de alta prioridad. Te mantendré al tanto de su seguimiento.`;
       } else if (executedAction.action === 'EDUS_MONITORING') {
         const spec = executedAction.data?.specialty || 'Odontología';
-        naturalReply = `César, ya puse a Dobby a trabajar de inmediato. Inició el navegador en el portal de EDUS de la CCSS para ${spec}, descifró el captcha de seguridad con visión IA y está verificando cupos disponibles. Puedes ver el navegador en vivo aquí mismo.`;
+        naturalReply = `César, ya abrí el portal oficial de EDUS CCSS e inicié la búsqueda de citas para ${spec}. Estoy resolviendo el captcha de seguridad con visión IA y monitoreando los cupos disponibles en vivo. Puedes ver la pantalla aquí mismo.`;
       } else if (executedAction.action === 'SEARCH_PROMOS') {
         const p = executedAction.data?.promotions || [];
         naturalReply = `César, revisé las promociones de ${executedAction.data?.merchant || 'KFC'} en Costa Rica: la más prometedora es "${p[0]?.title || 'el Mega Box'}" (${p[0]?.description || ''}). ¿Quieres que te detalle los demás cupones o combos?`;
@@ -511,6 +511,7 @@ Estructura JSON requerida según acción:
         `Notas disponibles: ${allNotes.length}`;
 
       const systemPrompt = `Eres Dobby, el asistente ejecutivo personal de máxima confianza de César Andrés.
+Hablas SIEMPRE en primera persona ('inicié la búsqueda', 'registré el gasto', 'revisé la agenda'). TÚ ERES DOBBY, nunca te refieras a ti mismo en tercera persona ni digas que 'mandaste a Dobby' o 'pusiste a Dobby'.
 Hablas en español de Costa Rica/Latinoamérica con un tono completamente natural, humano, directo, educado y resolutivo.
 Tienes acceso completo en tiempo real a sus cuentas bancarias, deudas, reuniones, notas y tareas.
 NUNCA hables como un robot ni des introducciones genéricas ni bloques de código.
