@@ -212,11 +212,9 @@ class FinanceService {
 
     const creditAccounts = enrichedAccounts.filter(a => a.type === 'credito');
     const creditDebtCRC = creditAccounts
-      .filter(a => (a.currency || 'CRC').toUpperCase() === 'CRC')
-      .reduce((sum, a) => sum + (Number(a.balance) || 0), 0);
+      .reduce((sum, a) => sum + ((a.currency || 'CRC').toUpperCase() === 'CRC' ? (Number(a.balance) || 0) : 0), 0);
     const creditDebtUSD = creditAccounts
-      .filter(a => (a.currency || '').toUpperCase() === 'USD')
-      .reduce((sum, a) => sum + (Number(a.balance) || 0), 0);
+      .reduce((sum, a) => sum + (Number(a.debtUSD) || ((a.currency || '').toUpperCase() === 'USD' ? Number(a.balance) : 0) || 0), 0);
 
     const liquidAccountIds = new Set(enrichedAccounts.filter(a => a.type !== 'credito').map(a => a.id));
     const creditAccountIds = new Set(creditAccounts.map(a => a.id));

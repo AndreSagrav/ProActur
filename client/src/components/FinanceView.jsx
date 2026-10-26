@@ -830,7 +830,10 @@ export default function FinanceView() {
               </div>
               <div>
                 <span className="text-[10px] text-slate-400 block font-medium">Deuda Tarjetas</span>
-                <span className="font-bold text-rose-400 font-mono text-[11px]">₡{(financeData.creditDebt || 0).toLocaleString()}</span>
+                <span className="font-bold text-rose-400 font-mono text-[11px]">
+                  ₡{(financeData.creditDebt || financeData.creditDebtCRC || 0).toLocaleString()}
+                  {financeData.creditDebtUSD > 0 ? ` + $${Number(financeData.creditDebtUSD).toFixed(0)}` : ''}
+                </span>
               </div>
               <div>
                 <span className="text-[10px] text-slate-400 block font-medium">Gastos Mes</span>
@@ -863,21 +866,44 @@ export default function FinanceView() {
 
             <div className="p-6 rounded-3xl bg-slate-900/60 backdrop-blur-md border border-white/10 hover:border-white/20 transition-all shadow-sm">
               <span className="text-xs font-medium text-slate-400 block mb-2">Deuda en Tarjetas</span>
-              <div className="text-2xl md:text-3xl font-bold font-mono text-rose-400 tracking-tight">
-                ₡{(financeData.creditDebt || 0).toLocaleString()}
+              <div className="flex flex-wrap items-baseline gap-2">
+                <span className="text-2xl md:text-3xl font-bold font-mono text-rose-400 tracking-tight">
+                  ₡{(financeData.creditDebt || financeData.creditDebtCRC || 0).toLocaleString()}
+                </span>
+                {financeData.creditDebtUSD > 0 && (
+                  <span className="text-xs md:text-sm font-bold font-mono text-rose-300 bg-rose-500/10 px-2 py-0.5 rounded-lg border border-rose-500/20">
+                    + ${Number(financeData.creditDebtUSD).toFixed(2)} USD
+                  </span>
+                )}
               </div>
               <span className="text-xs text-rose-300/80 font-medium flex items-center gap-1.5 mt-2">
-                <AlertCircle className="w-3.5 h-3.5" /> Consumo acumulado
+                <AlertCircle className="w-3.5 h-3.5" /> Consumo acumulado en tarjetas
               </span>
             </div>
 
-            <div className="p-6 rounded-3xl bg-slate-900/60 backdrop-blur-md border border-white/10 hover:border-white/20 transition-all shadow-sm">
-              <span className="text-xs font-medium text-slate-400 block mb-2">Ingresos Registrados</span>
-              <div className="text-2xl md:text-3xl font-bold font-mono text-white tracking-tight">
-                ₡{(financeData.monthIncome || 0).toLocaleString()}
+            <div className="p-6 rounded-3xl bg-slate-900/60 backdrop-blur-md border border-white/10 hover:border-white/20 transition-all shadow-sm flex flex-col justify-between">
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-xs font-medium text-slate-400">Ingresos del Mes</span>
+                  <button
+                    onClick={() => {
+                      setNewTx(prev => ({ ...prev, type: 'ingreso', category: 'Honorarios Profesionales' }));
+                      setShowAddTxModal(true);
+                    }}
+                    className="text-[10px] font-bold text-emerald-400 hover:text-emerald-300 flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/20 transition-all"
+                    title="Registrar nuevo ingreso contable"
+                  >
+                    <Plus className="w-3 h-3" />
+                    <span>Registrar</span>
+                  </button>
+                </div>
+                <div className="text-2xl md:text-3xl font-bold font-mono text-white tracking-tight">
+                  ₡{(financeData.monthIncome || 0).toLocaleString()}
+                </div>
               </div>
               <span className="text-xs text-slate-400 font-medium flex items-center gap-1.5 mt-2">
-                <TrendingUp className="w-3.5 h-3.5 text-emerald-400" /> Depósitos y rendimientos
+                <TrendingUp className="w-3.5 h-3.5 text-emerald-400" />
+                {financeData.monthIncome > 0 ? 'Depósitos y rendimientos cobrados' : 'Sin ingresos registrados este mes'}
               </span>
             </div>
           </div>
