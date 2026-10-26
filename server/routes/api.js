@@ -1094,10 +1094,14 @@ router.post('/assistant/command', async (req, res) => {
 // Conversación Continua y Humana (Estilo Gemini Live)
 router.post('/assistant/chat', async (req, res) => {
   try {
-    const { message, history } = req.body || {};
+    const { message, history, userCedula, userClave } = req.body || {};
+    const finalCedula = userCedula || process.env.EDUS_CEDULA || '';
+    const finalClave = userClave || process.env.EDUS_CLAVE || '';
     const result = await assistantService.processConversationalChat({
       message: message || '',
-      history: history || []
+      history: history || [],
+      userCedula: finalCedula,
+      userClave: finalClave
     });
     res.json(result);
   } catch (err) {

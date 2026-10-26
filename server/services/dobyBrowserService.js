@@ -269,57 +269,79 @@ class DobbyBrowserService {
     }
 
     try {
+      const finalCedula = (userCedula || process.env.EDUS_CEDULA || '').trim();
+      const finalClave = userClave || process.env.EDUS_CLAVE || '';
+      let finalCaptcha = (captchaCode || this.solvedCaptcha || '').trim();
+
+      // Si no tenemos captcha aún, intentar resolverlo al instante
+      if (!finalCaptcha) {
+        this._log('Captcha no especificado, descifrándolo automáticamente...');
+        const auto = await this.autoSolveCaptcha();
+        if (auto?.success) {
+          finalCaptcha = auto.code;
+        }
+      }
+
       // 1. Digitar Cédula si fue provista
-      if (userCedula) {
-        this._log(`Digitando identificación: ${userCedula}`);
-        const userSelector = '[id="formInicioSesion:usuario"]';
-        await this.activePage.waitForSelector(userSelector, { timeout: 8000 });
-        await this.activePage.click(userSelector);
-        await this.activePage.evaluate((sel) => {
-          const el = document.querySelector(sel);
-          if (el) el.value = '';
-        }, userSelector);
-        await this.activePage.type(userSelector, userCedula.trim(), { delay: 40 });
+      if (finalCedula) {
+        this._log(`Digitando identificación: ${finalCedula}`);
+        await this.activePage.evaluate((val) => {
+          const input = document.querySelector('[id*="usuario"], [id="formInicioSesion:usuario"], input[type="text"]');
+          if (input) {
+            input.focus();
+            input.value = val;
+            input.dispatchEvent(new Event('input', { bubbles: true }));
+            input.dispatchEvent(new Event('change', { bubbles: true }));
+          }
+        }, finalCedula);
       }
 
       // 2. Digitar Clave si fue provista
-      if (userClave) {
+      if (finalClave) {
         this._log('Digitando clave de acceso...');
-        const claveSelector = '[id="formInicioSesion:clave"]';
-        await this.activePage.waitForSelector(claveSelector, { timeout: 8000 });
-        await this.activePage.click(claveSelector);
-        await this.activePage.evaluate((sel) => {
-          const el = document.querySelector(sel);
-          if (el) el.value = '';
-        }, claveSelector);
-        await this.activePage.type(claveSelector, userClave, { delay: 40 });
+        await this.activePage.evaluate((val) => {
+          const input = document.querySelector('[id*="clave"], [id="formInicioSesion:clave"], input[type="password"]');
+          if (input) {
+            input.focus();
+            input.value = val;
+            input.dispatchEvent(new Event('input', { bubbles: true }));
+            input.dispatchEvent(new Event('change', { bubbles: true }));
+          }
+        }, finalClave);
       }
 
       // 3. Digitar Captcha si fue provisto
-      if (captchaCode) {
-        this._log(`Digitando código de seguridad captcha: ${captchaCode}`);
-        const captchaSelector = '[id="formInicioSesion:captchaDigitado"]';
-        await this.activePage.waitForSelector(captchaSelector, { timeout: 8000 });
-        await this.activePage.click(captchaSelector);
-        await this.activePage.evaluate((sel) => {
-          const el = document.querySelector(sel);
-          if (el) el.value = '';
-        }, captchaSelector);
-        await this.activePage.type(captchaSelector, captchaCode.trim(), { delay: 50 });
+      if (finalCaptcha) {
+        this._log(`Digitando código de seguridad captcha: ${finalCaptcha}`);
+        await this.activePage.evaluate((val) => {
+          const input = document.querySelector('[id*="captchaDigitado"], [id="formInicioSesion:captchaDigitado"]');
+          if (input) {
+            input.focus();
+            input.value = val;
+            input.dispatchEvent(new Event('input', { bubbles: true }));
+            input.dispatchEvent(new Event('change', { bubbles: true }));
+          }
+        }, finalCaptcha);
       }
 
       // 4. Presionar botón "Ingresar"
       this._log('Haciendo clic en "Ingresar"...');
-      const btn = await this.activePage.$('[id="formInicioSesion:ejecutarPaso1"]');
-      if (btn) {
-        await Promise.all([
-          btn.click(),
-          this.activePage.waitForNavigation({ waitUntil: 'networkidle2', timeout: 20000 }).catch(() => {})
-        ]);
+      const clicked = await this.activePage.evaluate(() => {
+        const btn = document.querySelector('[id*="ejecutarPaso"], [id="formInicioSesion:ejecutarPaso1"], [id*="ingresar"], [id*="Ingresar"]') ||
+          Array.from(document.querySelectorAll('button, input[type="submit"], a')).find(el => (el.innerText || el.value || '').trim().toLowerCase() === 'ingresar');
+        if (btn) {
+          btn.click();
+          return true;
+        }
+        return false;
+      });
+
+      if (clicked) {
+        await this.activePage.waitForNavigation({ waitUntil: 'networkidle2', timeout: 15000 }).catch(() => {});
       }
 
       // 5. Breve pausa para estabilizar pantalla
-      await new Promise(r => setTimeout(r, 1500));
+      await new Promise(r => setTimeout(r, 2000));
 
       const buffer = await this.activePage.screenshot({ encoding: 'base64' });
       this.lastScreenshot = `data:image/png;base64,${buffer}`;

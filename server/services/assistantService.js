@@ -13,7 +13,7 @@ class AssistantService {
    * @param {string} command - Instrucción en lenguaje natural
    * @returns {Promise<{ action: string, message: string, data?: any }>}
    */
-  async processCommand(command) {
+  async processCommand(command, options = {}) {
     if (!command || !command.trim()) {
       return { action: 'NONE', message: 'Instrucción vacía recibida.' };
     }
@@ -41,7 +41,7 @@ class AssistantService {
     try {
       const parsed = await this.parseWithAI(cmd);
       if (parsed && parsed.action) {
-        return await this.executeAction(parsed, cmd);
+        return await this.executeAction(parsed, cmd, options);
       }
     } catch (err) {
       console.warn('[AssistantService AI Parse Warn]:', err.message);
@@ -132,7 +132,7 @@ Estructura JSON requerida según acción:
     return JSON.parse(cleaned);
   }
 
-  async executeAction(parsed, originalCmd) {
+  async executeAction(parsed, originalCmd, options = {}) {
     // A) CREAR EVENTO / AGENDA
     if (parsed.action === 'CREATE_EVENT' && parsed.event?.title) {
       const startTime = parsed.event.startTime || new Date(Date.now() + 86400000).toISOString();
@@ -212,23 +212,45 @@ Estructura JSON requerida según acción:
         notes: originalCmd
       });
 
-      // Iniciar inmediatamente la búsqueda en vivo con Chrome en pantalla
+      const userCedula = options.userCedula || process.env.EDUS_CEDULA || '';
+      const userClave = options.userClave || process.env.EDUS_CLAVE || '';
+      const hasCredentials = Boolean(userCedula && userClave);
+
+      // Iniciar navegación en vivo en pantalla visible
       try {
-        dobyBrowserService.launchEdusPortal({ headless: false, autoSolve: true }).then(() => {
-          dobyBrowserService.startMonitoringLoop({
-            service: isDental ? 'ODONTOLOGIA' : 'MEDICINA GENERAL',
-            targetDay: preferredDay,
-            intervalSeconds: 60
-          }).catch(() => {});
+        dobyBrowserService.launchEdusPortal({
+          headless: false,
+          userCedula,
+          userClave,
+          autoSolve: true
+        }).then(async (launchRes) => {
+          if (hasCredentials && launchRes?.solvedCaptcha) {
+            const loginRes = await dobyBrowserService.submitLogin({
+              userCedula,
+              userClave,
+              captchaCode: launchRes.solvedCaptcha
+            });
+            if (loginRes?.success) {
+              await dobyBrowserService.startMonitoringLoop({
+                service: isDental ? 'ODONTOLOGIA' : 'MEDICINA GENERAL',
+                targetDay: preferredDay,
+                intervalSeconds: 60
+              });
+            }
+          }
         }).catch(err => {
           console.warn('[DobbyBrowser AutoLaunch Warn]:', err.message);
         });
       } catch (_) {}
 
+      const replyMsg = hasCredentials
+        ? `Inicié la búsqueda de citas para ${specialty}. Abrí el portal oficial de EDUS CCSS en pantalla, resolviendo el captcha de seguridad e iniciando la sesión de forma autónoma.`
+        : `Abrí el portal oficial de EDUS CCSS en pantalla y resolví el captcha de seguridad. Para ingresar de forma inmediata, digita tu cédula y clave en el panel superior y pulsa Iniciar Sesión.`;
+
       return {
         action: 'EDUS_MONITORING',
-        message: `Inicié la búsqueda de citas para ${specialty}. Abrí el portal oficial de EDUS CCSS en pantalla, resolviendo el captcha de seguridad e iniciando la búsqueda activa de cupos.`,
-        data: { ...job, browserStarted: true }
+        message: replyMsg,
+        data: { ...job, browserStarted: true, hasCredentials, specialty }
       };
     }
 
@@ -448,9 +470,9 @@ Estructura JSON requerida según acción:
 
   /**
    * Conversación Humana y Fluida Bidireccional (Estilo Gemini Live)
-   * @param {{ message: string, history?: Array<{ role: 'user' | 'assistant', text: string }> }}
+   * @param {{ message: string, history?: Array<{ role: 'user' | 'assistant', text: string }>, userCedula?: string, userClave?: string }}
    */
-  async processConversationalChat({ message, history = [] }) {
+  async processConversationalChat({ message, history = [], userCedula = '', userClave = '' }) {
     if (!message || !message.trim()) {
       return {
         reply: 'Hola César, aquí estoy atento. ¿En qué te colaboro hoy?',
@@ -464,7 +486,7 @@ Estructura JSON requerida según acción:
     // 1. Ejecutar análisis de acción en segundo plano
     let executedAction = null;
     try {
-      executedAction = await this.processCommand(message);
+      executedAction = await this.processCommand(message, { userCedula, userClave });
     } catch (e) {
       console.warn('[ConversationalChat Action Warn]:', e.message);
     }
@@ -480,7 +502,11 @@ Estructura JSON requerida según acción:
         naturalReply = `Anotado en tus tareas de alta prioridad. Te mantendré al tanto de su seguimiento.`;
       } else if (executedAction.action === 'EDUS_MONITORING') {
         const spec = executedAction.data?.specialty || 'Odontología';
-        naturalReply = `César, ya abrí el portal oficial de EDUS CCSS e inicié la búsqueda de citas para ${spec}. Estoy resolviendo el captcha de seguridad con visión IA y monitoreando los cupos disponibles en vivo. Puedes ver la pantalla aquí mismo.`;
+        if (executedAction.data?.hasCredentials) {
+          naturalReply = `César, ya abrí el portal oficial de EDUS CCSS, descifré el captcha e inicié sesión con tus credenciales. Ahora estoy monitoreando cupos disponibles de ${spec} en vivo para el viernes. Puedes ver todo el movimiento en la pantalla.`;
+        } else {
+          naturalReply = `César, ya abrí el portal de EDUS en pantalla y descifré el código de seguridad. Para que pueda ingresar de inmediato a buscar citas de ${spec}, por favor digita tu cédula y clave en el panel superior y presiona Iniciar Sesión.`;
+        }
       } else if (executedAction.action === 'SEARCH_PROMOS') {
         const p = executedAction.data?.promotions || [];
         naturalReply = `César, revisé las promociones de ${executedAction.data?.merchant || 'KFC'} en Costa Rica: la más prometedora es "${p[0]?.title || 'el Mega Box'}" (${p[0]?.description || ''}). ¿Quieres que te detalle los demás cupones o combos?`;
