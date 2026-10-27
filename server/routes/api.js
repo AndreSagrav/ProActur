@@ -1241,14 +1241,50 @@ const handleGetStatus = async (req, res) => {
 router.get('/assistant/dobby-browser/status', handleGetStatus);
 router.get('/assistant/doby-browser/status', handleGetStatus);
 
+const handleConnectDobby = async (req, res) => {
+  try {
+    const { port } = req.body || {};
+    const result = await dobyBrowserService.connectToExistingChrome({ port: Number(port) || 9222 });
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
+router.post('/assistant/dobby-browser/connect', handleConnectDobby);
+router.post('/assistant/doby-browser/connect', handleConnectDobby);
+
+const handleBookDobby = async (req, res) => {
+  try {
+    const { targetDay } = req.body || {};
+    const result = await dobyBrowserService.bookFirstAvailableAppointment(targetDay);
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
+router.post('/assistant/dobby-browser/book', handleBookDobby);
+router.post('/assistant/doby-browser/book', handleBookDobby);
+
+const handleCloseDobby = async (req, res) => {
+  try {
+    const result = await dobyBrowserService.close();
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
+router.post('/assistant/dobby-browser/close', handleCloseDobby);
+router.post('/assistant/doby-browser/close', handleCloseDobby);
+
 const handleStartLoop = async (req, res) => {
   try {
-    const { service, specialty, targetDay, intervalSeconds } = req.body || {};
+    const { service, specialty, targetDay, intervalSeconds, autoBook } = req.body || {};
     const result = dobyBrowserService.startMonitoringLoop({
       service: service || 'ODONTOLOGIA',
       specialty: specialty || 'ODONTOLOGIA GENERAL',
-      targetDay: targetDay || 'viernes',
-      intervalSeconds: Number(intervalSeconds) || 60
+      targetDay: targetDay || null,
+      intervalSeconds: Number(intervalSeconds) || 5,
+      autoBook: autoBook !== false
     });
     res.json(result);
   } catch (err) {

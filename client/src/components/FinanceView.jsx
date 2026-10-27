@@ -103,7 +103,11 @@ export default function FinanceView() {
     note: '',
     amount: '',
     currency: 'CRC',
-    date: new Date().toISOString().slice(0, 10)
+    date: new Date().toISOString().slice(0, 10),
+    isSinpe: false,
+    sinpeContact: '',
+    sinpePhone: '',
+    sinpeDetail: ''
   });
 
   // Formulario Cuenta
@@ -209,29 +213,73 @@ export default function FinanceView() {
   }, []);
 
   // Transacciones
+  const handleOpenAddTxModal = (defaultType = 'gasto', isSinpe = false) => {
+    const defaultAcc = financeData.accounts?.find(a => a.type === 'debito') || financeData.accounts?.[0];
+    setNewTx({
+      accountId: defaultAcc?.id || '',
+      type: defaultType,
+      category: isSinpe 
+        ? (defaultType === 'ingreso' ? 'Transferencias Recibidas' : 'Varios')
+        : (defaultType === 'ingreso' ? 'Honorarios Profesionales' : 'Gasolina y Transporte'),
+      note: '',
+      amount: '',
+      currency: 'CRC',
+      date: new Date().toISOString().slice(0, 10),
+      isSinpe: isSinpe,
+      sinpeContact: '',
+      sinpePhone: '',
+      sinpeDetail: ''
+    });
+    setShowAddTxModal(true);
+  };
+
+  const handleOpenSinpeModal = (defaultType = 'gasto') => {
+    handleOpenAddTxModal(defaultType, true);
+  };
+
   const handleCreateTx = async (e) => {
     e.preventDefault();
     const amountVal = parseFloat(newTx.amount);
     if (!amountVal || isNaN(amountVal)) return;
 
+    let finalNote = newTx.note.trim();
+    if (newTx.isSinpe) {
+      const contactInfo = [newTx.sinpeContact, newTx.sinpePhone].filter(Boolean).join(' - ');
+      const prefix = newTx.type === 'ingreso' ? 'SINPE Recibido' : 'SINPE Enviado';
+      const who = contactInfo ? ` (${contactInfo})` : '';
+      const detail = newTx.sinpeDetail ? newTx.sinpeDetail.trim() : (finalNote || 'Transferencia SINPE');
+      finalNote = `${prefix}${who}: ${detail}`;
+    }
+
     try {
       const res = await fetch(`${API}/api/finance/transactions`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...newTx, amount: amountVal })
+        body: JSON.stringify({
+          ...newTx,
+          amount: amountVal,
+          note: finalNote,
+          merchant: newTx.sinpeContact || '',
+          source: newTx.isSinpe ? 'sinpe_manual' : 'manual'
+        })
       });
 
       if (res.ok) {
         setShowAddTxModal(false);
         playExecutiveSound('success');
+        const defaultAcc = financeData.accounts?.find(a => a.type === 'debito') || financeData.accounts?.[0];
         setNewTx({
-          accountId: financeData.accounts[0]?.id || '',
+          accountId: defaultAcc?.id || '',
           type: 'gasto',
           category: 'Gasolina y Transporte',
           note: '',
           amount: '',
           currency: 'CRC',
-          date: new Date().toISOString().slice(0, 10)
+          date: new Date().toISOString().slice(0, 10),
+          isSinpe: false,
+          sinpeContact: '',
+          sinpePhone: '',
+          sinpeDetail: ''
         });
         fetchFinanceData();
       }
@@ -722,10 +770,18 @@ export default function FinanceView() {
             </div>
           </div>
 
-          <div className="flex items-center gap-2.5 shrink-0 self-start sm:self-auto">
+          <div className="flex items-center gap-2.5 shrink-0 self-start sm:self-auto flex-wrap">
+            <button
+              onClick={() => handleOpenSinpeModal('gasto')}
+              className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-gradient-to-r from-emerald-600 via-teal-600 to-cyan-600 text-white text-xs font-bold hover:from-emerald-500 hover:to-cyan-500 transition-all shadow-md shadow-emerald-600/25 border border-emerald-400/30 active:scale-95"
+              title="Registrar transferencia inmediata SINPE Móvil (Wink, BAC, Popular, etc.)"
+            >
+              <span className="text-sm">📲</span>
+              <span>Registrar SINPE</span>
+            </button>
             <button
               onClick={() => handleOpenAddTxModal()}
-              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-r from-sky-600 to-indigo-600 text-white text-xs font-semibold hover:from-sky-500 hover:to-indigo-500 transition-all shadow-md shadow-sky-600/25 active:scale-95"
+              className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-gradient-to-r from-sky-600 to-indigo-600 text-white text-xs font-semibold hover:from-sky-500 hover:to-indigo-500 transition-all shadow-md shadow-sky-600/25 active:scale-95"
             >
               <Plus className="w-4 h-4" />
               <span>Nuevo Movimiento</span>
@@ -3227,90 +3283,266 @@ export default function FinanceView() {
       )}
 
       {/* ======================================================== */}
-      {/* MODAL: NUEVA TRANSACCIÓN MANUAL                         */}
+      {/* MODAL: MOVIMIENTO FINANCIERO Y SINPE MÓVIL (COSTA RICA) */}
       {/* ======================================================== */}
       {showAddTxModal && (
         <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
-          <div className="w-full max-w-md rounded-3xl bg-slate-900 border border-white/15 p-7 space-y-5 shadow-2xl">
+          <div className="w-full max-w-lg rounded-3xl bg-slate-900 border border-white/15 p-6 sm:p-7 space-y-5 shadow-2xl max-h-[92vh] overflow-y-auto">
             <div className="flex items-center justify-between border-b border-white/10 pb-4">
-              <h3 className="font-bold text-white text-base">
-                Registrar Movimiento
-              </h3>
+              <div className="flex items-center gap-2.5">
+                <span className="text-xl">
+                  {newTx.isSinpe ? '📲' : '💳'}
+                </span>
+                <div>
+                  <h3 className="font-bold text-white text-base leading-tight">
+                    {newTx.isSinpe ? 'Registrar Transferencia SINPE Móvil' : 'Registrar Movimiento Financiero'}
+                  </h3>
+                  <p className="text-[11px] text-slate-400">
+                    {newTx.isSinpe ? 'Conciliación directa e inmediata para Costa Rica' : 'Registro contable manual en cuenta o tarjeta'}
+                  </p>
+                </div>
+              </div>
               <button
                 onClick={() => setShowAddTxModal(false)}
-                className="p-1.5 rounded-lg text-slate-400 hover:text-white"
+                className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-white/10 transition-colors"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
 
+            {/* SELECTOR DE MODO: GENERAL vs SINPE MÓVIL */}
+            <div className="grid grid-cols-2 gap-2 p-1 bg-slate-950/80 rounded-2xl border border-white/10">
+              <button
+                type="button"
+                onClick={() => setNewTx(prev => ({
+                  ...prev,
+                  isSinpe: false,
+                  category: prev.type === 'ingreso' ? 'Honorarios Profesionales' : 'Gasolina y Transporte'
+                }))}
+                className={`flex items-center justify-center gap-2 py-2 rounded-xl text-xs font-semibold transition-all ${
+                  !newTx.isSinpe
+                    ? 'bg-gradient-to-r from-sky-600 to-indigo-600 text-white shadow-md font-bold'
+                    : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                <CreditCard className="w-3.5 h-3.5" />
+                <span>General / Tarjeta</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setNewTx(prev => ({
+                  ...prev,
+                  isSinpe: true,
+                  currency: 'CRC',
+                  category: prev.type === 'ingreso' ? 'Transferencias Recibidas' : 'Varios'
+                }))}
+                className={`flex items-center justify-center gap-2 py-2 rounded-xl text-xs font-semibold transition-all ${
+                  newTx.isSinpe
+                    ? 'bg-gradient-to-r from-emerald-600 via-teal-600 to-cyan-600 text-white shadow-md font-bold border border-emerald-400/40'
+                    : 'text-slate-400 hover:text-emerald-400'
+                }`}
+              >
+                <span className="text-sm">📲</span>
+                <span>SINPE Móvil</span>
+              </button>
+            </div>
+
             <form onSubmit={handleCreateTx} className="space-y-4 text-xs">
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-slate-300 block mb-1.5 font-medium">Tipo</label>
-                  <select
-                    value={newTx.type}
-                    onChange={(e) => setNewTx(prev => ({ ...prev, type: e.target.value, category: CATEGORIES[e.target.value][0] }))}
-                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-white/10 text-white"
-                  >
-                    <option value="gasto">Gasto (Débito, Tarjeta o Efectivo)</option>
-                    <option value="ingreso">Ingreso (Abono o Depósito)</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="text-slate-300 block mb-1.5 font-medium">Cuenta / Recurso</label>
-                  <select
-                    value={newTx.accountId}
-                    onChange={(e) => setNewTx(prev => ({ ...prev, accountId: e.target.value }))}
-                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-white/10 text-white"
-                  >
-                    {(financeData.accounts || []).map(acc => (
-                      <option key={acc.id} value={acc.id}>
-                        {acc.name} ({acc.type === 'efectivo' ? 'Efectivo' : acc.entity})
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
+              {/* MODO SINPE MÓVIL ESPECÍFICO */}
+              {newTx.isSinpe ? (
+                <>
+                  {/* SENTIDO DEL SINPE */}
+                  <div>
+                    <label className="text-slate-300 block mb-1.5 font-medium">Dirección de la Transferencia</label>
+                    <div className="grid grid-cols-2 gap-2.5">
+                      <button
+                        type="button"
+                        onClick={() => setNewTx(prev => ({ ...prev, type: 'gasto', category: 'Varios' }))}
+                        className={`p-3 rounded-2xl border flex items-center justify-center gap-2 transition-all font-semibold ${
+                          newTx.type === 'gasto'
+                            ? 'bg-rose-950/40 border-rose-500/50 text-rose-300 shadow-md ring-1 ring-rose-500/30'
+                            : 'bg-slate-950/60 border-white/5 text-slate-400 hover:text-slate-200'
+                        }`}
+                      >
+                        <ArrowDownRight className="w-4 h-4 text-rose-400" />
+                        <span>SINPE Enviado (Gasto)</span>
+                      </button>
 
-              <div>
-                <label className="text-slate-300 block mb-1.5 font-medium">Categoría</label>
-                <select
-                  value={newTx.category}
-                  onChange={(e) => setNewTx(prev => ({ ...prev, category: e.target.value }))}
-                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-white/10 text-white"
-                >
-                  {(CATEGORIES[newTx.type] || []).map(cat => (
-                    <option key={cat} value={cat}>{cat}</option>
-                  ))}
-                </select>
-              </div>
+                      <button
+                        type="button"
+                        onClick={() => setNewTx(prev => ({ ...prev, type: 'ingreso', category: 'Transferencias Recibidas' }))}
+                        className={`p-3 rounded-2xl border flex items-center justify-center gap-2 transition-all font-semibold ${
+                          newTx.type === 'ingreso'
+                            ? 'bg-emerald-950/40 border-emerald-500/50 text-emerald-300 shadow-md ring-1 ring-emerald-500/30'
+                            : 'bg-slate-950/60 border-white/5 text-slate-400 hover:text-slate-200'
+                        }`}
+                      >
+                        <ArrowUpRight className="w-4 h-4 text-emerald-400" />
+                        <span>SINPE Recibido (Ingreso)</span>
+                      </button>
+                    </div>
+                  </div>
 
-              <div>
-                <label className="text-slate-300 block mb-1.5 font-medium">Concepto o Comercio</label>
-                <input
-                  type="text"
-                  required
-                  value={newTx.note}
-                  onChange={(e) => setNewTx(prev => ({ ...prev, note: e.target.value }))}
-                  placeholder="ej. Súper, Gasolina, Pago de Servicios"
-                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-white/10 text-white"
-                />
-              </div>
+                  {/* CUENTA BANCARIA DE SALIDA / ENTRADA */}
+                  <div>
+                    <label className="text-slate-300 block mb-1.5 font-medium">Cuenta Bancaria (Costa Rica)</label>
+                    <select
+                      value={newTx.accountId}
+                      onChange={(e) => setNewTx(prev => ({ ...prev, accountId: e.target.value }))}
+                      className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-white/10 text-white font-medium focus:border-emerald-500"
+                    >
+                      {(financeData.accounts || []).map(acc => (
+                        <option key={acc.id} value={acc.id}>
+                          {acc.name} — {acc.entity} ({acc.type === 'credito' ? 'Crédito' : (acc.type === 'efectivo' ? 'Efectivo' : 'Débito')})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-slate-300 block mb-1.5 font-medium">Monto</label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    required
-                    value={newTx.amount}
-                    onChange={(e) => setNewTx(prev => ({ ...prev, amount: e.target.value }))}
-                    placeholder="0.00"
-                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-white/10 text-white font-mono"
-                  />
+                  {/* CONTACTO / TELÉFONO */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-slate-300 block mb-1.5 font-medium">
+                        {newTx.type === 'ingreso' ? 'Remitente / Persona que pagó' : 'Destinatario / Persona a pagar'}
+                      </label>
+                      <input
+                        type="text"
+                        value={newTx.sinpeContact}
+                        onChange={(e) => setNewTx(prev => ({ ...prev, sinpeContact: e.target.value }))}
+                        placeholder="ej. Juan Pérez, Soda, Taller"
+                        className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-white/10 text-white focus:border-emerald-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-slate-300 block mb-1.5 font-medium">Teléfono SINPE (opcional)</label>
+                      <input
+                        type="text"
+                        value={newTx.sinpePhone}
+                        onChange={(e) => setNewTx(prev => ({ ...prev, sinpePhone: e.target.value }))}
+                        placeholder="ej. 8888-8888"
+                        className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-white/10 text-white font-mono focus:border-emerald-500"
+                      />
+                    </div>
+                  </div>
+
+                  {/* DETALLE O MOTIVO */}
+                  <div>
+                    <label className="text-slate-300 block mb-1.5 font-medium">Motivo o Pase de SINPE</label>
+                    <input
+                      type="text"
+                      required
+                      value={newTx.sinpeDetail}
+                      onChange={(e) => setNewTx(prev => ({ ...prev, sinpeDetail: e.target.value, note: e.target.value }))}
+                      placeholder="ej. Almuerzo, Gasolina, Cuota compartida, Pago freelance"
+                      className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-white/10 text-white focus:border-emerald-500"
+                    />
+                  </div>
+                </>
+              ) : (
+                /* MODO ESTÁNDAR / GENERAL */
+                <>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-slate-300 block mb-1.5 font-medium">Tipo</label>
+                      <select
+                        value={newTx.type}
+                        onChange={(e) => setNewTx(prev => ({ ...prev, type: e.target.value, category: CATEGORIES[e.target.value][0] }))}
+                        className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-white/10 text-white"
+                      >
+                        <option value="gasto">Gasto (Débito, Tarjeta o Efectivo)</option>
+                        <option value="ingreso">Ingreso (Abono o Depósito)</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="text-slate-300 block mb-1.5 font-medium">Cuenta / Recurso</label>
+                      <select
+                        value={newTx.accountId}
+                        onChange={(e) => setNewTx(prev => ({ ...prev, accountId: e.target.value }))}
+                        className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-white/10 text-white"
+                      >
+                        {(financeData.accounts || []).map(acc => (
+                          <option key={acc.id} value={acc.id}>
+                            {acc.name} ({acc.type === 'efectivo' ? 'Efectivo' : acc.entity})
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="text-slate-300 block mb-1.5 font-medium">Categoría</label>
+                    <select
+                      value={newTx.category}
+                      onChange={(e) => setNewTx(prev => ({ ...prev, category: e.target.value }))}
+                      className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-white/10 text-white"
+                    >
+                      {(CATEGORIES[newTx.type] || []).map(cat => (
+                        <option key={cat} value={cat}>{cat}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="text-slate-300 block mb-1.5 font-medium">Concepto o Comercio</label>
+                    <input
+                      type="text"
+                      required
+                      value={newTx.note}
+                      onChange={(e) => setNewTx(prev => ({ ...prev, note: e.target.value }))}
+                      placeholder="ej. Súper, Gasolina, Pago de Servicios"
+                      className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-white/10 text-white"
+                    />
+                  </div>
+                </>
+              )}
+
+              {/* MONTO, DIVISA Y FECHA (COMÚN A AMBOS MODOS) */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className="sm:col-span-2">
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="text-slate-300 font-medium">Monto</label>
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => setNewTx(prev => ({ ...prev, currency: 'CRC' }))}
+                        className={`px-2 py-0.5 rounded text-[10px] font-bold transition-all ${
+                          newTx.currency === 'CRC'
+                            ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
+                            : 'text-slate-400 hover:text-white'
+                        }`}
+                      >
+                        CRC (₡)
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setNewTx(prev => ({ ...prev, currency: 'USD' }))}
+                        className={`px-2 py-0.5 rounded text-[10px] font-bold transition-all ${
+                          newTx.currency === 'USD'
+                            ? 'bg-sky-500/20 text-sky-300 border border-sky-500/40'
+                            : 'text-slate-400 hover:text-white'
+                        }`}
+                      >
+                        USD ($)
+                      </button>
+                    </div>
+                  </div>
+                  <div className="relative">
+                    <span className="absolute left-3.5 top-2.5 text-slate-400 font-mono font-bold text-sm">
+                      {newTx.currency === 'USD' ? '$' : '₡'}
+                    </span>
+                    <input
+                      type="number"
+                      step="0.01"
+                      required
+                      value={newTx.amount}
+                      onChange={(e) => setNewTx(prev => ({ ...prev, amount: e.target.value }))}
+                      placeholder={newTx.currency === 'USD' ? '0.00' : '0'}
+                      className="w-full pl-8 pr-3.5 py-2.5 rounded-xl bg-slate-950 border border-white/10 text-white font-mono text-base font-bold focus:border-emerald-500"
+                    />
+                  </div>
                 </div>
+
                 <div>
                   <label className="text-slate-300 block mb-1.5 font-medium">Fecha</label>
                   <input
@@ -3318,24 +3550,36 @@ export default function FinanceView() {
                     required
                     value={newTx.date}
                     onChange={(e) => setNewTx(prev => ({ ...prev, date: e.target.value }))}
-                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-white/10 text-white"
+                    className="w-full px-3 py-2.5 rounded-xl bg-slate-950 border border-white/10 text-white"
                   />
                 </div>
               </div>
 
+              {/* BOTONES DE ACCIÓN */}
               <div className="pt-3 flex gap-3">
                 <button
                   type="button"
                   onClick={() => setShowAddTxModal(false)}
-                  className="flex-1 py-2.5 rounded-xl bg-slate-800 border border-white/10 text-slate-400 hover:text-white"
+                  className="flex-1 py-2.5 rounded-xl bg-slate-800 border border-white/10 text-slate-400 hover:text-white transition-colors"
                 >
                   Cancelar
                 </button>
                 <button
                   type="submit"
-                  className="flex-1 py-2.5 rounded-xl bg-gradient-to-r from-sky-600 to-indigo-600 text-white font-semibold hover:from-sky-500 hover:to-indigo-500 transition-all shadow-md shadow-sky-600/25"
+                  className={`flex-1 py-2.5 rounded-xl text-white font-bold transition-all shadow-md active:scale-95 flex items-center justify-center gap-2 ${
+                    newTx.isSinpe
+                      ? 'bg-gradient-to-r from-emerald-600 via-teal-600 to-cyan-600 hover:from-emerald-500 hover:to-cyan-500 shadow-emerald-600/30'
+                      : 'bg-gradient-to-r from-sky-600 to-indigo-600 hover:from-sky-500 hover:to-indigo-500 shadow-sky-600/25'
+                  }`}
                 >
-                  Registrar Movimiento
+                  {newTx.isSinpe ? (
+                    <>
+                      <span>📲</span>
+                      <span>Registrar SINPE Móvil</span>
+                    </>
+                  ) : (
+                    <span>Registrar Movimiento</span>
+                  )}
                 </button>
               </div>
             </form>

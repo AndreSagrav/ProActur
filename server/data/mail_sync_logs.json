@@ -1,5 +1,47 @@
 [
   {
+    "id": "log_1793054561559_dfan",
+    "timestamp": "2026-10-26T22:42:41.559Z",
+    "status": "recorded",
+    "subject": "Notificación de transacción",
+    "amount": 2000,
+    "currency": "CRC",
+    "accountName": "Banco Popular 5330",
+    "accountId": "acc_1792898165885",
+    "last4": "5330",
+    "type": "gasto",
+    "txId": "tx_1793054561325",
+    "from": ""
+  },
+  {
+    "id": "log_1793054560757_tadf",
+    "timestamp": "2026-10-26T22:42:40.757Z",
+    "status": "recorded",
+    "subject": "Notificación de transacción",
+    "amount": 550,
+    "currency": "CRC",
+    "accountName": "Banco Popular 5330",
+    "accountId": "acc_1792898165885",
+    "last4": "5330",
+    "type": "gasto",
+    "txId": "tx_1793054560462",
+    "from": ""
+  },
+  {
+    "id": "log_1793049566847_1vb2",
+    "timestamp": "2026-10-26T21:19:26.847Z",
+    "status": "recorded",
+    "subject": "Notificación de transacción MINI",
+    "amount": 2200,
+    "currency": "CRC",
+    "accountName": "BAC Débito 0095",
+    "accountId": "acc_1792898165250",
+    "last4": "0095",
+    "type": "gasto",
+    "txId": "tx_1793049566528",
+    "from": ""
+  },
+  {
     "id": "log_1792936782903_orig",
     "timestamp": "2026-10-25T13:59:42.903Z",
     "status": "recorded",

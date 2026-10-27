@@ -3,7 +3,7 @@ import {
   Mic, MicOff, Send, X, Volume2, VolumeX, Sparkles,
   Calendar, Wallet, CheckSquare, Brain, Radio, ArrowDownRight,
   ArrowUpRight, ShieldCheck, Clock, ExternalLink, Loader2, Globe, Eye, RefreshCw,
-  Maximize2, Minimize2, MessageSquare
+  Maximize2, Minimize2, MessageSquare, CheckCircle2, Link2, Zap
 } from 'lucide-react';
 
 const API = import.meta.env.VITE_API_URL || '';
@@ -38,8 +38,10 @@ export default function ConversationalAssistantModal({
   });
   const [captchaInput, setCaptchaInput] = useState('');
   const [isLaunchingBrowser, setIsLaunchingBrowser] = useState(false);
+  const [isConnectingChrome, setIsConnectingChrome] = useState(false);
   const [isSolvingCaptcha, setIsSolvingCaptcha] = useState(false);
   const [isLoopActive, setIsLoopActive] = useState(false);
+  const [turboMode, setTurboMode] = useState(true);
   const [loopInfo, setLoopInfo] = useState({ attempts: 0, service: 'ODONTOLOGIA', targetDay: 'viernes' });
   const [isTranscribingAudio, setIsTranscribingAudio] = useState(false);
   const [isBrowserExpanded, setIsBrowserExpanded] = useState(false);
@@ -139,17 +141,16 @@ export default function ConversationalAssistantModal({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           userCedula: edusCedula.trim(),
-          userClave: edusClave,
-          captchaCode: captchaInput.trim()
+          userClave: edusClave
         })
       });
       const data = await res.json();
       if (data.success) {
         checkBrowserStatus();
-        speakText('Sesión iniciada con éxito en el portal de EDUS. Iniciando búsqueda de cupos en tiempo real.');
+        speakText('Sesión iniciada con éxito en el portal de EDUS. Iniciando búsqueda de cupos disponibles.');
         handleStartLoop();
       } else {
-        alert(data.error || 'Aviso en EDUS: Verifique que la cédula, contraseña y captcha sean correctos.');
+        alert(data.error || 'Aviso en EDUS: Verifique que la cédula y contraseña sean correctas.');
         checkBrowserStatus();
       }
     } catch (err) {
@@ -203,22 +204,46 @@ export default function ConversationalAssistantModal({
     }
   };
 
+  const handleConnectExistingBrowser = async () => {
+    try {
+      setIsConnectingChrome(true);
+      const res = await fetch(`${API}/api/assistant/dobby-browser/connect`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ port: 9222 })
+      });
+      const data = await res.json();
+      if (data.success) {
+        checkBrowserStatus();
+        speakText('Conectado en vivo a tu Chrome abierto. Listo para sacar citas en tiempo real.');
+      } else {
+        alert(data.error || 'No se pudo conectar a Chrome existente.');
+      }
+    } catch (err) {
+      alert(err.message);
+    } finally {
+      setIsConnectingChrome(false);
+    }
+  };
+
   const handleStartLoop = async () => {
     try {
+      const interval = turboMode ? 5 : 60;
       const res = await fetch(`${API}/api/assistant/dobby-browser/loop/start`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           service: 'ODONTOLOGIA',
           specialty: 'ODONTOLOGIA GENERAL',
-          targetDay: 'viernes',
-          intervalSeconds: 60
+          targetDay: null,
+          intervalSeconds: interval,
+          autoBook: true
         })
       });
       const data = await res.json();
       if (data.success) {
         setIsLoopActive(true);
-        speakText('Bucle de búsqueda iniciado. Consultaré cupos de odontología periódicamente.');
+        speakText(`Caza en tiempo real iniciada cada ${interval} segundos con auto-reserva activa.`);
         checkBrowserStatus();
       } else {
         alert(data.error || 'No se pudo iniciar el bucle.');
@@ -704,21 +729,6 @@ export default function ConversationalAssistantModal({
           </div>
         </div>
 
-        {/* 2. Banner de Monitoreo Activo de EDUS (Si existe) */}
-        {activeJobs.length > 0 && (
-          <div className="bg-sky-950/40 border-b border-sky-500/20 px-4 py-2 flex items-center justify-between text-xs shrink-0">
-            <div className="flex items-center gap-2 text-sky-300">
-              <span className="w-2 h-2 rounded-full bg-sky-400 animate-pulse shrink-0" />
-              <span className="font-semibold truncate">
-                Rastreador EDUS activo: {activeJobs[0].preferredDay} ({activeJobs[0].timeSlot})
-              </span>
-            </div>
-            <span className="text-[10px] font-mono font-bold text-sky-400 uppercase tracking-wider shrink-0 bg-sky-950 px-2 py-0.5 rounded border border-sky-500/30">
-              Autónomo
-            </span>
-          </div>
-        )}
-
         {/* CUERPO DEL MODAL: PESTAÑA NAVEGADOR EDUS O PESTAÑA DIÁLOGO */}
         {activeView === 'browser' && browserSession.active ? (
           <div className="flex-1 p-4 sm:p-5 space-y-4 overflow-y-auto scrollbar-thin">
@@ -736,12 +746,22 @@ export default function ConversationalAssistantModal({
                 </span>
                 {browserSession.solvedCaptcha && (
                   <span className="px-2.5 py-0.5 rounded-full bg-indigo-500/20 border border-indigo-500/30 text-indigo-300 font-mono text-[11px] font-bold whitespace-nowrap shrink-0">
-                    Captcha: {browserSession.solvedCaptcha}
+                    Captcha IA: {browserSession.solvedCaptcha}
                   </span>
                 )}
               </div>
 
               <div className="flex items-center gap-2 shrink-0">
+                <button
+                  type="button"
+                  onClick={handleConnectExistingBrowser}
+                  disabled={isConnectingChrome}
+                  className="px-3 py-1.5 rounded-xl bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer whitespace-nowrap shadow-sm"
+                  title="Conectar a Chrome ya abierto con --remote-debugging-port=9222"
+                >
+                  {isConnectingChrome ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Link2 className="w-3.5 h-3.5" />}
+                  <span>{isConnectingChrome ? 'Conectando...' : 'Vincular a mi Chrome Abierto'}</span>
+                </button>
                 <button
                   type="button"
                   onClick={() => setIsBrowserExpanded(prev => !prev)}
@@ -762,12 +782,12 @@ export default function ConversationalAssistantModal({
               </div>
             </div>
 
-            {/* 2. Panel de Credenciales y Acceso Autónomo */}
+            {/* 2. Panel de Credenciales y Acceso Autónomo (Sin pedir Captcha al usuario) */}
             <div className="p-4 rounded-2xl bg-slate-950/80 border border-sky-500/20 space-y-3.5 shadow-lg">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-bold text-sky-300 flex items-center gap-1.5">
                   <ShieldCheck className="w-4 h-4 text-sky-400" />
-                  Credenciales de Acceso a EDUS
+                  Credenciales de Acceso a EDUS (CCSS)
                 </span>
                 <label className="text-[11px] text-slate-400 flex items-center gap-1.5 cursor-pointer select-none">
                   <input
@@ -780,8 +800,9 @@ export default function ConversationalAssistantModal({
                 </label>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-12 gap-2.5 items-center">
-                <div className="sm:col-span-4">
+              <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 items-center">
+                <div className="sm:col-span-6">
+                  <label className="block text-[11px] text-slate-400 mb-1">Número de Identificación / Cédula</label>
                   <input
                     type="text"
                     value={edusCedula}
@@ -792,12 +813,13 @@ export default function ConversationalAssistantModal({
                         try { localStorage.setItem('proactur_edus_cedula', val); } catch (_) {}
                       }
                     }}
-                    placeholder="Cédula de Identidad"
-                    className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-sky-500 font-mono"
+                    placeholder="Ej: 115840293"
+                    className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-sky-500 font-mono tracking-wider"
                   />
                 </div>
 
-                <div className="sm:col-span-4">
+                <div className="sm:col-span-6">
+                  <label className="block text-[11px] text-slate-400 mb-1">Contraseña de EDUS</label>
                   <input
                     type="password"
                     value={edusClave}
@@ -808,43 +830,32 @@ export default function ConversationalAssistantModal({
                         try { localStorage.setItem('proactur_edus_clave', val); } catch (_) {}
                       }
                     }}
-                    placeholder="Contraseña EDUS"
-                    className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-sky-500 font-mono"
+                    placeholder="••••••••••••"
+                    className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-sky-500 font-mono tracking-wider"
                   />
                 </div>
+              </div>
 
-                <div className="sm:col-span-4 flex items-center gap-1.5">
-                  <input
-                    type="text"
-                    value={captchaInput}
-                    onChange={(e) => setCaptchaInput(e.target.value)}
-                    placeholder="Código Captcha"
-                    className="flex-1 bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-sky-500 font-mono tracking-wider uppercase"
-                  />
-                  <button
-                    type="button"
-                    onClick={handleAutoSolveCaptcha}
-                    disabled={isSolvingCaptcha}
-                    className="px-2.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-sky-300 border border-sky-500/30 hover:border-sky-500/60 font-semibold text-xs shrink-0 transition-all cursor-pointer"
-                    title="Volver a leer el código de seguridad con visión IA"
-                  >
-                    <Sparkles className="w-3.5 h-3.5 text-sky-400" />
-                  </button>
-                </div>
+              {/* Indicador de Captcha 100% autónomo por visión IA */}
+              <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-slate-900/90 border border-sky-500/20 text-xs text-sky-300">
+                <Sparkles className="w-3.5 h-3.5 text-sky-400 shrink-0" />
+                <span className="text-[11px]">
+                  El código captcha de seguridad se descifra y digita <strong>100% por visión IA de forma autónoma</strong>.
+                </span>
               </div>
 
               <div className="flex flex-col sm:flex-row items-center justify-between gap-2.5 pt-1 border-t border-white/[0.04]">
                 <span className="text-[11px] text-slate-400">
-                  Dobby digita tus datos en Chrome, descifra el captcha y entra al portal de citas.
+                  Dobby digita tus datos en Chrome, supera el captcha y entra a consultar los cupos.
                 </span>
                 <button
                   type="button"
                   onClick={handleLoginAndStart}
-                  disabled={isLoggingIn || !captchaInput.trim()}
-                  className="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-xs disabled:opacity-40 transition-all shadow-md flex items-center justify-center gap-2 cursor-pointer whitespace-nowrap"
+                  disabled={isLoggingIn || !edusCedula.trim() || !edusClave.trim()}
+                  className="w-full sm:w-auto px-6 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-xs disabled:opacity-40 transition-all shadow-md flex items-center justify-center gap-2 cursor-pointer whitespace-nowrap"
                 >
                   {isLoggingIn ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <ShieldCheck className="w-3.5 h-3.5" />}
-                  <span>{isLoggingIn ? 'Iniciando sesión en EDUS...' : 'Iniciar Sesión en EDUS y Ver Citas'}</span>
+                  <span>{isLoggingIn ? 'Iniciando sesión y resolviendo captcha...' : 'Iniciar Sesión en EDUS y Buscar Cupos'}</span>
                 </button>
               </div>
             </div>
@@ -866,34 +877,52 @@ export default function ConversationalAssistantModal({
               </div>
             )}
 
-            {/* 4. Bucle Autónomo de Citas con diseño espacioso */}
+            {/* 4. Bucle Autónomo de Citas en Tiempo Real */}
             <div className="p-3.5 rounded-xl bg-slate-950/60 border border-white/[0.06] flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-              <button
-                type="button"
-                onClick={isLoopActive ? handleStopLoop : handleStartLoop}
-                className={`px-4 py-2 rounded-xl font-bold text-xs flex items-center gap-2 transition-all shadow-md whitespace-nowrap shrink-0 cursor-pointer ${
-                  isLoopActive
-                    ? 'bg-amber-600 hover:bg-amber-500 text-white animate-pulse'
-                    : 'bg-gradient-to-r from-indigo-600 to-sky-600 hover:from-indigo-500 hover:to-sky-500 text-white'
-                }`}
-              >
-                <RefreshCw className={`w-3.5 h-3.5 ${isLoopActive ? 'animate-spin' : ''}`} />
-                <span>
-                  {isLoopActive
-                    ? `Detener Bucle (Intento #${loopInfo.attempts || 1})`
-                    : 'Iniciar Bucle Autónomo (Cada 60s)'}
-                </span>
-              </button>
+              <div className="flex items-center gap-2 flex-wrap">
+                <button
+                  type="button"
+                  onClick={isLoopActive ? handleStopLoop : handleStartLoop}
+                  className={`px-4 py-2 rounded-xl font-bold text-xs flex items-center gap-2 transition-all shadow-md whitespace-nowrap shrink-0 cursor-pointer ${
+                    isLoopActive
+                      ? 'bg-amber-600 hover:bg-amber-500 text-white animate-pulse'
+                      : 'bg-gradient-to-r from-indigo-600 to-sky-600 hover:from-indigo-500 hover:to-sky-500 text-white'
+                  }`}
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 ${isLoopActive ? 'animate-spin' : ''}`} />
+                  <span>
+                    {isLoopActive
+                      ? `Detener Caza (Intento #${loopInfo.attempts || 1})`
+                      : `⚡ Caza en Tiempo Real (${turboMode ? 'Cada 5s' : 'Cada 60s'})`}
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setTurboMode(prev => !prev)}
+                  className={`px-2.5 py-1.5 rounded-lg text-[10px] font-bold border transition-all cursor-pointer ${
+                    turboMode
+                      ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
+                      : 'bg-slate-800 text-slate-400 border-slate-700'
+                  }`}
+                  title="Modo Turbo: escanea cada 5s para aperturas a las 6:00 AM"
+                >
+                  {turboMode ? '⚡ Turbo (5s)' : 'Normal (60s)'}
+                </button>
+              </div>
 
-              <p className="text-xs text-slate-300 leading-snug">
+              <div className="text-xs text-slate-300 leading-snug">
                 {isLoopActive ? (
-                  <span className="text-amber-300 font-semibold font-mono">
-                    Monitoreando {loopInfo.service} para {loopInfo.targetDay}...
+                  <span className="text-amber-300 font-semibold font-mono flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full bg-amber-400 animate-ping shrink-0" />
+                    Buscando y auto-reservando {loopInfo.service} en tiempo real...
                   </span>
                 ) : (
-                  <span>Consultará cupos de <strong>Odontología</strong> para el viernes</span>
+                  <span className="flex items-center gap-1.5 text-emerald-400 font-medium">
+                    <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
+                    <span>Auto-reserva activada: Dobby sacará la primera cita disponible al instante</span>
+                  </span>
                 )}
-              </p>
+              </div>
             </div>
 
             {/* 5. Terminal de Logs en tiempo real: Sin texto cortado (wrap limpio) */}

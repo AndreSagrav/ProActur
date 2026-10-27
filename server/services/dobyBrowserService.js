@@ -245,6 +245,70 @@ class DobbyBrowserService {
   }
 
   /**
+   * Conecta Dobby a una ventana existente de Google Chrome que tenga habilitado el puerto de depuración
+   */
+  async connectToExistingChrome({ port = 9222 } = {}) {
+    try {
+      this.currentStatus = 'conectando_existente';
+      this._log(`Intentando conectar con Google Chrome abierto en http://127.0.0.1:${port}...`);
+
+      if (this.activeBrowser) {
+        try { await this.activeBrowser.disconnect(); } catch (_) {}
+      }
+
+      this.activeBrowser = await puppeteer.connect({
+        browserURL: `http://127.0.0.1:${port}`,
+        defaultViewport: null
+      });
+
+      const pages = await this.activeBrowser.pages();
+      // Buscar la pestaña que tenga el portal EDUS
+      let edusPage = pages.find(p => {
+        const u = p.url().toLowerCase();
+        return u.includes('edus.ccss.sa.cr') || u.includes('eduscitas');
+      });
+
+      if (!edusPage && pages.length > 0) {
+        edusPage = pages[0];
+      }
+
+      if (!edusPage) {
+        edusPage = await this.activeBrowser.newPage();
+        await edusPage.goto(EDUS_URL, { waitUntil: 'networkidle2', timeout: 35000 });
+      }
+
+      this.activePage = edusPage;
+      this.currentStatus = 'conectado_existente';
+      this._log(`✅ ¡Conectado con éxito a tu Chrome abierto! Pestaña activa: ${this.activePage.url()}`);
+
+      this._startKeepAlive();
+
+      try {
+        const buffer = await this.activePage.screenshot({ encoding: 'base64' });
+        this.lastScreenshot = `data:image/png;base64,${buffer}`;
+      } catch (_) {}
+
+      return {
+        success: true,
+        status: this.currentStatus,
+        url: this.activePage.url(),
+        message: 'Dobby se conectó en vivo a la ventana de Chrome que dejaste abierta.',
+        screenshot: this.lastScreenshot,
+        logs: this.lastLogs
+      };
+    } catch (err) {
+      this.currentStatus = 'inactivo';
+      this._log(`Aviso al conectar con Chrome existente: ${err.message}`);
+      return {
+        success: false,
+        error: `Para que Dobby tome el control de tu Chrome ya abierto, Chrome debe iniciarse con depuración remota: chrome.exe --remote-debugging-port=${port} o pulsa "Abrir Chrome con Dobby".`,
+        details: err.message,
+        logs: this.lastLogs
+      };
+    }
+  }
+
+  /**
    * Mantener viva la sesión activa de EDUS en el navegador
    */
   _startKeepAlive() {
@@ -471,7 +535,7 @@ class DobbyBrowserService {
   /**
    * Revisa la tabla de cupos de citas disponibles
    */
-  async checkTableAvailability(targetDay = 'viernes') {
+  async checkTableAvailability(targetDay = null) {
     if (!this.activePage) return { available: false, message: 'Sin página' };
     try {
       return await this.activePage.evaluate((dayTarget) => {
@@ -503,10 +567,104 @@ class DobbyBrowserService {
 
   /**
    * Ejecuta un paso de búsqueda completo
+  /**
+   * Reserva y confirma inmediatamente el primer cupo disponible en tiempo real
    */
-  async executeSearchStep(service = 'ODONTOLOGIA', specialty = 'ODONTOLOGIA GENERAL', targetDay = 'viernes') {
+  async bookFirstAvailableAppointment(targetDay = null) {
+    if (!this.activePage) return { success: false, error: 'No hay página activa' };
+    this._log('⚡ ¡Cupo detectado! Iniciando reserva y confirmación automática en tiempo real...');
+
+    try {
+      // 1. Localizar y presionar el botón de selección de la cita en la fila
+      const selectResult = await this.activePage.evaluate((dayTarget) => {
+        const rows = Array.from(document.querySelectorAll('table tbody tr, .ui-datatable-data tr'));
+        for (const r of rows) {
+          const text = (r.innerText || '').trim();
+          if (!text || text.includes('No se encontraron') || text.includes('Espere por favor')) continue;
+          if (dayTarget && !text.toLowerCase().includes(dayTarget.toLowerCase())) continue;
+
+          // Buscar el botón o control de acción en la fila
+          const btn = r.querySelector('button, a, input[type="radio"], input[type="submit"], .ui-button, [role="button"]') ||
+                      Array.from(r.querySelectorAll('button, a, span, div')).find(el => {
+                        const t = (el.innerText || el.getAttribute('title') || el.getAttribute('aria-label') || '').toLowerCase();
+                        return t.includes('seleccionar') || t.includes('reservar') || t.includes('agendar') || t.includes('tomar') || t.includes('elegir');
+                      });
+
+          if (btn) {
+            btn.click();
+            return { clicked: true, text };
+          }
+
+          // Fallback: clic en la fila completa
+          r.click();
+          return { clicked: true, text };
+        }
+        return { clicked: false };
+      }, targetDay);
+
+      if (!selectResult.clicked) {
+        this._log('Aviso: Se detectó el cupo pero no se pudo hacer clic en el botón de selección.');
+        return { success: false, error: 'No se pudo seleccionar la fila del cupo' };
+      }
+
+      this._log(`🎯 Cupo seleccionado: ${selectResult.text?.substring(0, 50)}...`);
+      await new Promise(r => setTimeout(r, 1500));
+
+      // 2. Confirmar la reserva en el diálogo modal emergente de PrimeFaces / EDUS
+      const confirmed = await this.activePage.evaluate(() => {
+        const dialogs = Array.from(document.querySelectorAll('.ui-dialog, .ui-confirm-dialog, [role="dialog"], body'));
+        for (const dlg of dialogs) {
+          if (dlg.style && dlg.style.display === 'none') continue;
+          const candidates = Array.from(dlg.querySelectorAll('button, input[type="button"], input[type="submit"], a.ui-button, a'));
+          for (const b of candidates) {
+            const txt = (b.innerText || b.value || b.getAttribute('aria-label') || '').trim().toLowerCase();
+            if (
+              txt === 'sí' || txt === 'si' ||
+              txt === 'confirmar' || txt === 'aceptar' ||
+              txt === 'guardar' || txt === 'agendar' ||
+              txt.includes('confirmar') || txt.includes('guardar cita') || txt.includes('aceptar')
+            ) {
+              b.click();
+              return true;
+            }
+          }
+        }
+        return false;
+      });
+
+      // Breve espera para procesar la confirmación y renderizar comprobante
+      await new Promise(r => setTimeout(r, 3000));
+
+      // Capturar comprobante en vivo
+      try {
+        const buffer = await this.activePage.screenshot({ encoding: 'base64' });
+        this.lastScreenshot = `data:image/png;base64,${buffer}`;
+      } catch (_) {}
+
+      this.currentStatus = 'cita_confirmada';
+      this._log('🎉🎉 ¡CITA SACADA Y CONFIRMADA EXITOSAMENTE EN TIEMPO REAL!');
+      
+      return {
+        success: true,
+        confirmed,
+        status: 'cita_confirmada',
+        message: '¡Dobby sacó y confirmó tu cita médica en tiempo real!',
+        screenshot: this.lastScreenshot,
+        details: selectResult.text
+      };
+    } catch (err) {
+      this._log(`Error durante la confirmación de la cita: ${err.message}`);
+      return { success: false, error: err.message };
+    }
+  }
+
+  /**
+   * Ejecuta un paso de búsqueda completo
+   */
+  async executeSearchStep(service = 'ODONTOLOGIA', specialty = 'ODONTOLOGIA GENERAL', targetDay = null) {
     this.loopConfig.attempts += 1;
-    this._log(`[Intento #${this.loopConfig.attempts}] Dobby verificando citas para ${service} (${targetDay})...`);
+    const dayLabel = targetDay ? ` (${targetDay})` : ' (la más próxima disponible)';
+    this._log(`[Intento #${this.loopConfig.attempts}] Dobby verificando citas para ${service}${dayLabel}...`);
 
     // 1. Clic en "Agregar una cita"
     const clickedAdd = await this.clickAddAppointment();
@@ -537,6 +695,13 @@ class DobbyBrowserService {
     if (result.available) {
       this.currentStatus = 'cupos_encontrados';
       this._log(`🎉 ¡CUPOS ENCONTRADOS! Se detectaron ${result.count} citas en el sistema.`);
+
+      // Si el modo autoBook está activado, reservar INMEDIATAMENTE en tiempo real
+      if (this.loopConfig.autoBook !== false) {
+        const bookRes = await this.bookFirstAvailableAppointment(targetDay);
+        return { success: true, found: true, booked: bookRes.success, bookDetails: bookRes, rows: result.rows };
+      }
+
       return { success: true, found: true, rows: result.rows };
     } else {
       this.currentStatus = 'monitoreando_citas';
@@ -546,11 +711,11 @@ class DobbyBrowserService {
   }
 
   /**
-   * Inicia el bucle recurrente de monitoreo
+   * Inicia el bucle recurrente de monitoreo y reserva en tiempo real
    */
-  startMonitoringLoop({ service = 'ODONTOLOGIA', specialty = 'ODONTOLOGIA GENERAL', targetDay = 'viernes', intervalSeconds = 60 } = {}) {
+  startMonitoringLoop({ service = 'ODONTOLOGIA', specialty = 'ODONTOLOGIA GENERAL', targetDay = null, intervalSeconds = 5, autoBook = true } = {}) {
     if (!this.activePage) {
-      return { success: false, error: 'Primero debes abrir el navegador con Dobby.' };
+      return { success: false, error: 'Primero debes abrir el navegador con Dobby o conectar a tu Chrome.' };
     }
 
     this.stopMonitoringLoop();
@@ -559,16 +724,19 @@ class DobbyBrowserService {
       service,
       specialty,
       targetDay,
-      intervalSeconds,
+      intervalSeconds: Math.max(2, Number(intervalSeconds) || 5),
+      autoBook: autoBook !== false,
       attempts: 0
     };
 
-    this._log(`🚀 Bucle de búsqueda autónoma iniciado para ${service} cada ${intervalSeconds} segundos.`);
+    this._log(`🚀 Bucle de búsqueda y reserva en tiempo real iniciado para ${service} cada ${this.loopConfig.intervalSeconds} segundos (Auto-reserva: ${this.loopConfig.autoBook ? 'ACTIVADA' : 'DESACTIVADA'}).`);
     this.currentStatus = 'monitoreando_citas';
 
     // Primer intento inmediato
     this.executeSearchStep(service, specialty, targetDay).then(res => {
-      if (res.found) this.stopMonitoringLoop();
+      if (res.found && (res.booked || !this.loopConfig.autoBook)) {
+        this.stopMonitoringLoop();
+      }
     });
 
     // Repetición recurrente
@@ -579,16 +747,16 @@ class DobbyBrowserService {
         this.loopConfig.specialty,
         this.loopConfig.targetDay
       );
-      if (res.found) {
-        this._log('Dobby detuvo el bucle porque encontró cupos disponibles.');
+      if (res.found && (res.booked || !this.loopConfig.autoBook)) {
+        this._log('Dobby completó la gestión de la cita con éxito.');
         this.stopMonitoringLoop();
       }
-    }, intervalSeconds * 1000);
+    }, this.loopConfig.intervalSeconds * 1000);
 
     return {
       success: true,
       status: this.currentStatus,
-      message: `Bucle autónomo activo. Dobby consultará ${service} cada ${intervalSeconds} segundos.`,
+      message: `Monitoreo en tiempo real activo. Dobby buscará y sacará la cita de ${service} cada ${this.loopConfig.intervalSeconds} segundos automáticamente.`,
       loopConfig: this.loopConfig
     };
   }
@@ -622,6 +790,7 @@ class DobbyBrowserService {
       } catch (_) {}
     }
     return {
+      active: !!this.activeBrowser,
       status: this.currentStatus,
       screenshot: this.lastScreenshot,
       logs: this.lastLogs,

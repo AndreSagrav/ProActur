@@ -24,6 +24,34 @@ const DEFAULT_CONFIG = {
   syncIntervalMinutes: 15
 };
 
+function parseCurrencyAmount(rawStr) {
+  if (!rawStr) return 0;
+  let str = String(rawStr).trim();
+  // Si contiene comas y puntos
+  if (str.includes(',') && str.includes('.')) {
+    if (str.lastIndexOf('.') > str.lastIndexOf(',')) {
+      // Formato financiero costarricense/BAC/Popular: 2,000.50
+      str = str.replace(/,/g, '');
+    } else {
+      // Formato europeo: 2.000,50
+      str = str.replace(/\./g, '').replace(/,/g, '.');
+    }
+  } else if (str.includes(',')) {
+    const parts = str.split(',');
+    if (parts[1] && parts[1].length === 2) {
+      str = str.replace(/,/g, '.'); // 550,50 -> 550.50
+    } else {
+      str = str.replace(/,/g, ''); // 2,000 -> 2000
+    }
+  } else if (str.includes('.')) {
+    const parts = str.split('.');
+    if (parts[1] && parts[1].length === 3) {
+      str = str.replace(/\./g, ''); // 2.000 -> 2000
+    }
+  }
+  return parseFloat(str) || 0;
+}
+
 function decodeQuotedPrintable(str) {
   if (!str) return '';
   return str
@@ -36,6 +64,28 @@ function decodeQuotedPrintable(str) {
         return _;
       }
     });
+}
+
+function decodeEmailBody(raw) {
+  if (!raw) return '';
+  let text = raw;
+
+  // Decodificar bloques base64 si existen (común en notificaciones de Banco Popular y otros)
+  const b64Regex = /Content-Transfer-Encoding:\s*base64[\r\n]+([\s\S]*?)(?:--[^\r\n]+|$)/gi;
+  text = text.replace(b64Regex, (match, b64Data) => {
+    try {
+      const cleanB64 = b64Data.replace(/[\r\n\s]/g, '');
+      const decoded = Buffer.from(cleanB64, 'base64').toString('utf8');
+      return decoded;
+    } catch (_) {
+      return match;
+    }
+  });
+
+  // Decodificar quoted-printable
+  text = decodeQuotedPrintable(text);
+
+  return text;
 }
 
 function decodeMimeWords(str) {
@@ -242,12 +292,27 @@ class BankMailService {
   }
 
   /**
-   * Extractor de Comprobantes Bancarios (BAC, Popular, Coopeande, BCR, SINPE, etc.)
+   * Extractor de Comprobantes Bancarios (BAC, Banco Popular, Wink, Coopeande, BCR, SINPE, etc.)
    */
   parseBankNotification(emailData) {
+    const from = (emailData.from || '').toLowerCase();
     const rawSubject = decodeMimeWords(emailData.subject || '');
-    const rawBody = decodeQuotedPrintable(emailData.body || emailData.snippet || '');
-    const fullText = rawSubject + ' ' + rawBody;
+    const rawBody = decodeEmailBody(emailData.body || emailData.snippet || '');
+
+    // Limpiar etiquetas HTML y entidades para un escaneo de texto puro sin interferencias
+    const cleanBodyText = rawBody
+      .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, ' ')
+      .replace(/<[^>]+>/g, ' ')
+      .replace(/&nbsp;/gi, ' ')
+      .replace(/&oacute;/gi, 'ó')
+      .replace(/&uacute;/gi, 'ú')
+      .replace(/&eacute;/gi, 'é')
+      .replace(/&iacute;/gi, 'í')
+      .replace(/&aacute;/gi, 'á')
+      .replace(/&ntilde;/gi, 'ñ')
+      .replace(/\s+/g, ' ');
+
+    const fullText = (from + ' ' + rawSubject + ' ' + cleanBodyText);
 
     // Verificar si se descarta
     if (this.isDiscardable(rawSubject, rawBody)) {
@@ -260,11 +325,11 @@ class BankMailService {
     // 1. Detectar Entidad
     let entity = 'Comercio / Banco';
     const lower = fullText.toLowerCase();
-    if (lower.includes('bac') || lower.includes('credomatic')) entity = 'BAC Credomatic';
-    else if (lower.includes('wink') || lower.includes('holawink')) entity = 'Wink';
-    else if (lower.includes('popular') || lower.includes('bancopopular')) entity = 'Banco Popular';
-    else if (lower.includes('coopeande')) entity = 'Coopeande';
-    else if (lower.includes('bcr') || lower.includes('banco de costa rica')) entity = 'Banco de Costa Rica';
+    if (lower.includes('bac') || lower.includes('credomatic') || from.includes('baccredomatic')) entity = 'BAC Credomatic';
+    else if (lower.includes('popular') || lower.includes('bancopopular') || from.includes('bancopopular') || from.includes('bp.fi.cr') || lower.includes('bp.fi.cr')) entity = 'Banco Popular';
+    else if (lower.includes('wink') || lower.includes('holawink') || from.includes('holawink')) entity = 'Wink';
+    else if (lower.includes('coopeande') || from.includes('coopeande')) entity = 'Coopeande';
+    else if (lower.includes('bcr') || lower.includes('banco de costa rica') || from.includes('bancobcr')) entity = 'Banco de Costa Rica';
     else if (lower.includes('davivienda')) entity = 'Davivienda';
     else if (lower.includes('scotiabank')) entity = 'Scotiabank';
     else if (lower.includes('paypal')) entity = 'PayPal';
@@ -277,25 +342,83 @@ class BankMailService {
     let date = emailData.date || new Date().toISOString();
 
     // ----------------------------------------------------------------
-    // PARSER ESPECÍFICO BAC CREDOMATIC (Estructura de tablas HTML)
+    // PARSER ESPECÍFICO BANCO POPULAR (Comprobante de Compra / Depósito)
     // ----------------------------------------------------------------
-    if (entity === 'BAC Credomatic') {
-      // Comercio en BAC
-      const merchMatch = rawBody.match(/Comercio:<\/td>\s*<td[^>]*>([^<]+)<\/td>/i);
-      if (merchMatch) merchant = merchMatch[1].trim();
+    if (entity === 'Banco Popular') {
+      // Comercio en Banco Popular
+      const merchMatch = fullText.match(/Comercio:\s*([^.\r\n,]+(?:\s+[^.\r\n,]+)*?)(?:\s+(?:SAN JOSE|HEREDIA|ALAJUELA|CARTAGO|CR|PUNTARENAS|GUANACASTE|LIMON)\b|\s*Ciudad\b)/i);
+      if (merchMatch) {
+        merchant = merchMatch[1].replace(/SAN JOSE|CR/gi, '').trim();
+      } else {
+        const altMerch = fullText.match(/Comercio:\s*([^<\r\n]+)/i);
+        if (altMerch) merchant = altMerch[1].trim();
+      }
+      merchant = merchant.replace(/Ciudad\s+y\s+pa[ií]s.*$/i, '').trim();
 
-      // Tarjeta o Cuenta en BAC (ej: VISA: ************0095 o Cuenta: *******1234)
-      const cardMatch = rawBody.match(/(?:VISA|MasterCard|AMEX|Cuenta|Tarjeta)[^<]*<\/td>\s*<td[^>]*>[*xX\s]*([0-9]{4})<\/td>/i)
-        || rawBody.match(/\*{4,}([0-9]{4})/);
+      // Tarjeta o Cuenta (ej: Visa: ************5330)
+      const cardMatch = fullText.match(/(?:Visa|MasterCard|Tarjeta|Cuenta)[^0-9]*([0-9]{4})\b/i);
       if (cardMatch) last4 = cardMatch[1];
 
-      // Monto en BAC (ej: CRC 2,492.00 o USD 15.00)
-      const montoMatch = rawBody.match(/Monto:<\/td>\s*<td[^>]*>(?:([A-Z]{3}|₡|\$)\s*)?([0-9]{1,3}(?:[.,][0-9]{3})*(?:[.,][0-9]{2})?|[0-9]+)<\/td>/i);
+      // Monto (ej: Monto: CRC 2,000.00 o Monto: CRC 550.00)
+      const montoMatch = fullText.match(/Monto:\s*(?:([A-Z]{3}|₡|\$)\s*)?([0-9]{1,3}(?:[.,][0-9]{3})*(?:[.,][0-9]{2})?|[0-9]+)/i);
       if (montoMatch) {
         const currSym = (montoMatch[1] || '').toUpperCase();
         currency = currSym.includes('$') || currSym.includes('USD') ? 'USD' : 'CRC';
-        const numStr = montoMatch[2].replace(/,/g, '');
-        amount = parseFloat(numStr);
+        amount = parseCurrencyAmount(montoMatch[2]);
+      }
+
+      // Tipo de Transacción
+      const tipoMatch = fullText.match(/Tipo de Transacci[oó]n:\s*([^<\r\n&]+)/i);
+      if (tipoMatch) {
+        const tStr = tipoMatch[1].toLowerCase();
+        if (tStr.includes('deposito') || tStr.includes('credito') || tStr.includes('transferencia recibida') || tStr.includes('pago recibido')) {
+          type = 'ingreso';
+        } else {
+          type = 'gasto';
+        }
+      }
+
+      // Fecha
+      const fechaMatch = fullText.match(/Fecha:\s*([A-Za-z]{3}\.?\s*[0-9]{1,2},?\s*[0-9]{4},?\s*[0-9]{1,2}:[0-9]{2})/i);
+      if (fechaMatch) {
+        const parsedD = new Date(fechaMatch[1].replace('Oct.', 'Oct').trim());
+        if (!isNaN(parsedD.getTime())) date = parsedD.toISOString();
+      }
+    }
+
+    // ----------------------------------------------------------------
+    // PARSER ESPECÍFICO BAC CREDOMATIC (Tablas HTML y SINPE Móvil)
+    // ----------------------------------------------------------------
+    if (entity === 'BAC Credomatic') {
+      // Comercio en BAC
+      const merchMatch = rawBody.match(/Comercio:<\/td>\s*<td[^>]*>([^<]+)<\/td>/i)
+        || fullText.match(/Comercio:\s*([^<\r\n]+)/i);
+      if (merchMatch) merchant = merchMatch[1].trim();
+
+      // Si es transferencia SINPE de BAC: ej "Hola: ZUNIFY PAYMENTS : BAC le comunica..."
+      const sinpeMerch = fullText.match(/Hola:\s*([^:]+)\s*:\s*BAC le comunica/i);
+      if (sinpeMerch) {
+        merchant = sinpeMerch[1].trim();
+      }
+
+      // Tarjeta o Cuenta en BAC (ej: VISA: ************0095 o Cuenta: *******1234 o IBAN CR2501XXXXXXXXXXXX3134)
+      const cardMatch = rawBody.match(/(?:VISA|MasterCard|AMEX|Cuenta|Tarjeta)[^<]*<\/td>\s*<td[^>]*>[*xX\s]*([0-9]{4})<\/td>/i)
+        || rawBody.match(/\*{4,}([0-9]{4})/)
+        || fullText.match(/(?:CR[0-9]{2}[0-9A-Z*xX]+|cuenta|tarjeta|IBAN)[^0-9]*([0-9]{4})\b/i);
+      if (cardMatch) last4 = cardMatch[1];
+
+      // Monto en BAC (ej: CRC 2,492.00 o USD 15.00 o "monto de 20,000.00 Colones")
+      const montoMatch = rawBody.match(/Monto:<\/td>\s*<td[^>]*>(?:([A-Z]{3}|₡|\$)\s*)?([0-9]{1,3}(?:[.,][0-9]{3})*(?:[.,][0-9]{2})?|[0-9]+)<\/td>/i)
+        || fullText.match(/(?:monto de|monto:)\s*([0-9]{1,3}(?:[.,][0-9]{3})*(?:[.,][0-9]{2})?|[0-9]+)\s*(?:([A-Z]{3}|₡|\$|Colones|D[oó]lares))/i);
+      if (montoMatch) {
+        const valStr = montoMatch[1] && isNaN(Number(montoMatch[1])) ? montoMatch[2] : montoMatch[1];
+        amount = parseCurrencyAmount(valStr);
+        const currText = ((montoMatch[1] || '') + ' ' + (montoMatch[2] || '')).toLowerCase();
+        if (currText.includes('$') || currText.includes('usd') || currText.includes('dolar')) {
+          currency = 'USD';
+        } else {
+          currency = 'CRC';
+        }
       }
 
       // Tipo en BAC
@@ -305,10 +428,15 @@ class BankMailService {
         if (tStr.includes('deposito') || tStr.includes('transferencia recibida') || tStr.includes('credito') || tStr.includes('pago recibido')) {
           type = 'ingreso';
         }
+      } else if (lower.includes('debitando su cuenta')) {
+        type = 'gasto';
+      } else if (lower.includes('acreditando su cuenta') || lower.includes('deposito')) {
+        type = 'ingreso';
       }
 
-      // Fecha en BAC (ej: Oct 24, 2026, 17:24)
-      const fechaMatch = rawBody.match(/Fecha:<\/td>\s*<td[^>]*>([^<]+)<\/td>/i);
+      // Fecha en BAC (ej: Oct 24, 2026, 17:24 o 22/10/2026 06:30:15)
+      const fechaMatch = rawBody.match(/Fecha:<\/td>\s*<td[^>]*>([^<]+)<\/td>/i)
+        || fullText.match(/D[ií]a y hora:\s*([0-9]{2}\/[0-9]{2}\/[0-9]{4}\s+[0-9]{1,2}:[0-9]{2}:[0-9]{2})/i);
       if (fechaMatch) {
         const parsedD = new Date(fechaMatch[1].trim());
         if (!isNaN(parsedD.getTime())) date = parsedD.toISOString();
@@ -316,7 +444,7 @@ class BankMailService {
     }
 
     // ----------------------------------------------------------------
-    // PARSER GENERAL / BANCO POPULAR / COOPEANDE / SINPE
+    // PARSER GENERAL / WINK / COOPEANDE / OTROS BANCOS
     // ----------------------------------------------------------------
     if (!amount) {
       const crcMatch = fullText.match(/(?:₡|CRC|COLONES)\s*([0-9]{1,3}(?:[.,][0-9]{3})*(?:[.,][0-9]{2})?|[0-9]+)/i);
@@ -324,11 +452,10 @@ class BankMailService {
 
       if (usdMatch && (!crcMatch || fullText.indexOf(usdMatch[0]) < fullText.indexOf(crcMatch[0]))) {
         currency = 'USD';
-        amount = parseFloat(usdMatch[1].replace(/,/g, ''));
+        amount = parseCurrencyAmount(usdMatch[1]);
       } else if (crcMatch) {
         currency = 'CRC';
-        const cleanNum = crcMatch[1].replace(/\./g, '').replace(/,/g, '.');
-        amount = parseFloat(cleanNum);
+        amount = parseCurrencyAmount(crcMatch[1]);
       }
     }
 
@@ -337,11 +464,14 @@ class BankMailService {
       if (last4Match) last4 = last4Match[1];
     }
 
-    // 5. Detectar Comercio, Motivo o Concepto (ej: SINPE "Diezmo", "Alquiler", etc.)
-    const motiveMatch = fullText.match(/(?:motivo|detalle|concepto|mensaje|descripci[oó]n|comercio|establecimiento|en):\s*([^.\n\r,<]+)/i);
-    if (motiveMatch && motiveMatch[1]) {
-      merchant = motiveMatch[1].trim();
+    // Detectar Comercio, Motivo o Concepto si no se encontró
+    if (merchant === entity || !merchant) {
+      const motiveMatch = fullText.match(/(?:motivo|detalle|concepto|mensaje|descripci[oó]n|comercio|establecimiento|en):\s*([^.\n\r,<]+)/i);
+      if (motiveMatch && motiveMatch[1]) {
+        merchant = motiveMatch[1].trim();
+      }
     }
+    merchant = (merchant || entity).replace(/Ciudad\s+y\s+pa[ií]s.*$/i, '').trim();
 
     if (lower.includes('deposito') || lower.includes('transferencia recibida') || lower.includes('credito a su cuenta') || lower.includes('pago recibido') || lower.includes('sinpe movil recibido')) {
       type = 'ingreso';

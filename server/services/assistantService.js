@@ -56,10 +56,13 @@ class AssistantService {
     const systemPrompt = `Eres Dobby, el copiloto y asistente ejecutivo de ProActur. Analiza la siguiente instrucción de César y extrae la intención en formato JSON puro (sin markdown, sin bloques de código).
 
 Fecha/Hora actual: ${today}.
+Contexto del usuario: César Andrés reside en Costa Rica.
+Moneda por defecto: Colones costarricenses (CRC, ₡), a menos que el usuario diga explícitamente "dólares" o "USD".
+Cuentas bancarias habituales: "BAC" (o BAC Credomatic), "Wink" (Wink débito o crédito), "Popular" (Banco Popular).
 
 Opciones de "action":
 1. "CREATE_EVENT": Si la orden es agendar, programar una junta, cita, evento o reunión con fecha/hora.
-2. "RECORD_FINANCE": Si la orden indica un gasto, pago, compra, ingreso, cobro monetario, factura electrónica, comprobante fiscal, ticket o voucher bancario.
+2. "RECORD_FINANCE": Si la orden indica un gasto, pago, compra, ingreso, cobro monetario, transferencia o movimiento bancario, especialmente SINPE Móvil (ej: "mandé un sinpe de 10 mil a Juan de la cuenta Wink", "hice un sinpe de 5000", "me transfirieron un sinpe de 25000 al Popular", "pagué 2000 en el súper con el BAC").
 3. "CREATE_TASK": Si la orden indica recordar algo, crear un pendiente, tarea o compromiso sin horario específico.
 4. "START_RECORDING": Si pide grabar o registrar una reunión o audio.
 5. "EDUS_MONITORING": Si pide buscar, monitorear o sacar citas médicas, dentales u odontológicas en el EDUS de la CCSS o EBAIS (ej: "sácame una cita con el odontólogo", "sacar cita el viernes en EDUS", "monitoree citas en EDUS", "cita dental").
@@ -76,7 +79,11 @@ Estructura JSON requerida según acción:
   },
   "finance": {
     "amount": 0.00,
+    "currency": "CRC" | "USD",
     "type": "gasto" | "ingreso",
+    "isSinpe": true | false,
+    "account": "Wink" | "BAC" | "Popular" | "Efectivo",
+    "contact": "nombre o teléfono si es transferencia o SINPE",
     "category": "Gasolina y Transporte" | "Alimentación y Reuniones" | "Honorarios Profesionales" | "Servicios y Software" | "Varios",
     "note": "concepto formal del movimiento"
   },
@@ -156,20 +163,47 @@ Estructura JSON requerida según acción:
       };
     }
 
-    // B) REGISTRAR FINANZA
+    // B) REGISTRAR FINANZA (CON SOPORTE NATIVO PARA SINPE MÓVIL Y CUENTAS CR)
     if (parsed.action === 'RECORD_FINANCE' && parsed.finance?.amount) {
       const amount = Math.abs(Number(parsed.finance.amount));
       const isIncome = parsed.finance.type === 'ingreso';
+      const currency = (parsed.finance.currency || 'CRC').toUpperCase();
+      const lowerCmd = (originalCmd || '').toLowerCase();
+      const isSinpe = !!parsed.finance.isSinpe || (parsed.finance.note || '').toLowerCase().includes('sinpe') || lowerCmd.includes('sinpe') || lowerCmd.includes('transferí') || lowerCmd.includes('transferi') || lowerCmd.includes('transferencia');
+
+      // Buscar cuentas reales disponibles
+      const overview = await financeService.getSummary();
+      const accounts = overview?.accounts || [];
+      const requestedAcc = `${parsed.finance.account || ''} ${originalCmd || ''}`.toLowerCase();
+      const targetAccount = this.resolveTargetAccount(accounts, requestedAcc, currency);
+
+      let note = parsed.finance.note || originalCmd;
+      if (isSinpe && !note.toLowerCase().includes('sinpe')) {
+        const contact = parsed.finance.contact ? ` (${isIncome ? 'de' : 'a'} ${parsed.finance.contact})` : '';
+        note = `SINPE Móvil${contact}: ${note}`;
+      }
+
       const tx = await financeService.addTransaction({
+        accountId: targetAccount?.id,
         amount,
+        currency,
         type: isIncome ? 'ingreso' : 'gasto',
-        category: parsed.finance.category || (isIncome ? 'Honorarios Profesionales' : 'Gasolina y Transporte'),
-        note: parsed.finance.note || originalCmd
+        category: parsed.finance.category || (isIncome ? 'Transferencias Recibidas' : (isSinpe ? 'Varios' : 'Gasolina y Transporte')),
+        note,
+        source: isSinpe ? 'sinpe_assistant' : 'assistant_voice',
+        merchant: parsed.finance.contact || ''
       });
+
+      const formattedAmount = currency === 'CRC'
+        ? `₡${Math.round(amount).toLocaleString('es-CR')} CRC`
+        : `$${amount.toLocaleString('en-US', { minimumFractionDigits: 2 })} USD`;
+
+      const accDesc = targetAccount ? `${targetAccount.name} (${targetAccount.entity})` : 'cuenta principal';
+      const sinpeBadge = isSinpe ? ' 📲 [SINPE Móvil]' : '';
 
       return {
         action: 'RECORD_FINANCE',
-        message: `Registro financiero asentado: ${isIncome ? 'Ingreso' : 'Egreso'} de $${amount.toLocaleString('en-US', { minimumFractionDigits: 2 })} USD (${tx.category}).`,
+        message: `Registro financiero asentado${sinpeBadge}: ${isIncome ? 'Ingreso' : 'Egreso'} de ${formattedAmount} en ${accDesc}. Detalle: "${note}".`,
         data: tx
       };
     }
@@ -200,14 +234,26 @@ Estructura JSON requerida según acción:
 
     // D2) GESTIÓN DE CITAS EDUS CCSS Y DOBBY WEB AGENT
     if (parsed.action === 'EDUS_MONITORING') {
-      const preferredDay = parsed.edus?.preferredDay || 'viernes';
-      const timeSlot = parsed.edus?.timeSlot || 'mañana';
-      const isDental = originalCmd.toLowerCase().includes('odont') || originalCmd.toLowerCase().includes('dient');
+      const lowerCmd = (originalCmd || '').toLowerCase();
+      const isDental = lowerCmd.includes('odont') || lowerCmd.includes('dient') || lowerCmd.includes('autolog') || lowerCmd.includes('dentist') || lowerCmd.includes('muela') || lowerCmd.includes('dental');
       const specialty = isDental ? 'Odontología' : 'Medicina General';
 
+      // NUNCA asumir "viernes" a menos que César lo haya pedido explícitamente
+      let preferredDay = null;
+      for (const day of ['lunes', 'martes', 'miércoles', 'miercoles', 'jueves', 'viernes', 'sábado', 'sabado', 'domingo']) {
+        if (lowerCmd.includes(day)) {
+          preferredDay = day;
+          break;
+        }
+      }
+
+      let timeSlot = null;
+      if (lowerCmd.includes('mañana') || lowerCmd.includes('manana')) timeSlot = 'mañana';
+      else if (lowerCmd.includes('tarde')) timeSlot = 'tarde';
+
       const job = await edusService.createEdusJob({
-        preferredDay,
-        timeSlot,
+        preferredDay: preferredDay || 'más próxima',
+        timeSlot: timeSlot || 'cualquiera',
         specialty,
         notes: originalCmd
       });
@@ -216,14 +262,30 @@ Estructura JSON requerida según acción:
       const userClave = options.userClave || process.env.EDUS_CLAVE || '';
       const hasCredentials = Boolean(userCedula && userClave);
 
-      // Iniciar navegación en vivo en pantalla visible
+      // Iniciar navegación o conectar a Chrome existente y arrancar monitoreo en tiempo real
       try {
-        dobyBrowserService.launchEdusPortal({
-          headless: false,
-          userCedula,
-          userClave,
-          autoSolve: true
-        }).then(async (launchRes) => {
+        (async () => {
+          // 1. Intentar conectar primero a Chrome ya abierto con remote debugging (puerto 9222)
+          const connectRes = await dobyBrowserService.connectToExistingChrome({ port: 9222 });
+          if (connectRes?.success) {
+            await dobyBrowserService.startMonitoringLoop({
+              service: isDental ? 'ODONTOLOGIA' : 'MEDICINA GENERAL',
+              specialty: isDental ? 'ODONTOLOGIA GENERAL' : 'MEDICINA GENERAL',
+              targetDay: preferredDay,
+              intervalSeconds: 5,
+              autoBook: true
+            });
+            return;
+          }
+
+          // 2. Si no hay Chrome en puerto 9222, abrir sesión visible con Dobby
+          const launchRes = await dobyBrowserService.launchEdusPortal({
+            headless: false,
+            userCedula,
+            userClave,
+            autoSolve: true
+          });
+
           if (hasCredentials && launchRes?.solvedCaptcha) {
             const loginRes = await dobyBrowserService.submitLogin({
               userCedula,
@@ -233,24 +295,27 @@ Estructura JSON requerida según acción:
             if (loginRes?.success) {
               await dobyBrowserService.startMonitoringLoop({
                 service: isDental ? 'ODONTOLOGIA' : 'MEDICINA GENERAL',
+                specialty: isDental ? 'ODONTOLOGIA GENERAL' : 'MEDICINA GENERAL',
                 targetDay: preferredDay,
-                intervalSeconds: 60
+                intervalSeconds: 5,
+                autoBook: true
               });
             }
           }
-        }).catch(err => {
+        })().catch(err => {
           console.warn('[DobbyBrowser AutoLaunch Warn]:', err.message);
         });
       } catch (_) {}
 
+      const dayText = preferredDay ? `para el ${preferredDay}` : 'más próxima disponible';
       const replyMsg = hasCredentials
-        ? `Inicié la búsqueda de citas para ${specialty}. Abrí el portal oficial de EDUS CCSS en pantalla, resolviendo el captcha de seguridad e iniciando la sesión de forma autónoma.`
-        : `Abrí el portal oficial de EDUS CCSS en pantalla y resolví el captcha de seguridad. Para ingresar de forma inmediata, digita tu cédula y clave en el panel superior y pulsa Iniciar Sesión.`;
+        ? `Inicié la búsqueda y auto-reserva en tiempo real de tu cita ${dayText} para ${specialty}. Tengo el portal EDUS en pantalla, resolviendo captchas y monitoreando cada 5 segundos para sacar el cupo de inmediato apenas se libere.`
+        : `Tengo el portal EDUS listo para sacar tu cita ${dayText} de ${specialty} en tiempo real. Si ya tienes EDUS abierto o ingresas tus datos, Dobby ejecutará la búsqueda en bucle rápido y reservará el cupo en el instante en que aparezca.`;
 
       return {
         action: 'EDUS_MONITORING',
         message: replyMsg,
-        data: { ...job, browserStarted: true, hasCredentials, specialty }
+        data: { ...job, browserStarted: true, hasCredentials, specialty, preferredDay }
       };
     }
 
@@ -271,30 +336,75 @@ Estructura JSON requerida según acción:
   }
 
   async fallbackExecute(cmd, lower) {
-    // 1. Detección de gasto / ingreso con regex
-    const amountMatch = lower.match(/\$?\s*(\d+(?:[.,]\d+)?)/);
-    const isExpense = lower.includes('gast') || lower.includes('pagu') || lower.includes('compr') || lower.includes('egreso');
-    const isIncome = lower.includes('ingres') || lower.includes('cobr') || lower.includes('gan') || lower.includes('abono');
+    // 1. Detección de gasto / ingreso / SINPE con regex
+    const isSinpe = lower.includes('sinpe') || lower.includes('transferí') || lower.includes('transferi') || lower.includes('transferencia');
+    const isIncome = lower.includes('ingres') || lower.includes('cobr') || lower.includes('gan') || lower.includes('abono') || lower.includes('recibí') || lower.includes('recibi') || lower.includes('me transfirieron') || lower.includes('me pasaron') || lower.includes('me pagaron');
+    const isExpense = isSinpe || lower.includes('gast') || lower.includes('pagu') || lower.includes('compr') || lower.includes('egreso') || lower.includes('mandé') || lower.includes('mande') || lower.includes('le pasé') || lower.includes('le pase');
 
-    if ((isExpense || isIncome) && amountMatch) {
-      const amount = parseFloat(amountMatch[1].replace(',', '.'));
-      let category = isIncome ? 'Honorarios Profesionales' : 'Gasolina y Transporte';
-      if (lower.includes('comida') || lower.includes('almuerz') || lower.includes('restauran')) {
+    // Extraer monto en colones o dólares (soporta '10 mil', '10.000', '10000', '$50', '₡2500')
+    let detectedAmount = null;
+    const milMatch = lower.match(/(\d+(?:[.,]\d+)?)\s*(?:mil|k)\b/i);
+    if (milMatch) {
+      detectedAmount = parseFloat(milMatch[1].replace(',', '.')) * 1000;
+    } else {
+      const numMatch = lower.match(/(?:₡|\$)?\s*(\d+(?:[.,]\d{3})*(?:[.,]\d+)?)/);
+      if (numMatch) {
+        let rawNum = numMatch[1];
+        if (rawNum.includes('.') && rawNum.includes(',')) {
+          rawNum = rawNum.replace(/\./g, '').replace(',', '.');
+        } else if (rawNum.includes(',') && !rawNum.includes('.')) {
+          const parts = rawNum.split(',');
+          if (parts[1] && parts[1].length === 3) rawNum = parts.join('');
+          else rawNum = rawNum.replace(',', '.');
+        } else if (rawNum.includes('.') && !rawNum.includes(',')) {
+          const parts = rawNum.split('.');
+          if (parts[1] && parts[1].length === 3) rawNum = parts.join('');
+        }
+        detectedAmount = parseFloat(rawNum);
+      }
+    }
+
+    if ((isExpense || isIncome) && detectedAmount && !isNaN(detectedAmount) && detectedAmount > 0) {
+      const isUSD = lower.includes('dolar') || lower.includes('dólar') || lower.includes('usd') || lower.includes('$');
+      const currency = isUSD ? 'USD' : 'CRC';
+
+      let category = isIncome ? 'Transferencias Recibidas' : (isSinpe ? 'Varios' : 'Gasolina y Transporte');
+      if (lower.includes('comida') || lower.includes('almuerz') || lower.includes('restauran') || lower.includes('soda')) {
         category = 'Alimentación y Reuniones';
-      } else if (lower.includes('software') || lower.includes('servici') || lower.includes('internet')) {
+      } else if (lower.includes('software') || lower.includes('servici') || lower.includes('internet') || lower.includes('luz') || lower.includes('agua')) {
         category = 'Servicios y Software';
       }
 
+      // Detectar cuenta real adecuada
+      const overview = await financeService.getSummary();
+      const accounts = overview?.accounts || [];
+      const targetAccount = this.resolveTargetAccount(accounts, lower, currency);
+
+      let note = cmd;
+      if (isSinpe && !note.toLowerCase().includes('sinpe')) {
+        note = `SINPE Móvil: ${cmd}`;
+      }
+
       const tx = await financeService.addTransaction({
-        amount,
+        accountId: targetAccount?.id,
+        amount: detectedAmount,
+        currency,
         type: isIncome ? 'ingreso' : 'gasto',
         category,
-        note: cmd
+        note,
+        source: isSinpe ? 'sinpe_assistant' : 'assistant_voice'
       });
+
+      const formattedAmount = currency === 'CRC'
+        ? `₡${Math.round(detectedAmount).toLocaleString('es-CR')} CRC`
+        : `$${detectedAmount.toLocaleString('en-US', { minimumFractionDigits: 2 })} USD`;
+
+      const accDesc = targetAccount ? `${targetAccount.name} (${targetAccount.entity})` : 'cuenta principal';
+      const sinpeBadge = isSinpe ? ' 📲 [SINPE Móvil]' : '';
 
       return {
         action: 'RECORD_FINANCE',
-        message: `Registro financiero asentado: ${isIncome ? 'Ingreso' : 'Egreso'} de $${amount.toLocaleString('en-US', { minimumFractionDigits: 2 })} USD.`,
+        message: `Registro financiero asentado${sinpeBadge}: ${isIncome ? 'Ingreso' : 'Egreso'} de ${formattedAmount} en ${accDesc}.`,
         data: tx
       };
     }
@@ -393,6 +503,48 @@ Estructura JSON requerida según acción:
 
     // 6. Consulta general
     return await this.answerQuestion(cmd);
+  }
+
+  resolveTargetAccount(accounts = [], requestedText = '', currency = 'CRC') {
+    const text = (requestedText || '').toLowerCase();
+    const curr = (currency || 'CRC').toUpperCase();
+
+    // 1. Wink
+    if (text.includes('wink')) {
+      if (text.includes('crédito') || text.includes('credito') || text.includes('tarjeta')) {
+        const cred = accounts.find(a => (a.entity?.toLowerCase().includes('wink') || a.name?.toLowerCase().includes('wink')) && a.type === 'credito');
+        if (cred) return cred;
+      }
+      if (text.includes('dolar') || text.includes('dólar') || curr === 'USD') {
+        const usdAcc = accounts.find(a => (a.entity?.toLowerCase().includes('wink') || a.name?.toLowerCase().includes('wink')) && a.type !== 'credito' && (a.currency || '').toUpperCase() === 'USD');
+        if (usdAcc) return usdAcc;
+      }
+      // Por defecto en colones costarricenses (CRC)
+      const crcAcc = accounts.find(a => (a.entity?.toLowerCase().includes('wink') || a.name?.toLowerCase().includes('wink')) && a.type !== 'credito' && (a.currency || 'CRC').toUpperCase() === 'CRC');
+      if (crcAcc) return crcAcc;
+      return accounts.find(a => a.entity?.toLowerCase().includes('wink') || a.name?.toLowerCase().includes('wink'));
+    }
+
+    // 2. Banco Popular
+    if (text.includes('popular') || text.includes('bp')) {
+      return accounts.find(a => a.entity?.toLowerCase().includes('popular') || a.name?.toLowerCase().includes('popular'));
+    }
+
+    // 3. BAC Credomatic
+    if (text.includes('bac')) {
+      if (text.includes('dolar') || text.includes('dólar') || curr === 'USD') {
+        const usdAcc = accounts.find(a => (a.entity?.toLowerCase().includes('bac') || a.name?.toLowerCase().includes('bac')) && (a.currency || '').toUpperCase() === 'USD');
+        if (usdAcc) return usdAcc;
+      }
+      const crcAcc = accounts.find(a => (a.entity?.toLowerCase().includes('bac') || a.name?.toLowerCase().includes('bac')) && a.type === 'debito' && (a.currency || 'CRC').toUpperCase() === 'CRC');
+      if (crcAcc) return crcAcc;
+      return accounts.find(a => a.entity?.toLowerCase().includes('bac') || a.name?.toLowerCase().includes('bac'));
+    }
+
+    // 4. Default / Fallback a cuenta de débito de la misma divisa
+    return accounts.find(a => a.type === 'debito' && (a.currency || 'CRC').toUpperCase() === curr)
+      || accounts.find(a => a.type === 'debito')
+      || accounts[0];
   }
 
   async getFinanceBrief() {
@@ -502,10 +654,11 @@ Estructura JSON requerida según acción:
         naturalReply = `Anotado en tus tareas de alta prioridad. Te mantendré al tanto de su seguimiento.`;
       } else if (executedAction.action === 'EDUS_MONITORING') {
         const spec = executedAction.data?.specialty || 'Odontología';
+        const dayTxt = executedAction.data?.preferredDay ? `para el ${executedAction.data.preferredDay}` : 'más próxima disponible';
         if (executedAction.data?.hasCredentials) {
-          naturalReply = `César, ya abrí el portal oficial de EDUS CCSS, descifré el captcha e inicié sesión con tus credenciales. Ahora estoy monitoreando cupos disponibles de ${spec} en vivo para el viernes. Puedes ver todo el movimiento en la pantalla.`;
+          naturalReply = `César, ya abrí el portal oficial de EDUS CCSS, descifré el captcha e inicié sesión. Ahora estoy buscando la cita ${dayTxt} de ${spec} en vivo. Puedes ver todo el movimiento en la pantalla.`;
         } else {
-          naturalReply = `César, ya abrí el portal de EDUS en pantalla y descifré el código de seguridad. Para que pueda ingresar de inmediato a buscar citas de ${spec}, por favor digita tu cédula y clave en el panel superior y presiona Iniciar Sesión.`;
+          naturalReply = `César, ya abrí el portal de EDUS en pantalla para buscar la cita ${dayTxt} de ${spec}. Para ingresar, solo digita tu cédula y clave arriba y dale a Iniciar Sesión. Yo resuelvo el captcha de seguridad automáticamente.`;
         }
       } else if (executedAction.action === 'SEARCH_PROMOS') {
         const p = executedAction.data?.promotions || [];
