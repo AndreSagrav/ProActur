@@ -311,20 +311,27 @@ export default function CommandCenterView({
 
                   return (
                     <div key={tx.id} className="py-2.5 flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        <div className={`w-7 h-7 rounded-lg flex items-center justify-center text-xs ${
-                          tx.type === 'income' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-slate-800 text-slate-300'
-                        }`}>
-                          {tx.type === 'income' ? <TrendingUp className="w-3.5 h-3.5" /> : <TrendingDown className="w-3.5 h-3.5" />}
-                        </div>
-                        <div>
-                          <div className="text-xs font-bold text-slate-200">{tx.category}</div>
-                          <div className="text-[10px] text-slate-400">{tx.note} · {formattedDate}</div>
-                        </div>
-                      </div>
-                      <div className={`text-xs font-bold font-mono ${tx.type === 'income' ? 'text-emerald-400' : 'text-slate-200'}`}>
-                        {tx.type === 'income' ? '+' : '-'}{symbol}{formattedAmt}
-                      </div>
+                      {(() => {
+                        const isIncome = tx.type === 'ingreso' || tx.type === 'income';
+                        return (
+                          <>
+                            <div className="flex items-center gap-3">
+                              <div className={`w-7 h-7 rounded-lg flex items-center justify-center text-xs ${
+                                isIncome ? 'bg-emerald-500/20 text-emerald-400' : 'bg-slate-800 text-slate-300'
+                              }`}>
+                                {isIncome ? <TrendingUp className="w-3.5 h-3.5" /> : <TrendingDown className="w-3.5 h-3.5" />}
+                              </div>
+                              <div>
+                                <div className="text-xs font-bold text-slate-200">{tx.category}</div>
+                                <div className="text-[10px] text-slate-400">{tx.note} · {formattedDate}</div>
+                              </div>
+                            </div>
+                            <div className={`text-xs font-bold font-mono ${isIncome ? 'text-emerald-400' : 'text-slate-200'}`}>
+                              {isIncome ? '+' : '-'}{symbol}{formattedAmt}
+                            </div>
+                          </>
+                        );
+                      })()}
                     </div>
                   );
                 })}
