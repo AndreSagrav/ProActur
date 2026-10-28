@@ -62,12 +62,17 @@ Cuentas bancarias habituales: "BAC" (o BAC Credomatic), "Wink" (Wink débito o c
 
 Opciones de "action":
 1. "CREATE_EVENT": Si la orden es agendar, programar una junta, cita, evento o reunión con fecha/hora.
-2. "RECORD_FINANCE": Si la orden indica un gasto, pago, compra, ingreso, cobro monetario, transferencia o movimiento bancario, especialmente SINPE Móvil (ej: "mandé un sinpe de 10 mil a Juan de la cuenta Wink", "hice un sinpe de 5000", "me transfirieron un sinpe de 25000 al Popular", "pagué 2000 en el súper con el BAC").
+2. "RECORD_FINANCE": Si la orden indica uno o varios gastos, pagos, compras, ingresos, cobros monetarios, transferencias o movimientos bancarios, especialmente SINPE Móvil (ej: "mandé un sinpe de 10 mil a Juan de la cuenta Wink", "hice un sinpe de 5000", "me transfirieron un sinpe de 25000 al Popular", "pagué 2000 en el súper con el BAC", o listas de varios SINPEs).
 3. "CREATE_TASK": Si la orden indica recordar algo, crear un pendiente, tarea o compromiso sin horario específico.
 4. "START_RECORDING": Si pide grabar o registrar una reunión o audio.
 5. "EDUS_MONITORING": Si pide buscar, monitorear o sacar citas médicas, dentales u odontológicas en el EDUS de la CCSS o EBAIS (ej: "sácame una cita con el odontólogo", "sacar cita el viernes en EDUS", "monitoree citas en EDUS", "cita dental").
 6. "SEARCH_PROMOS": Si pide buscar promociones, ofertas o combos (ej: "promociones de KFC", "ofertas de comida").
 7. "ANSWER": Si es una pregunta, consulta sobre reuniones pasadas, tareas o finanzas.
+
+REGLA ESTRICTA DE FINANZAS Y SINPE:
+Si el usuario menciona o lista MÚLTIPLES transferencias, montos, personas o SINPEs (ej: dos o más pagos, recibos o personas):
+- NUNCA los sumes ni los agrupes en un solo registro genérico como "Ingresos varios".
+- Debes devolver la propiedad "finances" como un arreglo (array) con CADA transferencia desglosada por separado con su respectivo "amount", "contact", "note", "type" e "isSinpe: true".
 
 Estructura JSON requerida según acción:
 {
@@ -77,6 +82,18 @@ Estructura JSON requerida según acción:
     "startTime": "YYYY-MM-DDTHH:mm:ss.sssZ (interpretar fechas relativas como 'mañana', 'el lunes', etc.)",
     "location": "ubicación o virtual si se menciona"
   },
+  "finances": [
+    {
+      "amount": 0.00,
+      "currency": "CRC" | "USD",
+      "type": "gasto" | "ingreso",
+      "isSinpe": true | false,
+      "account": "Wink" | "BAC" | "Popular" | "Efectivo",
+      "contact": "nombre o teléfono si es transferencia o SINPE",
+      "category": "Gasolina y Transporte" | "Alimentación y Reuniones" | "Honorarios Profesionales" | "Transferencias Recibidas" | "Servicios y Software" | "Varios",
+      "note": "concepto formal individual del movimiento (ej: 'Empanada', 'Almuerzo')"
+    }
+  ],
   "finance": {
     "amount": 0.00,
     "currency": "CRC" | "USD",
@@ -84,7 +101,7 @@ Estructura JSON requerida según acción:
     "isSinpe": true | false,
     "account": "Wink" | "BAC" | "Popular" | "Efectivo",
     "contact": "nombre o teléfono si es transferencia o SINPE",
-    "category": "Gasolina y Transporte" | "Alimentación y Reuniones" | "Honorarios Profesionales" | "Servicios y Software" | "Varios",
+    "category": "Gasolina y Transporte" | "Alimentación y Reuniones" | "Honorarios Profesionales" | "Transferencias Recibidas" | "Servicios y Software" | "Varios",
     "note": "concepto formal del movimiento"
   },
   "task": {
@@ -163,48 +180,64 @@ Estructura JSON requerida según acción:
       };
     }
 
-    // B) REGISTRAR FINANZA (CON SOPORTE NATIVO PARA SINPE MÓVIL Y CUENTAS CR)
-    if (parsed.action === 'RECORD_FINANCE' && parsed.finance?.amount) {
-      const amount = Math.abs(Number(parsed.finance.amount));
-      const isIncome = parsed.finance.type === 'ingreso';
-      const currency = (parsed.finance.currency || 'CRC').toUpperCase();
-      const lowerCmd = (originalCmd || '').toLowerCase();
-      const isSinpe = !!parsed.finance.isSinpe || (parsed.finance.note || '').toLowerCase().includes('sinpe') || lowerCmd.includes('sinpe') || lowerCmd.includes('transferí') || lowerCmd.includes('transferi') || lowerCmd.includes('transferencia');
+    // B) REGISTRAR FINANZA (INDIVIDUAL O MÚLTIPLES MOVIMIENTOS / SINPEs DESGLOSADOS)
+    if (parsed.action === 'RECORD_FINANCE' && (parsed.finances?.length > 0 || parsed.finance?.amount)) {
+      const itemsToRecord = parsed.finances && Array.isArray(parsed.finances) && parsed.finances.length > 0
+        ? parsed.finances
+        : [parsed.finance];
 
-      // Buscar cuentas reales disponibles
       const overview = await financeService.getSummary();
       const accounts = overview?.accounts || [];
-      const requestedAcc = `${parsed.finance.account || ''} ${originalCmd || ''}`.toLowerCase();
-      const targetAccount = this.resolveTargetAccount(accounts, requestedAcc, currency);
+      const recordedTxs = [];
+      const summaryLines = [];
 
-      let note = parsed.finance.note || originalCmd;
-      if (isSinpe && !note.toLowerCase().includes('sinpe')) {
-        const contact = parsed.finance.contact ? ` (${isIncome ? 'de' : 'a'} ${parsed.finance.contact})` : '';
-        note = `SINPE Móvil${contact}: ${note}`;
+      for (const item of itemsToRecord) {
+        if (!item || !item.amount) continue;
+        const amount = Math.abs(Number(item.amount));
+        const isIncome = item.type === 'ingreso';
+        const currency = (item.currency || 'CRC').toUpperCase();
+        const lowerItem = `${item.note || ''} ${item.contact || ''} ${originalCmd || ''}`.toLowerCase();
+        const isSinpe = !!item.isSinpe || (item.note || '').toLowerCase().includes('sinpe') || lowerItem.includes('sinpe') || lowerItem.includes('transferí') || lowerItem.includes('transferi');
+
+        const requestedAcc = `${item.account || ''} ${originalCmd || ''}`.toLowerCase();
+        const targetAccount = this.resolveTargetAccount(accounts, requestedAcc, currency);
+
+        let note = item.note || originalCmd;
+        if (isSinpe && !note.toLowerCase().includes('sinpe')) {
+          const contact = item.contact ? ` (${isIncome ? 'de' : 'a'} ${item.contact})` : '';
+          note = `SINPE Móvil${contact}: ${note}`;
+        }
+
+        const tx = await financeService.addTransaction({
+          accountId: targetAccount?.id,
+          amount,
+          currency,
+          type: isIncome ? 'ingreso' : 'gasto',
+          category: item.category || (isIncome ? 'Transferencias Recibidas' : (isSinpe ? 'Varios' : 'Gasolina y Transporte')),
+          note,
+          source: isSinpe ? 'sinpe_assistant' : 'assistant_voice',
+          merchant: item.contact || ''
+        });
+
+        if (tx) {
+          recordedTxs.push(tx);
+          const formattedAmount = currency === 'CRC'
+            ? `₡${Math.round(amount).toLocaleString('es-CR')} CRC`
+            : `$${amount.toLocaleString('en-US', { minimumFractionDigits: 2 })} USD`;
+          const accDesc = targetAccount ? `${targetAccount.name}` : 'cuenta';
+          summaryLines.push(`• ${isIncome ? 'Ingreso' : 'Egreso'} de ${formattedAmount} en ${accDesc} [${note}]`);
+        }
       }
 
-      const tx = await financeService.addTransaction({
-        accountId: targetAccount?.id,
-        amount,
-        currency,
-        type: isIncome ? 'ingreso' : 'gasto',
-        category: parsed.finance.category || (isIncome ? 'Transferencias Recibidas' : (isSinpe ? 'Varios' : 'Gasolina y Transporte')),
-        note,
-        source: isSinpe ? 'sinpe_assistant' : 'assistant_voice',
-        merchant: parsed.finance.contact || ''
-      });
-
-      const formattedAmount = currency === 'CRC'
-        ? `₡${Math.round(amount).toLocaleString('es-CR')} CRC`
-        : `$${amount.toLocaleString('en-US', { minimumFractionDigits: 2 })} USD`;
-
-      const accDesc = targetAccount ? `${targetAccount.name} (${targetAccount.entity})` : 'cuenta principal';
-      const sinpeBadge = isSinpe ? ' 📲 [SINPE Móvil]' : '';
+      const totalCount = recordedTxs.length;
+      const sinpeBadge = itemsToRecord.some(i => i.isSinpe) ? ' 📲 [SINPE Móvil]' : '';
 
       return {
         action: 'RECORD_FINANCE',
-        message: `Registro financiero asentado${sinpeBadge}: ${isIncome ? 'Ingreso' : 'Egreso'} de ${formattedAmount} en ${accDesc}. Detalle: "${note}".`,
-        data: tx
+        message: totalCount === 1
+          ? `Registro financiero asentado${sinpeBadge}: ${summaryLines[0].replace('• ', '')}.`
+          : `${totalCount} transferencias SINPE asentadas${sinpeBadge} individualmente:\n${summaryLines.join('\n')}`,
+        data: totalCount === 1 ? recordedTxs[0] : recordedTxs
       };
     }
 
