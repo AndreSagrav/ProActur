@@ -1,6 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 const { getSupabaseClient } = require('./supabaseClient');
+const financeCategorizer = require('./financeCategorizer');
 
 const DATA_FILE = process.env.VERCEL
   ? path.join('/tmp', 'finances.json')
@@ -139,6 +140,8 @@ class FinanceService {
               merchant: st.merchant || local?.merchant || ''
             };
           });
+          // Mantener la caché local en disco 100% sincronizada con Supabase
+          this.writeLocal(data);
         }
       } catch (_) {}
     }
@@ -638,11 +641,18 @@ class FinanceService {
       }
     }
 
+    let finalCategory = tx.category;
+    if (!finalCategory || finalCategory === 'Varios') {
+      finalCategory = cleanType === 'ingreso'
+        ? financeCategorizer.categorizeIncome(tx.note || '', (tx.note || '').toLowerCase().includes('sinpe'))
+        : financeCategorizer.categorizeExpense(tx.merchant || '', tx.note || '');
+    }
+
     const newTx = {
       id: 'tx_' + Date.now(),
       accountId: tx.accountId || data.accounts[0]?.id || 'acc_bac_debito',
       type: cleanType,
-      category: tx.category || 'Varios',
+      category: finalCategory,
       note: tx.note || '',
       merchant: tx.merchant || '',
       amount: cleanAmount,

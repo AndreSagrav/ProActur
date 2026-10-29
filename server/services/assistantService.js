@@ -6,6 +6,7 @@ const noteService = require('./noteService');
 const aiService = require('./aiService');
 const edusService = require('./edusService');
 const dobyBrowserService = require('./dobyBrowserService');
+const financeCategorizer = require('./financeCategorizer');
 
 class AssistantService {
   /**
@@ -213,7 +214,7 @@ Estructura JSON requerida según acción:
           amount,
           currency,
           type: isIncome ? 'ingreso' : 'gasto',
-          category: item.category || (isIncome ? 'Transferencias Recibidas' : (isSinpe ? 'Varios' : 'Gasolina y Transporte')),
+          category: item.category || (isIncome ? financeCategorizer.categorizeIncome(note, isSinpe) : financeCategorizer.categorizeExpense(item.contact || '', note)),
           note,
           source: isSinpe ? 'sinpe_assistant' : 'assistant_voice',
           merchant: item.contact || ''
@@ -401,12 +402,9 @@ Estructura JSON requerida según acción:
       const isUSD = lower.includes('dolar') || lower.includes('dólar') || lower.includes('usd') || lower.includes('$');
       const currency = isUSD ? 'USD' : 'CRC';
 
-      let category = isIncome ? 'Transferencias Recibidas' : (isSinpe ? 'Varios' : 'Gasolina y Transporte');
-      if (lower.includes('comida') || lower.includes('almuerz') || lower.includes('restauran') || lower.includes('soda')) {
-        category = 'Alimentación y Reuniones';
-      } else if (lower.includes('software') || lower.includes('servici') || lower.includes('internet') || lower.includes('luz') || lower.includes('agua')) {
-        category = 'Servicios y Software';
-      }
+      let category = isIncome
+        ? financeCategorizer.categorizeIncome(cmd, isSinpe)
+        : financeCategorizer.categorizeExpense('', cmd);
 
       // Detectar cuenta real adecuada
       const overview = await financeService.getSummary();
@@ -612,12 +610,27 @@ Estructura JSON requerida según acción:
   async answerQuestion(question) {
     try {
       const lower = question.toLowerCase();
-      const isFinQuery = lower.includes('saldo') || lower.includes('cuenta') || lower.includes('tarjeta') || lower.includes('debo') || lower.includes('deuda') || lower.includes('cuánto tengo') || lower.includes('cuanto tengo') || lower.includes('corte') || lower.includes('pago') || lower.includes('gasto') || lower.includes('dinero') || lower.includes('bac') || lower.includes('wink') || lower.includes('popular');
+      const isFinQuery = lower.includes('saldo') || lower.includes('cuenta') || lower.includes('tarjeta') || 
+        lower.includes('debo') || lower.includes('deuda') || lower.includes('cuánto tengo') || lower.includes('cuanto tengo') || 
+        lower.includes('corte') || lower.includes('pago') || lower.includes('gasto') || lower.includes('dinero') || 
+        lower.includes('bac') || lower.includes('wink') || lower.includes('popular') || lower.includes('inversion') || 
+        lower.includes('invertir') || lower.includes('inversiones') || lower.includes('asesor') || lower.includes('consejo') || 
+        lower.includes('presupuesto') || lower.includes('ahorro') || lower.includes('ahorrar') || lower.includes('cdp') || 
+        lower.includes('liquidez') || lower.includes('patrimonio') || lower.includes('finanzas');
 
       if (isFinQuery) {
         const finBrief = await this.getFinanceBrief();
         if (finBrief) {
-          const sysPrompt = `Eres ProActur AI, el asistente ejecutivo de máxima confianza de César Andrés. Responde a su consulta sobre sus cuentas bancarias, saldos o deudas con cifras exactas, concisas y en español natural directo de Costa Rica. Sin relleno.`;
+          const sysPrompt = `Eres Dobby, el Asesor Financiero Ejecutivo y Director de Finanzas (CFO) de máxima confianza de César Andrés en Costa Rica.
+Tienes acceso total en tiempo real a sus cuentas bancarias, pasivos y activos.
+REGLAS PARA TU ASESORÍA Y RESPUESTAS FINANCIERAS:
+1. Responde con criterio contable riguroso, directo al grano y en español costarricense natural y educado.
+2. Si César te pide consejos de finanzas o inversión:
+   - Principio #1: Eliminar deuda de alto costo. Su tarjeta Wink Crédito tiene tasa del 32% anual en colones (27.5% en USD). Pagar cualquier saldo ahí equivale a un rendimiento garantizado del 32% anual libre de riesgo.
+   - Principio #2: Mantener colchón de liquidez operativa en cuentas de débito (BAC Débito / Banco Popular) para flujo mensual.
+   - Principio #3: Inversiones en Costa Rica: Evaluar Fondos de Inversión a la vista (BP Safi o BAC San José) para liquidez inmediata, o CDPs (Certificados de Depósito a Plazo en colones del Banco Popular o BAC) para excedentes de capital.
+   - Principio #4: Proteger ahorros programados intocables (Marchamo y Ahorro Navideño).
+3. Si pregunta por saldos o deudas, da las cifras exactas y claras. Sin rodeos innecesarios.`;
           try {
             const reply = await aiService.callGroq(`Pregunta de César: "${question}"\n\n${finBrief}`, sysPrompt, 'openai/gpt-oss-120b');
             if (reply) return { action: 'ANSWER', message: reply, data: { source: 'finances' } };
@@ -722,12 +735,14 @@ Estructura JSON requerida según acción:
         `Reuniones registradas en el sistema: ${allMeetings.length}\n` +
         `Notas disponibles: ${allNotes.length}`;
 
-      const systemPrompt = `Eres Dobby, el asistente ejecutivo personal de máxima confianza de César Andrés.
+      const systemPrompt = `Eres Dobby, el copiloto ejecutivo y Asesor Financiero (CFO) de máxima confianza de César Andrés.
 Hablas SIEMPRE en primera persona ('inicié la búsqueda', 'registré el gasto', 'revisé la agenda'). TÚ ERES DOBBY, nunca te refieras a ti mismo en tercera persona ni digas que 'mandaste a Dobby' o 'pusiste a Dobby'.
 Hablas en español de Costa Rica/Latinoamérica con un tono completamente natural, humano, directo, educado y resolutivo.
 Tienes acceso completo en tiempo real a sus cuentas bancarias, deudas, reuniones, notas y tareas.
+Si César te consulta sobre finanzas, consejos de inversión o qué hacer con su dinero:
+- Responde con criterio de CFO: liquidar deudas caras primero (Wink Crédito al 32% anual en colones), proteger colchón de liquidez operativa y colocar excedentes en CDPs o fondos a la vista del Banco Popular o BAC.
 NUNCA hables como un robot ni des introducciones genéricas ni bloques de código.
-Responde en 1 o 2 oraciones concisas y útiles como un verdadero asistente personal que habla cara a cara.`;
+Responde de forma concisa y útil como un verdadero asesor y copiloto personal que habla cara a cara.`;
 
       let aiReply = null;
       try {

@@ -2,6 +2,7 @@ const fs = require('fs');
 const path = require('path');
 const tls = require('tls');
 const financeService = require('./financeService');
+const financeCategorizer = require('./financeCategorizer');
 const { getSupabaseClient } = require('./supabaseClient');
 
 const CONFIG_FILE = process.env.VERCEL
@@ -503,13 +504,7 @@ class BankMailService {
   }
 
   categorizeExpense(merchant = '', fullText = '') {
-    const text = (merchant + ' ' + fullText).toLowerCase();
-    if (text.includes('diezmo') || text.includes('ofrenda') || text.includes('iglesia') || text.includes('donaci')) return 'Donaciones y Diezmos';
-    if (text.includes('gas') || text.includes('delta') || text.includes('uber') || text.includes('didi') || text.includes('peaje')) return 'Gasolina y Transporte';
-    if (text.includes('auto mercado') || text.includes('automercado') || text.includes('walmart') || text.includes('masxmenos') || text.includes('kfc') || text.includes('mcdonald') || text.includes('restaurante')) return 'Alimentación y Reuniones';
-    if (text.includes('ice') || text.includes('kolbi') || text.includes('claro') || text.includes('liberty') || text.includes('aya') || text.includes('cnfl') || text.includes('google') || text.includes('apple') || text.includes('netflix') || text.includes('spotify') || text.includes('aws')) return 'Servicios y Software';
-    if (text.includes('farmacia') || text.includes('clinica') || text.includes('hospital') || text.includes('laboratorio')) return 'Equipamiento';
-    return 'Varios';
+    return financeCategorizer.categorizeExpense(merchant, fullText);
   }
 
   /**
