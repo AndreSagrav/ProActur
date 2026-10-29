@@ -330,6 +330,7 @@ class BankMailService {
     else if (lower.includes('popular') || lower.includes('bancopopular') || from.includes('bancopopular') || from.includes('bp.fi.cr') || lower.includes('bp.fi.cr')) entity = 'Banco Popular';
     else if (lower.includes('wink') || lower.includes('holawink') || from.includes('holawink')) entity = 'Wink';
     else if (lower.includes('coopeande') || from.includes('coopeande')) entity = 'Coopeande';
+    else if (lower.includes('coopenae') || from.includes('coopenae')) entity = 'Coopenae';
     else if (lower.includes('bcr') || lower.includes('banco de costa rica') || from.includes('bancobcr')) entity = 'Banco de Costa Rica';
     else if (lower.includes('davivienda')) entity = 'Davivienda';
     else if (lower.includes('scotiabank')) entity = 'Scotiabank';
