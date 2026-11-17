@@ -359,14 +359,19 @@ Debes responder ÚNICAMENTE con un objeto JSON válido (sin markdown, sin bloque
       ? this.normalizeDomainTerminology(rawTitle)
       : '';
 
+    const pickLatestSlice = (arr) => {
+      if (!Array.isArray(arr)) return [];
+      return arr.length > 25 ? arr.slice(-40).reverse() : arr;
+    };
+
     return {
       ...previousContext,
       title: cleanTitle || undefined,
       summary: this.sanitizeSummaryText(previousContext.summary || ''),
-      keyTopics: this.mergeUniqueStrings(previousContext.keyTopics || [], [], 16),
-      keyDecisions: this.mergeUniqueStrings(previousContext.keyDecisions || [], [], 16),
-      actionItems: this.mergeActionItems(previousContext.actionItems || [], [], 14),
-      proactiveAdvice: this.mergeUniqueStrings(previousContext.proactiveAdvice || [], [], 12)
+      keyTopics: this.mergeUniqueStrings([], pickLatestSlice(previousContext.keyTopics), 16),
+      keyDecisions: this.mergeUniqueStrings([], pickLatestSlice(previousContext.keyDecisions), 16),
+      actionItems: this.mergeActionItems([], pickLatestSlice(previousContext.actionItems), 14),
+      proactiveAdvice: this.mergeUniqueStrings([], pickLatestSlice(previousContext.proactiveAdvice), 12)
     };
   }
 

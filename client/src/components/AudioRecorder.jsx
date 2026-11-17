@@ -168,6 +168,8 @@ export default function AudioRecorder({ onMeetingProcessed, onRecordingStatusCha
   const [audioInputDevices, setAudioInputDevices] = useState([]);
   const [selectedDeviceId, setSelectedDeviceId] = useState('auto-mix');
   const [zeroMicWarning, setZeroMicWarning] = useState(false);
+  const [audioCtxSuspended, setAudioCtxSuspended] = useState(false);
+  const autoResumeTriggeredRef = useRef(false);
   const zeroAudioSecondsRef = useRef(0);
   const audioLevelRef = useRef(0);
   const extraStreamsRef = useRef([]);
@@ -280,10 +282,17 @@ export default function AudioRecorder({ onMeetingProcessed, onRecordingStatusCha
     }
   }, [isRecording, recordingTime, audioLevel, liveDecisions.length, liveActionItems.length, meetingTitle]);
 
-  // 1. Verificacion de grabaciones no finalizadas en IndexedDB al cargar
+  // 1. Verificacion de grabaciones no finalizadas en IndexedDB al cargar (auto-reanuda tras refresco reciente)
   useEffect(() => {
     checkUnfinalizedRecording().then(res => {
       if (res && res.hasUnfinalized) {
+        const snapUpdatedAt = Number(res.snapshot?.updatedAt || 0);
+        const isFreshReload = snapUpdatedAt > 0 && (Date.now() - snapUpdatedAt < 180000);
+        if (isFreshReload && !autoResumeTriggeredRef.current && !isRecordingRef.current) {
+          autoResumeTriggeredRef.current = true;
+          handleResumeUnfinalized();
+          return;
+        }
         setHasRecoverableAudio(true);
         const mins = res.snapshot?.transcript
           ? `${res.snapshot.transcript.split(/\s+/).filter(Boolean).length} palabras`
@@ -393,7 +402,41 @@ export default function AudioRecorder({ onMeetingProcessed, onRecordingStatusCha
       }
 
       if (audioCtx.state === 'suspended') {
-        try { await audioCtx.resume(); } catch (_) {}
+        try {
+          await Promise.race([
+            audioCtx.resume(),
+            new Promise(resolve => setTimeout(resolve, 250))
+          ]);
+        } catch (_) {}
+      }
+
+      if (audioCtx.state === 'suspended') {
+        setAudioCtxSuspended(true);
+        const unlockAudio = () => {
+          if (audioContextRef.current && audioContextRef.current.state === 'suspended') {
+            audioContextRef.current.resume().then(() => {
+              if (audioContextRef.current?.state === 'running') {
+                setAudioCtxSuspended(false);
+              }
+            }).catch(() => {});
+          }
+          if (audioContextRef.current?.state === 'running') {
+            setAudioCtxSuspended(false);
+            window.removeEventListener('pointerdown', unlockAudio);
+            window.removeEventListener('keydown', unlockAudio);
+          }
+        };
+        window.addEventListener('pointerdown', unlockAudio, { passive: true });
+        window.addEventListener('keydown', unlockAudio, { passive: true });
+        audioCtx.onstatechange = () => {
+          if (audioCtx.state === 'running') {
+            setAudioCtxSuspended(false);
+            window.removeEventListener('pointerdown', unlockAudio);
+            window.removeEventListener('keydown', unlockAudio);
+          }
+        };
+      } else {
+        setAudioCtxSuspended(false);
       }
 
       const analyser = audioCtx.createAnalyser();
@@ -1043,20 +1086,25 @@ export default function AudioRecorder({ onMeetingProcessed, onRecordingStatusCha
     }
 
     try {
+      const pickLatestItems = (arr) => {
+        if (!Array.isArray(arr)) return [];
+        return arr.length > 20 ? arr.slice(-40).reverse() : arr;
+      };
+
       const restoredTitle = isResuming ? (resumeSnapshot.title || meetingTitle || '') : '';
       const restoredTranscript = isResuming ? (resumeSnapshot.transcript || '') : '';
       const restoredSummary = isResuming ? (resumeSnapshot.summary || '') : '';
-      const restoredTopics = isResuming && Array.isArray(resumeSnapshot.keyTopics)
-        ? resumeSnapshot.keyTopics.filter(t => typeof t === 'string' && !isPoisonedClientItem(t))
+      const restoredTopics = isResuming
+        ? mergeUniqueTextArrays([], pickLatestItems(resumeSnapshot.keyTopics), 16)
         : [];
-      const restoredDecisions = isResuming && Array.isArray(resumeSnapshot.keyDecisions)
-        ? resumeSnapshot.keyDecisions.filter(d => typeof d === 'string' && !isPoisonedClientItem(d))
+      const restoredDecisions = isResuming
+        ? mergeUniqueTextArrays([], pickLatestItems(resumeSnapshot.keyDecisions), 16)
         : [];
-      const restoredActions = isResuming && Array.isArray(resumeSnapshot.actionItems)
-        ? resumeSnapshot.actionItems.filter(a => a && !isPoisonedClientItem(typeof a === 'string' ? a : a.task))
+      const restoredActions = isResuming
+        ? mergeUniqueActionItems([], pickLatestItems(resumeSnapshot.actionItems), 14)
         : [];
-      const restoredAdvice = isResuming && Array.isArray(resumeSnapshot.proactiveAdvice)
-        ? resumeSnapshot.proactiveAdvice.filter(a => typeof a === 'string' && !isPoisonedClientItem(a))
+      const restoredAdvice = isResuming
+        ? mergeUniqueTextArrays([], pickLatestItems(resumeSnapshot.proactiveAdvice), 12)
         : [];
       const restoredUserNotes = isResuming ? (resumeSnapshot.userNotes || userLiveNotes || '') : '';
 
@@ -1912,7 +1960,27 @@ export default function AudioRecorder({ onMeetingProcessed, onRecordingStatusCha
                     </div>
                   )}
 
-                  {zeroMicWarning && audioLevel === 0 && (
+                  {audioCtxSuspended && (
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        try {
+                          if (audioContextRef.current && audioContextRef.current.state === 'suspended') {
+                            await audioContextRef.current.resume();
+                          }
+                          if (audioContextRef.current?.state === 'running') {
+                            setAudioCtxSuspended(false);
+                          }
+                        } catch (_) {}
+                      }}
+                      className="w-full p-2.5 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-400/50 text-emerald-200 text-xs font-bold flex items-center justify-center gap-2 transition-all animate-pulse"
+                    >
+                      <Volume2 className="w-4 h-4 text-emerald-300 shrink-0" />
+                      <span>🔊 Haz clic aquí para reactivar el micrófono tras el refresco</span>
+                    </button>
+                  )}
+
+                  {zeroMicWarning && audioLevel === 0 && !audioCtxSuspended && (
                     <div className="p-2.5 rounded-xl bg-amber-950/40 border border-amber-500/40 text-amber-200 text-[11px] leading-snug">
                       ⚠️ No entra señal del micrófono (0%). Si Chrome te pide arriba <strong>&quot;Volver a cargar&quot;</strong> por permisos o estás usando otro micrófono, recarga la página o cambia el <strong>Micrófono activo</strong> arriba.
                     </div>
