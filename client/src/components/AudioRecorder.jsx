@@ -149,8 +149,13 @@ export default function AudioRecorder({ onMeetingProcessed, onRecordingStatusCha
   const [recoverableSeconds, setRecoverableSeconds] = useState(0);
   const [recovering, setRecovering] = useState(false);
 
-  // Medidor de voz en vivo (Audio Activity Analyzer)
+  // Medidor de voz en vivo y selector de micrófono (Audio Activity Analyzer)
   const [audioLevel, setAudioLevel] = useState(0);
+  const [audioInputDevices, setAudioInputDevices] = useState([]);
+  const [selectedDeviceId, setSelectedDeviceId] = useState('');
+  const [zeroMicWarning, setZeroMicWarning] = useState(false);
+  const zeroAudioSecondsRef = useRef(0);
+  const audioLevelRef = useRef(0);
   const isRecordingRef = useRef(false);
   const audioContextRef = useRef(null);
   const analyserRef = useRef(null);
@@ -476,6 +481,10 @@ export default function AudioRecorder({ onMeetingProcessed, onRecordingStatusCha
         }
 
         const normalized = Math.min(100, Math.round(calculated));
+        audioLevelRef.current = normalized;
+        if (normalized > 0) {
+          zeroAudioSecondsRef.current = 0;
+        }
         setAudioLevel(normalized);
 
         animFrameRef.current = requestAnimationFrame(updateLevel);
@@ -921,9 +930,8 @@ export default function AudioRecorder({ onMeetingProcessed, onRecordingStatusCha
 
       // Solicitar micrófono con constraints optimizadas
       const mobile = isMobileDevice();
-      let stream;
-      try {
-        const audioConstraints = mobile
+      const buildAudioConstraints = (devId = selectedDeviceId) => {
+        const base = mobile
           ? {
               echoCancellation: true,
               noiseSuppression: false,
@@ -935,12 +943,34 @@ export default function AudioRecorder({ onMeetingProcessed, onRecordingStatusCha
               autoGainControl: true,
               sampleRate: 44100
             };
-        stream = await navigator.mediaDevices.getUserMedia({ audio: audioConstraints });
+        if (devId) {
+          base.deviceId = { exact: devId };
+        }
+        return base;
+      };
+
+      let stream;
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({ audio: buildAudioConstraints() });
       } catch (micErr) {
         console.warn('[ProActur Mic] Reintentando con constraint básica:', micErr.message);
         stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       }
 
+      // Listar micrófonos disponibles con etiqueta real una vez concedido el permiso
+      try {
+        const devs = await navigator.mediaDevices.enumerateDevices();
+        const inputs = devs.filter(d => d.kind === 'audioinput');
+        setAudioInputDevices(inputs);
+        const activeTrack = stream.getAudioTracks()[0];
+        const currentSettings = activeTrack?.getSettings?.();
+        if (currentSettings?.deviceId && !selectedDeviceId) {
+          setSelectedDeviceId(currentSettings.deviceId);
+        }
+      } catch (_) {}
+
+      zeroAudioSecondsRef.current = 0;
+      setZeroMicWarning(false);
       isRecordingRef.current = true;
       setIsRecording(true);
       setRecordingTime(0);
@@ -962,6 +992,14 @@ export default function AudioRecorder({ onMeetingProcessed, onRecordingStatusCha
           if (!isRecordingRef.current || !startTimeRef.current) return;
           const elapsed = Math.floor((Date.now() - startTimeRef.current) / 1000);
           setRecordingTime(elapsed);
+
+          if (audioLevelRef.current === 0) {
+            zeroAudioSecondsRef.current += 1;
+            if (zeroAudioSecondsRef.current >= 10) setZeroMicWarning(true);
+          } else {
+            zeroAudioSecondsRef.current = 0;
+            setZeroMicWarning(false);
+          }
 
           if (
             Date.now() - lastLiveAnalysisTimeRef.current >= analysisIntervalMs &&
@@ -1502,32 +1540,32 @@ export default function AudioRecorder({ onMeetingProcessed, onRecordingStatusCha
               {/* Barra de Estado y Accion Superior - Espaciosa y Verticalmente Estructurada */}
               <div className="bg-slate-950/90 border border-indigo-500/30 rounded-3xl p-5 sm:p-6 shadow-2xl space-y-4">
                 {/* Fila 1: Temporizador Principal, Badges y Estado de la Reunion */}
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-800/80">
-                  <div className="flex items-center gap-3">
+                <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-slate-800/80">
+                  <div className="flex items-center gap-3 min-w-0">
                     <div className="relative flex items-center justify-center shrink-0">
                       <span className="absolute w-5 h-5 rounded-full bg-red-500/40 animate-ping" />
                       <span className="w-3.5 h-3.5 rounded-full bg-red-500 shadow-lg shadow-red-500/50" />
                     </div>
-                    <div>
-                      <div className="flex items-center gap-2.5">
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
                         <span className="text-xl sm:text-2xl font-black text-slate-100 font-mono tracking-tight">
                           {formatTime(recordingTime)}
                         </span>
-                        <span className="px-2.5 py-1 rounded-full bg-red-500/15 text-red-400 border border-red-500/30 text-xs font-black uppercase tracking-wider">
+                        <span className="px-2.5 py-1 rounded-full bg-red-500/15 text-red-400 border border-red-500/30 text-xs font-black uppercase tracking-wider shrink-0">
                           ● En Vivo
                         </span>
                         {isAnalyzingLive && (
-                          <span className="px-3 py-1 rounded-full bg-indigo-500/20 text-indigo-300 border border-indigo-500/40 text-xs font-bold flex items-center gap-1.5 animate-pulse">
+                          <span className="px-3 py-1 rounded-full bg-indigo-500/20 text-indigo-300 border border-indigo-500/40 text-xs font-bold flex items-center gap-1.5 animate-pulse shrink-0">
                             <Sparkles className="w-3.5 h-3.5 text-indigo-400" />
                             <span>Analizando con IA...</span>
                           </span>
                         )}
                       </div>
-                      <p className="text-xs text-slate-400 mt-1 font-medium">
+                      <p className="text-xs text-slate-400 mt-1 font-medium truncate">
                         {meetingTitle || 'Sesión en vivo'} &bull; Escucha activa y respaldo continuo
                       </p>
                       {liveStatusMessage && (
-                        <p className="text-[11px] text-emerald-300/90 mt-1 font-mono">
+                        <p className="text-[11px] text-emerald-300/90 mt-1 font-mono break-words">
                           {liveStatusMessage}
                         </p>
                       )}
@@ -1535,52 +1573,100 @@ export default function AudioRecorder({ onMeetingProcessed, onRecordingStatusCha
                   </div>
 
                   {/* Estado de la Grabacion / Caja Negra */}
-                  <div className="flex items-center gap-2">
-                    <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-xs font-bold">
-                      <ShieldCheck className="w-4 h-4" />
+                  <div className="flex items-center gap-2 shrink-0">
+                    <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-xs font-bold whitespace-nowrap">
+                      <ShieldCheck className="w-4 h-4 shrink-0" />
                       <span>Caja Negra Activa</span>
                     </div>
                   </div>
                 </div>
 
-                {/* Fila 2: Ecualizador de Voz Amplio con Diagnostico Claro */}
-                <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-xl bg-indigo-600/20 text-indigo-400 flex items-center justify-center border border-indigo-500/30 shrink-0">
-                      <Volume2 className="w-4 h-4" />
-                    </div>
-                    <div>
-                      <div className="text-xs font-bold text-slate-200 flex items-center gap-2">
-                        <span>Sensibilidad del Micrófono:</span>
-                        <span className={`font-mono font-bold px-1.5 py-0.5 rounded text-xs ${
-                          audioLevel > 10 ? 'bg-emerald-500/20 text-emerald-300' : 'bg-amber-500/20 text-amber-300'
-                        }`}>
-                          {audioLevel}%
-                        </span>
+                {/* Fila 2: Ecualizador de Voz Amplio con Selector de Micrófono */}
+                <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-3.5 space-y-2.5">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-xl bg-indigo-600/20 text-indigo-400 flex items-center justify-center border border-indigo-500/30 shrink-0">
+                        <Volume2 className="w-4 h-4" />
                       </div>
-                      <p className="text-[11px] text-slate-400 mt-0.5">
-                        {audioLevel > 10
-                          ? 'Capturando ondas de voz con claridad'
-                          : 'Micrófono en silencio o esperando que comiences a hablar'}
-                      </p>
+                      <div>
+                        <div className="text-xs font-bold text-slate-200 flex items-center gap-2">
+                          <span>Sensibilidad del Micrófono:</span>
+                          <span className={`font-mono font-bold px-1.5 py-0.5 rounded text-xs ${
+                            audioLevel > 10 ? 'bg-emerald-500/20 text-emerald-300' : 'bg-amber-500/20 text-amber-300'
+                          }`}>
+                            {audioLevel}%
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-slate-400 mt-0.5">
+                          {audioLevel > 10
+                            ? 'Capturando ondas de voz con claridad'
+                            : 'Micrófono en silencio o esperando audio'}
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Visualizador de Barras con Ancho Generoso */}
+                    <div className="flex items-end gap-1 h-7 w-full sm:w-48 bg-slate-950 p-1.5 rounded-xl border border-slate-800">
+                      {[10, 20, 35, 50, 70, 85, 95, 80, 60, 45, 30, 15].map((threshold, idx) => {
+                        const isActive = audioLevel >= threshold;
+                        return (
+                          <span
+                            key={idx}
+                            className={`flex-1 rounded-full transition-all duration-75 ${
+                              isActive ? 'bg-indigo-400 shadow-sm shadow-indigo-400/50' : 'bg-slate-800'
+                            }`}
+                            style={{ height: isActive ? `${Math.max(25, (audioLevel / 100) * 100)}%` : '20%' }}
+                          />
+                        );
+                      })}
                     </div>
                   </div>
 
-                  {/* Visualizador de Barras con Ancho Generoso */}
-                  <div className="flex items-end gap-1 h-7 w-full sm:w-48 bg-slate-950 p-1.5 rounded-xl border border-slate-800">
-                    {[10, 20, 35, 50, 70, 85, 95, 80, 60, 45, 30, 15].map((threshold, idx) => {
-                      const isActive = audioLevel >= threshold;
-                      return (
-                        <span
-                          key={idx}
-                          className={`flex-1 rounded-full transition-all duration-75 ${
-                            isActive ? 'bg-indigo-400 shadow-sm shadow-indigo-400/50' : 'bg-slate-800'
-                          }`}
-                          style={{ height: isActive ? `${Math.max(25, (audioLevel / 100) * 100)}%` : '20%' }}
-                        />
-                      );
-                    })}
-                  </div>
+                  {audioInputDevices.length > 0 && (
+                    <div className="flex flex-col sm:flex-row sm:items-center gap-2 pt-2 border-t border-slate-800/70">
+                      <label className="text-[11px] text-slate-400 font-semibold shrink-0">
+                        Micrófono activo:
+                      </label>
+                      <select
+                        value={selectedDeviceId}
+                        onChange={async (e) => {
+                          const newId = e.target.value;
+                          setSelectedDeviceId(newId);
+                          try {
+                            if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+                              mediaRecorderRef.current.onstop = null;
+                              mediaRecorderRef.current.stop();
+                            }
+                            if (activeStreamRef.current) {
+                              activeStreamRef.current.getTracks().forEach(t => t.stop());
+                            }
+                            const nextStream = await navigator.mediaDevices.getUserMedia({
+                              audio: newId ? { deviceId: { exact: newId }, echoCancellation: true, autoGainControl: true } : true
+                            });
+                            zeroAudioSecondsRef.current = 0;
+                            setZeroMicWarning(false);
+                            attachRecorderToStream(nextStream, isMobileDevice() ? 15000 : 12000);
+                            setLiveStatusMessage('✓ Micrófono cambiado sin interrumpir la sesión.');
+                          } catch (switchErr) {
+                            setLiveStatusMessage('⚠️ No se pudo cambiar de micrófono: ' + switchErr.message);
+                          }
+                        }}
+                        className="flex-1 bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1.5 text-[11px] text-slate-200 focus:outline-none focus:border-indigo-500"
+                      >
+                        {audioInputDevices.map((d, i) => (
+                          <option key={d.deviceId || i} value={d.deviceId}>
+                            {d.label || `Micrófono ${i + 1}`}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+
+                  {zeroMicWarning && audioLevel === 0 && (
+                    <div className="p-2.5 rounded-xl bg-amber-950/40 border border-amber-500/40 text-amber-200 text-[11px] leading-snug">
+                      ⚠️ No entra señal del micrófono (0%). Si Chrome te pide arriba <strong>&quot;Volver a cargar&quot;</strong> por permisos o estás usando otro micrófono, recarga la página o cambia el <strong>Micrófono activo</strong> arriba.
+                    </div>
+                  )}
                 </div>
 
                 {/* Fila 3: Botones de Accion con Ancho Completo y Sin Amontonamiento */}

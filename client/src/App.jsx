@@ -520,8 +520,8 @@ const handleNewNote = (linkedMeeting = null) => {
         {/* =================================================================== */}
         <div className={activeTab === 'meetings' ? 'block' : 'hidden'}>
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 sm:gap-6">
-            {/* Columna Izquierda: Grabadora + Lista de Reuniones (Desktop o Movil si no hay detalle) */}
-            <aside className={`lg:col-span-4 flex flex-col gap-4 ${showMobileDetail ? 'hidden lg:flex' : 'flex'}`}>
+            {/* Columna Izquierda / Cockpit Completo cuando está grabando en vivo */}
+            <aside className={`${recordingState.isRecording ? 'lg:col-span-12' : 'lg:col-span-4'} flex flex-col gap-4 ${showMobileDetail && !recordingState.isRecording ? 'hidden lg:flex' : 'flex'}`}>
               {/* Grabador de Audio único y centralizado */}
               <div>
                 <AudioRecorder
@@ -533,8 +533,8 @@ const handleNewNote = (linkedMeeting = null) => {
                 />
               </div>
 
-              {/* Encabezado de Historial con Buscador y Fusión */}
-              <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-4 shadow-md space-y-3">
+              {/* Encabezado de Historial con Buscador y Fusión (se oculta en vivo para dar pantalla completa al seminario) */}
+              <div className={`${recordingState.isRecording ? 'hidden' : 'block'} bg-slate-900/90 border border-slate-800 rounded-2xl p-4 shadow-md space-y-3`}>
                 <div className="flex items-center justify-between gap-2">
                   <h3 className="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center gap-2">
                     <FileText className="w-4 h-4 text-indigo-400" />
@@ -620,7 +620,7 @@ const handleNewNote = (linkedMeeting = null) => {
               </div>
 
               {/* Lista de Reuniones */}
-              <div className="space-y-2 max-h-[580px] overflow-y-auto pr-1">
+              <div className={`${recordingState.isRecording ? 'hidden' : 'block'} space-y-2 max-h-[580px] overflow-y-auto pr-1`}>
                 {filteredMeetings.length === 0 ? (
                   <div className="p-8 text-center bg-slate-900/40 border border-slate-800/60 rounded-2xl text-xs text-slate-500">
                     No hay reuniones registradas todavía. Graba o sube un audio para empezar.
@@ -709,8 +709,8 @@ const handleNewNote = (linkedMeeting = null) => {
               </div>
             </aside>
 
-            {/* Columna Derecha: AudioRecorder (Desktop) + Detalle de Reunion */}
-            <section className={`lg:col-span-8 space-y-5 sm:space-y-6 ${!showMobileDetail ? 'hidden lg:block' : 'block'}`}>
+            {/* Columna Derecha: Detalle de Reunion (oculta mientras hay grabación en vivo para expandir el Cockpit) */}
+            <section className={`lg:col-span-8 space-y-5 sm:space-y-6 ${recordingState.isRecording ? 'hidden' : (!showMobileDetail ? 'hidden lg:block' : 'block')}`}>
               {/* Boton de regreso en vista movil */}
               <div className="lg:hidden">
                 <button
