@@ -312,16 +312,44 @@ Debes responder ÚNICAMENTE con un objeto JSON válido (sin markdown, sin bloque
 
   sanitizeSummaryText(summary) {
     if (!summary || typeof summary !== 'string') return '';
-    const paragraphs = summary
-      .split(/\n+/)
-      .map(para => {
-        const sentences = para
-          .split(/(?<=[.!?])\s+(?=[A-ZÁÉÍÓÚÑ¡¿🔴📋])/)
+    const lines = summary
+      .split(/\r?\n/)
+      .map(line => {
+        const trimmed = line.trim();
+        if (!trimmed) return '';
+        const sentences = trimmed
+          .split(/(?<=[.!?])\s+(?=[A-ZÁÉÍÓÚÑ¡¿🔴📋📌•-])/)
           .filter(sentence => !this.isPoisonedLiveItem(sentence));
         return this.normalizeDomainTerminology(sentences.join(' ').trim());
       })
       .filter(Boolean);
-    return paragraphs.join('\n\n').trim();
+
+    let formatted = lines
+      .map((line, idx) => {
+        const isBullet = /^[•\-*]\s+/.test(line);
+        const prevIsBullet = idx > 0 && /^[•\-*]\s+/.test(lines[idx - 1]);
+        const prevIsHeader = idx > 0 && /^(?:📌|📋)\s*/.test(lines[idx - 1]);
+        if (idx === 0) return line;
+        return (isBullet && (prevIsBullet || prevIsHeader)) ? `\n${line}` : `\n\n${line}`;
+      })
+      .join('')
+      .trim();
+
+    if (formatted.length > 950) {
+      const compactLines = formatted.split(/\r?\n/).filter(Boolean);
+      const nowLine = compactLines.find(l => l.startsWith('🔴')) || compactLines[0] || '';
+      const bullets = compactLines.filter(l => /^[•\-*]\s+/.test(l)).slice(0, 5);
+      if (bullets.length > 0) {
+        const rebuilt = [nowLine, '📌 SÍNTESIS COMPACTA:', ...bullets].filter(Boolean).join('\n');
+        formatted = rebuilt.slice(0, 950).trim();
+      } else {
+        const cut = formatted.slice(0, 947);
+        const lastPeriod = Math.max(cut.lastIndexOf('. '), cut.lastIndexOf(' '));
+        formatted = (lastPeriod > 400 ? cut.slice(0, lastPeriod + 1) : cut).trim();
+      }
+    }
+
+    return formatted;
   }
 
   sanitizePreviousContext(previousContext) {
@@ -536,9 +564,10 @@ ${newChunkText ? `LO ÚLTIMO HABLADO AHORA MISMO (Analiza e incorpora esto al in
 
 INSTRUCCIONES CRÍTICAS:
 1. PROHIBIDO decir "la sesión concluyó", "cierre de reunión", "finalización formal", "gestión de bajas" o "agradecimientos finales": la reunión sigue EN VIVO en curso.
-2. En "summary", usa SIEMPRE exactamente estos dos bloques (sin omitir ninguno):
-   - Primer párrafo arriba del todo: "🔴 AHORA EN VIVO: [Síntesis directa de lo último explicado en los últimos segundos]"
-   - Segundo/tercer párrafo: "📋 RESUMEN ACUMULADO DEL SEMINARIO: [Síntesis ejecutiva estructurada de todos los módulos, datos y conclusiones vistas hasta este momento]"
+2. En "summary", sé ULTRA-COMPACTO (MÁXIMO 120 palabras en total) usando SIEMPRE este formato exacto para lectura rápida de un vistazo:
+   - Primera línea arriba: "🔴 AHORA: [1 sola frase directa de máximo 20-25 palabras sobre lo que se está explicando en este instante]"
+   - Debajo: "📌 SÍNTESIS COMPACTA:" seguido de MÁXIMO 4 a 5 viñetas ("•") de una sola línea corta cada una, agrupando por módulos o temas principales toda la sesión sin repetir ideas ni escribir párrafos largos.
+   - Al integrar lo nuevo al resumen previo, SINTETIZA y FUSIONA los temas anteriores dentro de esas 4 a 5 viñetas en lugar de seguir agregando texto al final.
 3. Normaliza automáticamente términos técnicos mal escuchados por voz: "XEMERAL" / "Getic Central" / "Hit Central" / "XCentra" / "PsyCentral" -> "HikCentral"; "BMS" / "IBMS" -> "iVMS-4200"; "PCNBR" -> "PCNVR"; "Deepming" -> "DeepinMind".
 4. En "keyTopics" (8 a 12), "keyDecisions" (8 a 12 conclusiones/acuerdos), "actionItems" (6 a 10) y "proactiveAdvice" (5 a 8), consolida los puntos sin repetir variantes de la misma idea y coloca LOS PUNTOS MÁS RECIENTES E IMPORTANTES PRIMERO ARRIBA de cada lista.
 5. En "transcript", devuelve únicamente el texto limpio del último fragmento hablado (el servidor ya conserva la transcripción total acumulada).
@@ -546,7 +575,7 @@ INSTRUCCIONES CRÍTICAS:
 Devuelve ÚNICAMENTE un JSON válido (sin markdown) con este formato exacto:
 {
   "title": "Título ejecutivo conciso (máximo 5 a 7 palabras) del tema central (ej. 'Certificación HikCentral Professional')",
-  "summary": "🔴 AHORA EN VIVO: ...\n\n📋 RESUMEN ACUMULADO DEL SEMINARIO: ...",
+  "summary": "🔴 AHORA: Frase breve de lo actual.\n\n📌 SÍNTESIS COMPACTA:\n• Punto clave 1\n• Punto clave 2\n• Punto clave 3\n• Punto clave 4",
   "keyTopics": ["Tema más reciente", "Tema o módulo previo"],
   "keyDecisions": ["Conclusión o acuerdo más reciente", "Acuerdo previo relevante"],
   "actionItems": [
