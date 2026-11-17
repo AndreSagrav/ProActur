@@ -24,6 +24,14 @@ const isMobileDevice = () => {
     || (window.innerWidth <= 768);
 };
 
+function isVirtualOrSilentMic(label = '') {
+  return /wonder|virtual|vb-audio|voicemeeter|cable output|blackhole/i.test(label);
+}
+
+function isStereoMixDevice(label = '') {
+  return /mezcla est[eé]reo|stereo mix|what u hear/i.test(label);
+}
+
 function getSupportedAudioMimeType() {
   if (typeof MediaRecorder === 'undefined' || typeof MediaRecorder.isTypeSupported !== 'function') {
     return 'audio/webm';
@@ -152,10 +160,12 @@ export default function AudioRecorder({ onMeetingProcessed, onRecordingStatusCha
   // Medidor de voz en vivo y selector de micrófono (Audio Activity Analyzer)
   const [audioLevel, setAudioLevel] = useState(0);
   const [audioInputDevices, setAudioInputDevices] = useState([]);
-  const [selectedDeviceId, setSelectedDeviceId] = useState('');
+  const [selectedDeviceId, setSelectedDeviceId] = useState('auto-mix');
   const [zeroMicWarning, setZeroMicWarning] = useState(false);
   const zeroAudioSecondsRef = useRef(0);
   const audioLevelRef = useRef(0);
+  const extraStreamsRef = useRef([]);
+  const autoSwitchedRef = useRef(false);
   const isRecordingRef = useRef(false);
   const audioContextRef = useRef(null);
   const analyserRef = useRef(null);
@@ -362,13 +372,16 @@ export default function AudioRecorder({ onMeetingProcessed, onRecordingStatusCha
     };
   }, []);
 
-  // Medidor de voz en vivo de alta precisión (Peak + RMS TimeDomain)
-  const setupAudioAnalyzer = async (stream) => {
+  // Medidor de voz en vivo de alta precisión + pre-amplificador y mezclador multi-micrófono
+  const setupAudioAnalyzer = async (inputStreams) => {
+    const streamList = Array.isArray(inputStreams) ? inputStreams.filter(Boolean) : [inputStreams].filter(Boolean);
+    if (streamList.length === 0) return null;
+
     try {
       let audioCtx = audioContextRef.current;
       if (!audioCtx || audioCtx.state === 'closed') {
         const AudioCtx = window.AudioContext || window.webkitAudioContext;
-        if (!AudioCtx) return;
+        if (!AudioCtx) return streamList[0];
         audioCtx = new AudioCtx();
         audioContextRef.current = audioCtx;
       }
@@ -378,19 +391,33 @@ export default function AudioRecorder({ onMeetingProcessed, onRecordingStatusCha
       }
 
       const analyser = audioCtx.createAnalyser();
-      analyser.fftSize = 512;
-      analyser.smoothingTimeConstant = 0.2; // Respuesta dinámica inmediata
+      analyser.fftSize = 1024;
+      analyser.smoothingTimeConstant = 0.2;
       analyserRef.current = analyser;
 
-      const source = audioCtx.createMediaStreamSource(stream);
-      source.connect(analyser);
+      // Pre-amplificador de ganancia (x2.5) para capturar voces lejanas en seminarios + mezclador único
+      const preampGain = audioCtx.createGain();
+      preampGain.gain.value = 2.5;
+
+      const mixDestination = audioCtx.createMediaStreamDestination();
+      for (const s of streamList) {
+        try {
+          const src = audioCtx.createMediaStreamSource(s);
+          src.connect(preampGain);
+        } catch (srcErr) {
+          console.warn('[AudioContext Source Warn]', srcErr);
+        }
+      }
+
+      preampGain.connect(analyser);
+      preampGain.connect(mixDestination);
 
       // 1. Mantener AudioContext y subprocesos activos en segundo plano (pestañas minimizadas)
       try {
         if (!silenceOscRef.current) {
           const osc = audioCtx.createOscillator();
           const silentGain = audioCtx.createGain();
-          silentGain.gain.value = 0.00001; // Inaudible pero activo en el subsistema de audio
+          silentGain.gain.value = 0.00001;
           osc.connect(silentGain);
           silentGain.connect(audioCtx.destination);
           osc.start();
@@ -400,7 +427,7 @@ export default function AudioRecorder({ onMeetingProcessed, onRecordingStatusCha
         console.warn('[AudioContext] Keep-alive osc error:', oscErr);
       }
 
-      // 2. Buffer circular de audio PCM directo a 16kHz para transcripción Whisper/Gemini sin corrupción WebM
+      // 2. Buffer circular de audio PCM directo a 16kHz conectado al pre-amplificador
       try {
         if (scriptNodeRef.current) {
           try { scriptNodeRef.current.disconnect(); } catch (_) {}
@@ -410,8 +437,6 @@ export default function AudioRecorder({ onMeetingProcessed, onRecordingStatusCha
         const targetRate = 16000;
         const sourceRate = audioCtx.sampleRate || 44100;
         const downsampleRatio = sourceRate / targetRate;
-
-        // Capacidad máxima en cola: 35 segundos a 16kHz (seguro para payload < 4.5MB de Vercel)
         const maxSamples = 16000 * 35;
 
         scriptNode.onaudioprocess = (audioEvent) => {
@@ -420,7 +445,7 @@ export default function AudioRecorder({ onMeetingProcessed, onRecordingStatusCha
           const newLength = Math.floor(inputData.length / downsampleRatio);
           const downsampled = new Float32Array(newLength);
           for (let i = 0; i < newLength; i++) {
-            downsampled[i] = inputData[Math.floor(i * downsampleRatio)];
+            downsampled[i] = Math.max(-1, Math.min(1, inputData[Math.floor(i * downsampleRatio)]));
           }
 
           pcmBufferRef.current.push(downsampled);
@@ -432,7 +457,7 @@ export default function AudioRecorder({ onMeetingProcessed, onRecordingStatusCha
           }
         };
 
-        source.connect(scriptNode);
+        preampGain.connect(scriptNode);
         const zeroGain = audioCtx.createGain();
         zeroGain.gain.value = 0;
         scriptNode.connect(zeroGain);
@@ -442,45 +467,36 @@ export default function AudioRecorder({ onMeetingProcessed, onRecordingStatusCha
         console.warn('[AudioContext] PCM ScriptProcessor error:', pcmErr);
       }
 
-      const timeData = new Uint8Array(analyser.fftSize);
+      const floatTimeData = new Float32Array(analyser.fftSize);
       const freqData = new Uint8Array(analyser.frequencyBinCount);
 
       const updateLevel = () => {
         if (!isRecordingRef.current) return;
 
-        // 1. Amplitud pico y RMS directa de la onda (inmune a artefactos de frecuencia)
-        analyser.getByteTimeDomainData(timeData);
+        // Precisión Float32 en rango [-1, 1]: detecta incluso voces lejanas en auditorios
         let maxPeak = 0;
         let sumSq = 0;
-        for (let i = 0; i < timeData.length; i++) {
-          const val = Math.abs(timeData[i] - 128); // 0 a 128
-          if (val > maxPeak) maxPeak = val;
-          sumSq += val * val;
+        if (typeof analyser.getFloatTimeDomainData === 'function') {
+          analyser.getFloatTimeDomainData(floatTimeData);
+          for (let i = 0; i < floatTimeData.length; i++) {
+            const val = Math.abs(floatTimeData[i]);
+            if (val > maxPeak) maxPeak = val;
+            sumSq += val * val;
+          }
         }
-        const rms = Math.sqrt(sumSq / timeData.length); // 0 a 128
+        const rms = Math.sqrt(sumSq / floatTimeData.length);
 
-        // 2. Energía vocal (primeras bandas 0-3500 Hz)
         analyser.getByteFrequencyData(freqData);
         let vocalSum = 0;
-        const vocalBins = Math.min(30, freqData.length);
+        const vocalBins = Math.min(40, freqData.length);
         for (let i = 0; i < vocalBins; i++) {
           vocalSum += freqData[i];
         }
-        const vocalAvg = vocalSum / vocalBins; // 0 a 255
+        const vocalAvg = vocalSum / vocalBins;
 
-        // Ponderación: Amplitud de pico (70%) + RMS (30%)
-        const peakLevel = (maxPeak / 128) * 100;
-        const rmsLevel = (rms / 64) * 100;
-        const freqLevel = (vocalAvg / 180) * 100;
+        const calculated = Math.max(rms * 420, maxPeak * 110, (vocalAvg / 140) * 100);
+        const normalized = maxPeak < 0.0005 && vocalAvg < 1 ? 0 : Math.min(100, Math.round(calculated));
 
-        let calculated = Math.max(peakLevel * 1.6, rmsLevel * 1.4, freqLevel * 1.2);
-
-        // Umbral de compuerta de ruido
-        if (calculated < 4) {
-          calculated = 0;
-        }
-
-        const normalized = Math.min(100, Math.round(calculated));
         audioLevelRef.current = normalized;
         if (normalized > 0) {
           zeroAudioSecondsRef.current = 0;
@@ -491,8 +507,10 @@ export default function AudioRecorder({ onMeetingProcessed, onRecordingStatusCha
       };
 
       updateLevel();
+      return mixDestination.stream;
     } catch (err) {
       console.warn('[AudioContext] Error en setupAudioAnalyzer:', err);
+      return streamList[0];
     }
   };
 
@@ -812,17 +830,112 @@ export default function AudioRecorder({ onMeetingProcessed, onRecordingStatusCha
     }
   };
 
-  // Crea e inicia la captura sobre un MediaStream (permite auto-recuperación si el SO corta el track)
-  const attachRecorderToStream = (stream, analysisIntervalMs) => {
-    activeStreamRef.current = stream;
-    setupAudioAnalyzer(stream);
+  // Abre streams reales ignorando drivers virtuales mudos (Wonder Microphone, etc.)
+  const openPhysicalAudioStreams = async (modeOrDeviceId = selectedDeviceId) => {
+    const mobile = isMobileDevice();
+    const baseOpts = mobile
+      ? { echoCancellation: true, noiseSuppression: false, autoGainControl: true }
+      : { echoCancellation: false, noiseSuppression: false, autoGainControl: true };
+
+    // Primero obtener permiso general o listar dispositivos
+    let initialStream = null;
+    if (!modeOrDeviceId || modeOrDeviceId === 'auto-mix') {
+      initialStream = await navigator.mediaDevices.getUserMedia({ audio: baseOpts });
+    } else {
+      try {
+        initialStream = await navigator.mediaDevices.getUserMedia({
+          audio: { ...baseOpts, deviceId: { exact: modeOrDeviceId } }
+        });
+      } catch (_) {
+        initialStream = await navigator.mediaDevices.getUserMedia({ audio: baseOpts });
+      }
+    }
+
+    let inputs = [];
+    try {
+      const devs = await navigator.mediaDevices.enumerateDevices();
+      inputs = devs.filter(d => d.kind === 'audioinput');
+      setAudioInputDevices(inputs);
+    } catch (_) {}
+
+    if (modeOrDeviceId && modeOrDeviceId !== 'auto-mix') {
+      return { streams: [initialStream], inputs, label: 'Micrófono seleccionado' };
+    }
+
+    // Buscar micrófonos físicos reales (excluyendo Wonder Microphone, drivers virtuales y mezcla estéreo sola)
+    const realMics = inputs.filter(
+      d => d.deviceId && d.deviceId !== 'default' && d.deviceId !== 'communications' &&
+           !isVirtualOrSilentMic(d.label) && !isStereoMixDevice(d.label)
+    );
+
+    if (realMics.length === 0) {
+      return { streams: [initialStream], inputs, label: 'Micrófono del sistema' };
+    }
+
+    // Cerrar el stream inicial si apuntaba a un micrófono virtual (ej. Wonder Microphone)
+    const initTrack = initialStream.getAudioTracks()[0];
+    const initLabel = initTrack?.label || '';
+    const isInitialVirtual = isVirtualOrSilentMic(initLabel);
+    const openedStreams = [];
+
+    if (!isInitialVirtual) {
+      openedStreams.push(initialStream);
+    } else {
+      initialStream.getTracks().forEach(t => t.stop());
+    }
+
+    // Abrir hasta 2 micrófonos físicos reales distintos (ej. Intel Smart Sound + Logi USB) y mezclarlos
+    for (const mic of realMics) {
+      if (openedStreams.length >= 2) break;
+      const alreadyOpen = openedStreams.some(s => s.getAudioTracks()[0]?.getSettings?.()?.deviceId === mic.deviceId);
+      if (alreadyOpen) continue;
+      try {
+        const s = await navigator.mediaDevices.getUserMedia({
+          audio: { ...baseOpts, deviceId: { exact: mic.deviceId } }
+        });
+        openedStreams.push(s);
+      } catch (_) {}
+    }
+
+    if (openedStreams.length === 0) {
+      const fallbackStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      openedStreams.push(fallbackStream);
+    }
+
+    const activeLabels = openedStreams
+      .map(s => s.getAudioTracks()[0]?.label)
+      .filter(Boolean)
+      .join(' + ');
+    return { streams: openedStreams, inputs, label: activeLabels || 'Micrófonos reales' };
+  };
+
+  const stopAllCaptureStreams = () => {
+    if (activeStreamRef.current) {
+      try { activeStreamRef.current.getTracks().forEach(t => t.stop()); } catch (_) {}
+      activeStreamRef.current = null;
+    }
+    if (extraStreamsRef.current && extraStreamsRef.current.length > 0) {
+      for (const s of extraStreamsRef.current) {
+        try { s.getTracks().forEach(t => t.stop()); } catch (_) {}
+      }
+      extraStreamsRef.current = [];
+    }
+  };
+
+  // Crea e inicia la captura sobre uno o varios streams mezclados y pre-amplificados
+  const attachRecorderToStream = async (inputStreams, analysisIntervalMs) => {
+    const rawStreams = Array.isArray(inputStreams) ? inputStreams : [inputStreams];
+    extraStreamsRef.current = rawStreams;
+
+    const mixedStream = (await setupAudioAnalyzer(rawStreams)) || rawStreams[0];
+    activeStreamRef.current = mixedStream;
 
     const preferredMime = getSupportedAudioMimeType();
     let mediaRecorder;
     try {
-      mediaRecorder = new MediaRecorder(stream, { mimeType: preferredMime });
+      mediaRecorder = new MediaRecorder(mixedStream, { mimeType: preferredMime });
     } catch (_) {
-      mediaRecorder = new MediaRecorder(stream);
+      mediaRecorder = new MediaRecorder(mixedStream);
     }
     mediaRecorderRef.current = mediaRecorder;
 
@@ -856,29 +969,31 @@ export default function AudioRecorder({ onMeetingProcessed, onRecordingStatusCha
       if (audioChunksRef.current.length > 0) {
         setAudioBlob(new Blob(audioChunksRef.current, { type: actualMime }));
       }
-      stream.getTracks().forEach(track => track.stop());
+      stopAllCaptureStreams();
     };
 
     // Auto-recuperación si el sistema operativo o driver cierra el micrófono inesperadamente
-    stream.getAudioTracks().forEach(track => {
-      track.onended = async () => {
-        console.warn('[AudioTrack] Track finalizado por el sistema.');
-        if (isRecordingRef.current) {
-          setLiveStatusMessage('🔄 Reconectando micrófono automáticamente...');
-          try {
-            const newStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-            if (isRecordingRef.current) {
-              attachRecorderToStream(newStream, analysisIntervalMs);
-              setLiveStatusMessage('✓ Micrófono reconectado. Grabación continua activa.');
+    rawStreams.forEach(rawS => {
+      rawS.getAudioTracks().forEach(track => {
+        track.onended = async () => {
+          console.warn('[AudioTrack] Track finalizado por el sistema.');
+          if (isRecordingRef.current) {
+            setLiveStatusMessage('🔄 Reconectando micrófono automáticamente...');
+            try {
+              const { streams } = await openPhysicalAudioStreams(selectedDeviceId);
+              if (isRecordingRef.current && streams.length > 0) {
+                await attachRecorderToStream(streams, analysisIntervalMs);
+                setLiveStatusMessage('✓ Micrófono reconectado. Grabación continua activa.');
+              }
+            } catch (recErr) {
+              console.error('[AudioTrack Recovery Err]', recErr);
+              setLiveStatusMessage('⚠️ El sistema cerró el micrófono. Verifica permisos.');
             }
-          } catch (recErr) {
-            console.error('[AudioTrack Recovery Err]', recErr);
-            setLiveStatusMessage('⚠️ El sistema cerró el micrófono. Verifica permisos.');
           }
-        }
-      };
-      track.onmute = () => console.warn('[AudioTrack] Micrófono silenciado temporalmente por el SO');
-      track.onunmute = () => console.log('[AudioTrack] Micrófono desilenciado por el SO');
+        };
+        track.onmute = () => console.warn('[AudioTrack] Micrófono silenciado temporalmente por el SO');
+        track.onunmute = () => console.log('[AudioTrack] Micrófono desilenciado por el SO');
+      });
     });
 
     mediaRecorder.onerror = (e) => console.warn('[MediaRecorder Error]', e);
@@ -924,50 +1039,14 @@ export default function AudioRecorder({ onMeetingProcessed, onRecordingStatusCha
       audioChunksRef.current = [];
       lastLiveAnalysisTimeRef.current = Date.now();
       lastCheckpointTimeRef.current = 0;
+      autoSwitchedRef.current = false;
 
       // Inicializar la caja negra en IndexedDB
       await initEmergencyRecording(meetingTitle, newSessionId);
 
-      // Solicitar micrófono con constraints optimizadas
+      // Abrir micrófonos físicos reales (ignorando Wonder Microphone / virtuales mudos)
       const mobile = isMobileDevice();
-      const buildAudioConstraints = (devId = selectedDeviceId) => {
-        const base = mobile
-          ? {
-              echoCancellation: true,
-              noiseSuppression: false,
-              autoGainControl: true
-            }
-          : {
-              echoCancellation: true,
-              noiseSuppression: true,
-              autoGainControl: true,
-              sampleRate: 44100
-            };
-        if (devId) {
-          base.deviceId = { exact: devId };
-        }
-        return base;
-      };
-
-      let stream;
-      try {
-        stream = await navigator.mediaDevices.getUserMedia({ audio: buildAudioConstraints() });
-      } catch (micErr) {
-        console.warn('[ProActur Mic] Reintentando con constraint básica:', micErr.message);
-        stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      }
-
-      // Listar micrófonos disponibles con etiqueta real una vez concedido el permiso
-      try {
-        const devs = await navigator.mediaDevices.enumerateDevices();
-        const inputs = devs.filter(d => d.kind === 'audioinput');
-        setAudioInputDevices(inputs);
-        const activeTrack = stream.getAudioTracks()[0];
-        const currentSettings = activeTrack?.getSettings?.();
-        if (currentSettings?.deviceId && !selectedDeviceId) {
-          setSelectedDeviceId(currentSettings.deviceId);
-        }
-      } catch (_) {}
+      const { streams, label: activeMicsLabel } = await openPhysicalAudioStreams(selectedDeviceId || 'auto-mix');
 
       zeroAudioSecondsRef.current = 0;
       setZeroMicWarning(false);
@@ -977,7 +1056,7 @@ export default function AudioRecorder({ onMeetingProcessed, onRecordingStatusCha
       startTimeRef.current = Date.now();
 
       const analysisIntervalMs = mobile ? 15000 : 12000;
-      attachRecorderToStream(stream, analysisIntervalMs);
+      await attachRecorderToStream(streams, analysisIntervalMs);
 
       // Web Worker timer inmune al throttling de pestañas en segundo plano / ventana minimizada
       try {
@@ -988,13 +1067,29 @@ export default function AudioRecorder({ onMeetingProcessed, onRecordingStatusCha
         const workerUrl = URL.createObjectURL(workerBlob);
         const worker = new Worker(workerUrl);
         URL.revokeObjectURL(workerUrl);
-        worker.onmessage = () => {
+        worker.onmessage = async () => {
           if (!isRecordingRef.current || !startTimeRef.current) return;
           const elapsed = Math.floor((Date.now() - startTimeRef.current) / 1000);
           setRecordingTime(elapsed);
 
           if (audioLevelRef.current === 0) {
             zeroAudioSecondsRef.current += 1;
+            if (zeroAudioSecondsRef.current >= 5 && !autoSwitchedRef.current) {
+              autoSwitchedRef.current = true;
+              try {
+                if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+                  mediaRecorderRef.current.onstop = null;
+                  mediaRecorderRef.current.stop();
+                }
+                stopAllCaptureStreams();
+                setSelectedDeviceId('auto-mix');
+                const { streams: nextStreams, label: nextLabel } = await openPhysicalAudioStreams('auto-mix');
+                if (isRecordingRef.current && nextStreams.length > 0) {
+                  await attachRecorderToStream(nextStreams, analysisIntervalMs);
+                  setLiveStatusMessage(`⚡ Auto-conmutado a micrófono físico real: ${nextLabel}`);
+                }
+              } catch (_) {}
+            }
             if (zeroAudioSecondsRef.current >= 10) setZeroMicWarning(true);
           } else {
             zeroAudioSecondsRef.current = 0;
@@ -1057,7 +1152,7 @@ export default function AudioRecorder({ onMeetingProcessed, onRecordingStatusCha
 
       // Reconocimiento de voz nativo en paralelo
       recognitionRef.current = initSpeechRecognition();
-      setLiveStatusMessage('🎙️ Grabación continua activa (resiste minimizado y cambio de pestañas).');
+      setLiveStatusMessage(`🎙️ Capturando: ${activeMicsLabel} (resiste minimizado y cambio de pestañas).`);
 
     } catch (err) {
       console.error('Error accediendo al microfono:', err);
@@ -1162,6 +1257,7 @@ export default function AudioRecorder({ onMeetingProcessed, onRecordingStatusCha
     if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
       try { mediaRecorderRef.current.stop(); } catch (_) {}
     }
+    stopAllCaptureStreams();
 
     const current = stateRef.current;
     const finalTranscript = appendTranscriptSafely(
@@ -1628,7 +1724,7 @@ export default function AudioRecorder({ onMeetingProcessed, onRecordingStatusCha
                         Micrófono activo:
                       </label>
                       <select
-                        value={selectedDeviceId}
+                        value={selectedDeviceId || 'auto-mix'}
                         onChange={async (e) => {
                           const newId = e.target.value;
                           setSelectedDeviceId(newId);
@@ -1637,25 +1733,22 @@ export default function AudioRecorder({ onMeetingProcessed, onRecordingStatusCha
                               mediaRecorderRef.current.onstop = null;
                               mediaRecorderRef.current.stop();
                             }
-                            if (activeStreamRef.current) {
-                              activeStreamRef.current.getTracks().forEach(t => t.stop());
-                            }
-                            const nextStream = await navigator.mediaDevices.getUserMedia({
-                              audio: newId ? { deviceId: { exact: newId }, echoCancellation: true, autoGainControl: true } : true
-                            });
+                            stopAllCaptureStreams();
+                            const { streams: nextStreams, label: nextLabel } = await openPhysicalAudioStreams(newId);
                             zeroAudioSecondsRef.current = 0;
                             setZeroMicWarning(false);
-                            attachRecorderToStream(nextStream, isMobileDevice() ? 15000 : 12000);
-                            setLiveStatusMessage('✓ Micrófono cambiado sin interrumpir la sesión.');
+                            await attachRecorderToStream(nextStreams, isMobileDevice() ? 15000 : 12000);
+                            setLiveStatusMessage(`✓ Capturando con: ${nextLabel}`);
                           } catch (switchErr) {
                             setLiveStatusMessage('⚠️ No se pudo cambiar de micrófono: ' + switchErr.message);
                           }
                         }}
                         className="flex-1 bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1.5 text-[11px] text-slate-200 focus:outline-none focus:border-indigo-500"
                       >
+                        <option value="auto-mix">🎙️ Automático (Micrófonos reales + Ganancia x2.5)</option>
                         {audioInputDevices.map((d, i) => (
                           <option key={d.deviceId || i} value={d.deviceId}>
-                            {d.label || `Micrófono ${i + 1}`}
+                            {isVirtualOrSilentMic(d.label) ? `⚠️ ${d.label} (Virtual)` : (d.label || `Micrófono ${i + 1}`)}
                           </option>
                         ))}
                       </select>
