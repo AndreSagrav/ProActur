@@ -251,7 +251,8 @@ Debes responder ÚNICAMENTE con un objeto JSON válido (sin markdown, sin bloque
     if (!text || typeof text !== 'string') return '';
     const cleaned = text.trim();
     if (!cleaned) return '';
-    const hallucinationPatterns = [
+
+    const globalHallucinations = [
       /^subt[íi]tulos realizados por.*$/i,
       /^amara\.org$/i,
       /^gracias por ver.*$/i,
@@ -260,8 +261,85 @@ Debes responder ÚNICAMENTE con un objeto JSON válido (sin markdown, sin bloque
       /^\[m[úu]sica\]$/i,
       /^[\s.,…\-_!?]+$/
     ];
-    if (hallucinationPatterns.some(p => p.test(cleaned))) return '';
+    if (globalHallucinations.some(p => p.test(cleaned))) return '';
+
+    // Descartar alucinaciones cortas típicas de Whisper ante silencio o ruido ambiental
+    const normalizedShort = cleaned
+      .replace(/[¡!¿?.,;:…"'()[\]]+/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+    if (normalizedShort.length <= 45) {
+      const shortSilenceNoise = [
+        /^(?:(?:la\s+)?baja\s+y\s+)?(?:muchas\s+)?gracias(?:\s+a\s+todos)?$/i,
+        /^(?:gracias(?:\s+gracias)*)$/i,
+        /^(?:ok|s[ií]|bueno|bien|vale)\s+gracias$/i,
+        /^(?:hasta\s+luego|nos\s+vemos|adi[oó]s|de\s+nada)$/i,
+        /^(?:thank\s+you|thanks(?:\s+for\s+watching)?|bye|you)$/i
+      ];
+      if (shortSilenceNoise.some(p => p.test(normalizedShort))) return '';
+    }
+
     return cleaned;
+  }
+
+  /**
+   * Normaliza errores fonéticos frecuentes de ASR para términos técnicos del dominio.
+   */
+  normalizeDomainTerminology(text) {
+    if (!text || typeof text !== 'string') return '';
+    const replacements = [
+      [/\b(?:XEMERAL|Getic\s+Central|Hit\s*Central|X-?Centra|Psy\s*Central|Hic\s+Central|Hik\s+Central|Xcentral|X-Terminal|KDIC\s+Central|Kitschner)\b/gi, 'HikCentral'],
+      [/\b(?:BMS|IBMS|IBM\s+S)\b/gi, 'iVMS-4200'],
+      [/\bPCNBR\b/gi, 'PCNVR'],
+      [/\bDeepming\b/gi, 'DeepinMind']
+    ];
+    let out = text;
+    for (const [pattern, replacement] of replacements) {
+      out = out.replace(pattern, replacement);
+    }
+    return out;
+  }
+
+  /**
+   * Detecta frases contaminadas generadas por alucinaciones de cierre/bajas al inicio de sesión.
+   */
+  isPoisonedLiveItem(text) {
+    if (!text || typeof text !== 'string') return false;
+    const trimmed = text.trim();
+    if (!trimmed) return true;
+    return /gesti[oó]n de bajas|tr[aá]mites de bajas|bajas administrativas|bajas mencionadas|revisar las bajas|la sesi[oó]n (?:ha |haya )?conclu(?:y[oó]|ido)|finalizaci[oó]n formal de la sesi[oó]n|cierre de reuni[oó]n|cierre definitivo de la sesi[oó]n|cierre de ciclo acad[eé]mico|agradecimientos finales|agradecimiento(?:s)? y cortes[ií]a inicial|comentarios informales de cierre|comentarios de cierre|archivar la sesi[oó]n|transcripci[oó]n actual est[aá] incompleta|despedida y cierre formal|^inicio de la? sesi[oó]n$/i.test(trimmed);
+  }
+
+  sanitizeSummaryText(summary) {
+    if (!summary || typeof summary !== 'string') return '';
+    const paragraphs = summary
+      .split(/\n+/)
+      .map(para => {
+        const sentences = para
+          .split(/(?<=[.!?])\s+(?=[A-ZÁÉÍÓÚÑ¡¿🔴📋])/)
+          .filter(sentence => !this.isPoisonedLiveItem(sentence));
+        return this.normalizeDomainTerminology(sentences.join(' ').trim());
+      })
+      .filter(Boolean);
+    return paragraphs.join('\n\n').trim();
+  }
+
+  sanitizePreviousContext(previousContext) {
+    if (!previousContext || typeof previousContext !== 'object') return null;
+    const rawTitle = typeof previousContext.title === 'string' ? previousContext.title.trim() : '';
+    const cleanTitle = (rawTitle && !this.isPoisonedLiveItem(rawTitle))
+      ? this.normalizeDomainTerminology(rawTitle)
+      : '';
+
+    return {
+      ...previousContext,
+      title: cleanTitle || undefined,
+      summary: this.sanitizeSummaryText(previousContext.summary || ''),
+      keyTopics: this.mergeUniqueStrings(previousContext.keyTopics || [], [], 16),
+      keyDecisions: this.mergeUniqueStrings(previousContext.keyDecisions || [], [], 16),
+      actionItems: this.mergeActionItems(previousContext.actionItems || [], [], 14),
+      proactiveAdvice: this.mergeUniqueStrings(previousContext.proactiveAdvice || [], [], 12)
+    };
   }
 
   normalizeCompareKey(text) {
@@ -274,42 +352,97 @@ Debes responder ÚNICAMENTE con un objeto JSON válido (sin markdown, sin bloque
       .trim();
   }
 
-  mergeUniqueStrings(prevList = [], newList = []) {
+  extractSignificantTokens(text) {
+    const stopWords = new Set([
+      'de', 'la', 'el', 'los', 'las', 'en', 'para', 'por', 'con', 'una', 'uno',
+      'unos', 'unas', 'del', 'al', 'que', 'como', 'sobre', 'entre', 'se', 'su',
+      'sus', 'sin', 'ante', 'tras', 'hacia', 'desde', 'hasta', 'durante', 'mediante'
+    ]);
+    const key = this.normalizeCompareKey(text);
+    const tokens = key.split(' ').filter(w => w.length > 2 && !stopWords.has(w));
+    return new Set(tokens);
+  }
+
+  isSemanticallyDuplicate(tokensA, tokensB) {
+    if (!tokensA || !tokensB || tokensA.size === 0 || tokensB.size === 0) return false;
+    let intersection = 0;
+    for (const token of tokensA) {
+      if (tokensB.has(token)) intersection += 1;
+    }
+    const union = tokensA.size + tokensB.size - intersection;
+    if (union > 0 && (intersection / union) >= 0.55) return true;
+    const minSize = Math.min(tokensA.size, tokensB.size);
+    return minSize >= 3 && (intersection / minSize) >= 0.8;
+  }
+
+  mergeUniqueStrings(prevList = [], newList = [], maxItems = 16) {
     const result = [];
-    const seen = new Set();
-    for (const item of [...(Array.isArray(prevList) ? prevList : []), ...(Array.isArray(newList) ? newList : [])]) {
+    const seenKeys = new Set();
+    const keptTokenSets = [];
+    // Priorizar ítems recientes primero y luego previos útiles, depurando ruido y redundancias
+    const candidates = [
+      ...(Array.isArray(newList) ? newList : []),
+      ...(Array.isArray(prevList) ? prevList : [])
+    ];
+
+    for (const item of candidates) {
       if (typeof item !== 'string') continue;
-      const trimmed = item.trim();
-      if (!trimmed) continue;
-      const key = this.normalizeCompareKey(trimmed);
-      if (key && !seen.has(key)) {
-        seen.add(key);
-        result.push(trimmed);
+      const cleaned = this.normalizeDomainTerminology(item.trim());
+      if (!cleaned || this.isPoisonedLiveItem(cleaned)) continue;
+
+      const key = this.normalizeCompareKey(cleaned);
+      if (!key || seenKeys.has(key)) continue;
+
+      const tokens = this.extractSignificantTokens(cleaned);
+      if (keptTokenSets.some(existing => this.isSemanticallyDuplicate(tokens, existing))) {
+        continue;
       }
+
+      seenKeys.add(key);
+      keptTokenSets.push(tokens);
+      result.push(cleaned);
+      if (result.length >= maxItems) break;
     }
     return result;
   }
 
-  mergeActionItems(prevItems = [], newItems = []) {
+  mergeActionItems(prevItems = [], newItems = [], maxItems = 14) {
     const result = [];
-    const seen = new Set();
-    for (const raw of [...(Array.isArray(prevItems) ? prevItems : []), ...(Array.isArray(newItems) ? newItems : [])]) {
+    const seenKeys = new Set();
+    const keptTokenSets = [];
+    const candidates = [
+      ...(Array.isArray(newItems) ? newItems : []),
+      ...(Array.isArray(prevItems) ? prevItems : [])
+    ];
+
+    for (const raw of candidates) {
       if (!raw) continue;
+      const rawTask = typeof raw === 'string' ? raw : (raw.task || raw.text || raw.title || '');
+      const cleanTask = this.normalizeDomainTerminology(String(rawTask).trim());
+      if (!cleanTask || this.isPoisonedLiveItem(cleanTask)) continue;
+
       const item = typeof raw === 'string'
-        ? { task: raw, assignee: 'Por asignar', priority: 'Alta', deadline: 'Pendiente', completed: false }
+        ? { task: cleanTask, assignee: 'Por asignar', priority: 'Alta', deadline: 'Pendiente', completed: false }
         : {
-            task: raw.task || raw.text || raw.title || '',
+            task: cleanTask,
             assignee: raw.assignee || 'Por asignar',
             priority: raw.priority || 'Alta',
             deadline: raw.deadline || 'Pendiente',
             completed: Boolean(raw.completed)
           };
-      if (!item.task.trim()) continue;
+
       const key = this.normalizeCompareKey(item.task);
-      if (key && !seen.has(key)) {
-        seen.add(key);
-        result.push(item);
+      if (!key || seenKeys.has(key)) continue;
+
+      const tokens = this.extractSignificantTokens(item.task);
+      if (keptTokenSets.some(existing => this.isSemanticallyDuplicate(tokens, existing))) {
+        continue;
       }
+
+      seenKeys.add(key);
+      keptTokenSets.push(tokens);
+      result.push(item);
+      if (result.length >= maxItems) break;
     }
     return result;
   }
@@ -386,11 +519,11 @@ Debes responder ÚNICAMENTE con un objeto JSON válido (sin markdown, sin bloque
 
   buildLivePrompt(meetingTitle, recentTranscript, newChunkText = '', previousContext = null, userNotes = '') {
     return `
-Eres ProActur AI, el copiloto ejecutivo y tomador de notas experto de un seminario o reunión en curso EN TIEMPO REAL.
-Tu misión es tomar notas completas, detalladas y acumulativas SIN BORRAR lo ya registrado previamente.
+Eres ProActur AI, el copiloto ejecutivo y tomador de notas experto de un seminario o reunión EN CURSO EN TIEMPO REAL.
+Tu misión es tomar notas completas, detalladas y acumulativas mientras la sesión SIGUE ABIERTA.
 
 Título de la sesión: ${meetingTitle || 'Sesión en vivo'}
-Estado acumulado previo (DEBES conservarlo e integrarlo con lo nuevo):
+Estado acumulado previo (consérvalo integrado con lo nuevo, eliminando repeticiones):
 - Resumen acumulado previo: ${JSON.stringify(previousContext?.summary || '')}
 - Temas clave previos: ${JSON.stringify(previousContext?.keyTopics || [])}
 - Decisiones previas: ${JSON.stringify(previousContext?.keyDecisions || [])}
@@ -399,19 +532,23 @@ Estado acumulado previo (DEBES conservarlo e integrarlo con lo nuevo):
 
 ${userNotes ? `Notas manuales del usuario:\n${userNotes}\n` : ''}
 ${recentTranscript ? `Contexto reciente de la conversación:\n${recentTranscript}\n` : ''}
-${newChunkText ? `LO ÚLTIMO HABLADO AHORA MISMO (Analiza e incorpora esto al estado):\n"${newChunkText}"\n` : 'Analiza el audio y notas provistas de la sesión.'}
+${newChunkText ? `LO ÚLTIMO HABLADO AHORA MISMO (Analiza e incorpora esto al instante):\n"${newChunkText}"\n` : 'Analiza el audio y notas provistas de la sesión.'}
 
 INSTRUCCIONES CRÍTICAS:
-1. Actualiza y enriquece "summary" integrando lo nuevo al resumen previo (si es un seminario o charla larga, organiza ideas principales, conceptos técnicos, datos relevantes y conclusiones en párrafos claros).
-2. En "keyTopics", "keyDecisions", "actionItems" y "proactiveAdvice", incluye tanto los puntos clave nuevos como los previos relevantes (no descartes los anteriores).
-3. En "transcript", devuelve únicamente el texto limpio del último fragmento hablado (el servidor ya conserva la transcripción total acumulada).
+1. PROHIBIDO decir "la sesión concluyó", "cierre de reunión", "finalización formal", "gestión de bajas" o "agradecimientos finales": la reunión sigue EN VIVO en curso.
+2. En "summary", usa SIEMPRE exactamente estos dos bloques (sin omitir ninguno):
+   - Primer párrafo arriba del todo: "🔴 AHORA EN VIVO: [Síntesis directa de lo último explicado en los últimos segundos]"
+   - Segundo/tercer párrafo: "📋 RESUMEN ACUMULADO DEL SEMINARIO: [Síntesis ejecutiva estructurada de todos los módulos, datos y conclusiones vistas hasta este momento]"
+3. Normaliza automáticamente términos técnicos mal escuchados por voz: "XEMERAL" / "Getic Central" / "Hit Central" / "XCentra" / "PsyCentral" -> "HikCentral"; "BMS" / "IBMS" -> "iVMS-4200"; "PCNBR" -> "PCNVR"; "Deepming" -> "DeepinMind".
+4. En "keyTopics" (8 a 12), "keyDecisions" (8 a 12 conclusiones/acuerdos), "actionItems" (6 a 10) y "proactiveAdvice" (5 a 8), consolida los puntos sin repetir variantes de la misma idea y coloca LOS PUNTOS MÁS RECIENTES E IMPORTANTES PRIMERO ARRIBA de cada lista.
+5. En "transcript", devuelve únicamente el texto limpio del último fragmento hablado (el servidor ya conserva la transcripción total acumulada).
 
 Devuelve ÚNICAMENTE un JSON válido (sin markdown) con este formato exacto:
 {
-  "title": "Título ejecutivo conciso (máximo 5 a 7 palabras) del tema central (ej. 'Seminario de Gestión Estratégica')",
-  "summary": "Síntesis ejecutiva acumulativa y bien estructurada de toda la sesión hasta este momento",
-  "keyTopics": ["Tema o bloque 1", "Tema o bloque 2"],
-  "keyDecisions": ["Decisión o conclusión clave 1", "Decisión o conclusión clave 2"],
+  "title": "Título ejecutivo conciso (máximo 5 a 7 palabras) del tema central (ej. 'Certificación HikCentral Professional')",
+  "summary": "🔴 AHORA EN VIVO: ...\n\n📋 RESUMEN ACUMULADO DEL SEMINARIO: ...",
+  "keyTopics": ["Tema más reciente", "Tema o módulo previo"],
+  "keyDecisions": ["Conclusión o acuerdo más reciente", "Acuerdo previo relevante"],
   "actionItems": [
     {
       "task": "Descripción clara del compromiso o punto de acción",
@@ -422,7 +559,7 @@ Devuelve ÚNICAMENTE un JSON válido (sin markdown) con este formato exacto:
     }
   ],
   "proactiveAdvice": [
-    "Nota analítica, consejo proactivo o alerta relevante para el usuario"
+    "Nota analítica, consejo proactivo o alerta relevante más reciente"
   ],
   "transcript": "Transcripción limpia del fragmento reciente"
 }
@@ -635,7 +772,11 @@ async analyzeLiveWithGroq(prompt, specificModel = null) {
   }
 
   async analyzeLiveMeeting({ meetingTitle, transcript, newTranscriptChunk, userNotes, audioBuffer, mimeType, previousContext }) {
-    const baseTranscript = (transcript || '').trim();
+    const cleanPreviousContext = this.sanitizePreviousContext(previousContext);
+    const cleanMeetingTitle = (meetingTitle && !this.isPoisonedLiveItem(meetingTitle))
+      ? this.normalizeDomainTerminology(meetingTitle)
+      : '';
+    const baseTranscript = this.normalizeDomainTerminology((transcript || '').trim());
     let speechDelta = (newTranscriptChunk || '').trim();
     let whisperText = '';
 
@@ -653,42 +794,43 @@ async analyzeLiveWithGroq(prompt, specificModel = null) {
     }
 
     // Priorizar Whisper si transcribió contenido real; si no, usar delta de SpeechRecognition
-    const deltaText = whisperText || this.filterWhisperHallucinations(speechDelta);
+    const rawDeltaText = whisperText || this.filterWhisperHallucinations(speechDelta);
+    const deltaText = this.normalizeDomainTerminology(rawDeltaText);
     const fullAccumulatedTranscript = this.appendTranscriptDelta(baseTranscript, deltaText);
     const notesText = (userNotes || '').trim();
-    const hasPrevSummary = Boolean(previousContext?.summary && previousContext.summary.trim().length > 20);
+    const hasPrevSummary = Boolean(cleanPreviousContext?.summary && cleanPreviousContext.summary.trim().length > 20);
 
     // 2. Si no hay nada nuevo ni previo, estado de espera limpio
     if (!fullAccumulatedTranscript && !notesText && !audioBuffer) {
       return {
         summary: 'Escuchando sesión en vivo...',
-        keyTopics: previousContext?.keyTopics || [],
-        keyDecisions: previousContext?.keyDecisions || [],
-        actionItems: previousContext?.actionItems || [],
-        proactiveAdvice: previousContext?.proactiveAdvice?.length > 0
-          ? previousContext.proactiveAdvice
+        keyTopics: cleanPreviousContext?.keyTopics || [],
+        keyDecisions: cleanPreviousContext?.keyDecisions || [],
+        actionItems: cleanPreviousContext?.actionItems || [],
+        proactiveAdvice: cleanPreviousContext?.proactiveAdvice?.length > 0
+          ? cleanPreviousContext.proactiveAdvice
           : ['Habla al micrófono o escribe notas para que ProActur tome apuntes y acuerdos en tiempo real.'],
         transcript: '',
         lastChunkTranscript: ''
       };
     }
 
-    // 3. Si este bloque fue silencio puro (sin texto nuevo) y ya tenemos resumen previo sin notas nuevas, preservar sin gastar cuota LLM
+    // 3. Si este bloque fue silencio puro (sin texto nuevo) y ya tenemos resumen previo sin notas nuevas, preservar limpio sin gastar cuota LLM
     if (!deltaText && hasPrevSummary && !notesText) {
       return {
-        title: previousContext?.title,
-        summary: previousContext.summary,
-        keyTopics: previousContext?.keyTopics || [],
-        keyDecisions: previousContext?.keyDecisions || [],
-        actionItems: previousContext?.actionItems || [],
-        proactiveAdvice: previousContext?.proactiveAdvice || [],
+        title: cleanPreviousContext?.title,
+        summary: cleanPreviousContext.summary,
+        keyTopics: cleanPreviousContext?.keyTopics || [],
+        keyDecisions: cleanPreviousContext?.keyDecisions || [],
+        actionItems: cleanPreviousContext?.actionItems || [],
+        proactiveAdvice: cleanPreviousContext?.proactiveAdvice || [],
         transcript: fullAccumulatedTranscript,
         lastChunkTranscript: ''
       };
     }
 
     const recentTranscript = fullAccumulatedTranscript.slice(-10000);
-    const prompt = this.buildLivePrompt(meetingTitle, recentTranscript, deltaText, previousContext, notesText);
+    const prompt = this.buildLivePrompt(cleanMeetingTitle || cleanPreviousContext?.title, recentTranscript, deltaText, cleanPreviousContext, notesText);
 
     // 4. Fallback en cascada sobre modelos ejecutivos
     let executiveModels = this.getExecutiveModels();
@@ -712,23 +854,29 @@ async analyzeLiveWithGroq(prompt, specificModel = null) {
         }
 
         if (result && result.summary) {
-          const mergedTopics = this.mergeUniqueStrings(previousContext?.keyTopics, result.keyTopics);
-          const mergedDecisions = this.mergeUniqueStrings(previousContext?.keyDecisions, result.keyDecisions);
-          const mergedActions = this.mergeActionItems(previousContext?.actionItems, result.actionItems);
-          const mergedAdvice = this.mergeUniqueStrings(previousContext?.proactiveAdvice, result.proactiveAdvice);
+          const mergedTopics = this.mergeUniqueStrings(cleanPreviousContext?.keyTopics, result.keyTopics, 16);
+          const mergedDecisions = this.mergeUniqueStrings(cleanPreviousContext?.keyDecisions, result.keyDecisions, 16);
+          const mergedActions = this.mergeActionItems(cleanPreviousContext?.actionItems, result.actionItems, 14);
+          const mergedAdvice = this.mergeUniqueStrings(cleanPreviousContext?.proactiveAdvice, result.proactiveAdvice, 12);
           const modelChunkText = !deltaText && result.transcript && result.transcript.length > 5
-            ? this.filterWhisperHallucinations(result.transcript)
+            ? this.normalizeDomainTerminology(this.filterWhisperHallucinations(result.transcript))
             : '';
           const finalTranscript = modelChunkText
             ? this.appendTranscriptDelta(fullAccumulatedTranscript, modelChunkText)
             : fullAccumulatedTranscript;
 
-          const safeSummary = (result.summary && result.summary.trim().length >= 30)
-            ? result.summary.trim()
-            : (previousContext?.summary || result.summary);
+          const sanitizedSummary = this.sanitizeSummaryText(result.summary);
+          const safeSummary = (sanitizedSummary && sanitizedSummary.length >= 30)
+            ? sanitizedSummary
+            : (cleanPreviousContext?.summary || sanitizedSummary || result.summary);
+
+          const safeTitle = (result.title && !this.isPoisonedLiveItem(result.title))
+            ? this.normalizeDomainTerminology(result.title)
+            : cleanPreviousContext?.title;
 
           return {
             ...result,
+            title: safeTitle,
             summary: safeSummary,
             keyTopics: mergedTopics,
             keyDecisions: mergedDecisions,
@@ -745,14 +893,17 @@ async analyzeLiveWithGroq(prompt, specificModel = null) {
 
     // 5. Motor determinista local preservando estado previo + transcripción íntegra
     console.warn('[AI Engine] Activando motor determinista local preservando acumulado...');
-    const fallback = this.generateDeterministicFallback(deltaText || recentTranscript, meetingTitle, notesText);
+    const fallback = this.generateDeterministicFallback(deltaText || recentTranscript, cleanMeetingTitle, notesText);
     return {
       ...fallback,
-      summary: (previousContext?.summary && previousContext.summary.length > 40) ? previousContext.summary : fallback.summary,
-      keyTopics: this.mergeUniqueStrings(previousContext?.keyTopics, fallback.keyTopics),
-      keyDecisions: this.mergeUniqueStrings(previousContext?.keyDecisions, fallback.keyDecisions),
-      actionItems: this.mergeActionItems(previousContext?.actionItems, fallback.actionItems),
-      proactiveAdvice: this.mergeUniqueStrings(previousContext?.proactiveAdvice, fallback.proactiveAdvice),
+      title: cleanPreviousContext?.title || cleanMeetingTitle || undefined,
+      summary: (cleanPreviousContext?.summary && cleanPreviousContext.summary.length > 40)
+        ? cleanPreviousContext.summary
+        : this.sanitizeSummaryText(fallback.summary),
+      keyTopics: this.mergeUniqueStrings(cleanPreviousContext?.keyTopics, fallback.keyTopics, 16),
+      keyDecisions: this.mergeUniqueStrings(cleanPreviousContext?.keyDecisions, fallback.keyDecisions, 16),
+      actionItems: this.mergeActionItems(cleanPreviousContext?.actionItems, fallback.actionItems, 14),
+      proactiveAdvice: this.mergeUniqueStrings(cleanPreviousContext?.proactiveAdvice, fallback.proactiveAdvice, 12),
       transcript: fullAccumulatedTranscript,
       lastChunkTranscript: deltaText
     };

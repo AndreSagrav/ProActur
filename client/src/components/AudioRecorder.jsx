@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import HandwritingCanvas from './HandwritingCanvas';
 import {
-  Mic, Square, Upload, FileText, Loader2, Sparkles, Volume2, AlertCircle,
+  Mic, Square, Play, Upload, FileText, Loader2, Sparkles, Volume2, AlertCircle,
   CheckCircle2, CheckSquare, Clock, Zap, Brain, ShieldAlert, ArrowRight,
   RotateCcw, ShieldCheck, Trash2, PenTool, Keyboard, BookOpen
 } from 'lucide-react';
@@ -58,36 +58,42 @@ function normalizeKey(str) {
     .trim();
 }
 
-function mergeUniqueTextArrays(prevArr = [], nextArr = []) {
+function isPoisonedClientItem(str) {
+  return /gesti[oó]n de bajas|tr[aá]mites de bajas|bajas administrativas|bajas mencionadas|revisar las bajas|la sesi[oó]n (?:ha |haya )?conclu(?:y[oó]|ido)|finalizaci[oó]n formal de la sesi[oó]n|cierre de reuni[oó]n|cierre definitivo de la sesi[oó]n|cierre de ciclo acad[eé]mico|agradecimientos finales|agradecimiento(?:s)? y cortes[ií]a inicial|comentarios informales de cierre|comentarios de cierre|archivar la sesi[oó]n|transcripci[oó]n actual est[aá] incompleta|despedida y cierre formal|^inicio de la? sesi[oó]n$/i.test(String(str || '').trim());
+}
+
+function mergeUniqueTextArrays(prevArr = [], nextArr = [], maxItems = 16) {
   const out = [];
   const seen = new Set();
-  for (const item of [...(Array.isArray(prevArr) ? prevArr : []), ...(Array.isArray(nextArr) ? nextArr : [])]) {
+  for (const item of [...(Array.isArray(nextArr) ? nextArr : []), ...(Array.isArray(prevArr) ? prevArr : [])]) {
     if (typeof item !== 'string') continue;
     const t = item.trim();
-    if (!t) continue;
+    if (!t || isPoisonedClientItem(t)) continue;
     const k = normalizeKey(t);
     if (k && !seen.has(k)) {
       seen.add(k);
       out.push(t);
+      if (out.length >= maxItems) break;
     }
   }
   return out;
 }
 
-function mergeUniqueActionItems(prevArr = [], nextArr = []) {
+function mergeUniqueActionItems(prevArr = [], nextArr = [], maxItems = 14) {
   const out = [];
   const seen = new Set();
-  for (const raw of [...(Array.isArray(prevArr) ? prevArr : []), ...(Array.isArray(nextArr) ? nextArr : [])]) {
+  for (const raw of [...(Array.isArray(nextArr) ? nextArr : []), ...(Array.isArray(prevArr) ? prevArr : [])]) {
     if (!raw) continue;
     const item = typeof raw === 'string'
       ? { task: raw, assignee: 'Por asignar', priority: 'Alta', deadline: 'Pendiente', completed: false }
       : raw;
     const taskText = String(item.task || item.text || item.title || '').trim();
-    if (!taskText) continue;
+    if (!taskText || isPoisonedClientItem(taskText)) continue;
     const k = normalizeKey(taskText);
     if (k && !seen.has(k)) {
       seen.add(k);
       out.push({ ...item, task: taskText });
+      if (out.length >= maxItems) break;
     }
   }
   return out;
@@ -767,10 +773,23 @@ export default function AudioRecorder({ onMeetingProcessed, onRecordingStatusCha
       }
 
       const nextSummary = (data.summary && data.summary.trim().length > 15) ? data.summary.trim() : current.summary;
-      const nextTopics = mergeUniqueTextArrays(current.topics, data.keyTopics);
-      const nextDecisions = mergeUniqueTextArrays(current.decisions, data.keyDecisions);
-      const nextActions = mergeUniqueActionItems(current.actionItems, data.actionItems);
-      const nextAdvice = mergeUniqueTextArrays(current.advice, data.proactiveAdvice);
+      const cleanTopics = Array.isArray(data.keyTopics)
+        ? data.keyTopics.filter(t => typeof t === 'string' && t.trim() && !isPoisonedClientItem(t))
+        : [];
+      const cleanDecisions = Array.isArray(data.keyDecisions)
+        ? data.keyDecisions.filter(d => typeof d === 'string' && d.trim() && !isPoisonedClientItem(d))
+        : [];
+      const cleanActions = Array.isArray(data.actionItems)
+        ? data.actionItems.filter(a => a && !isPoisonedClientItem(typeof a === 'string' ? a : (a.task || a.text || a.title)))
+        : [];
+      const cleanAdvice = Array.isArray(data.proactiveAdvice)
+        ? data.proactiveAdvice.filter(a => typeof a === 'string' && a.trim() && !isPoisonedClientItem(a))
+        : [];
+
+      const nextTopics = cleanTopics.length > 0 ? cleanTopics : mergeUniqueTextArrays(current.topics, []);
+      const nextDecisions = cleanDecisions.length > 0 ? cleanDecisions : mergeUniqueTextArrays(current.decisions, []);
+      const nextActions = cleanActions.length > 0 ? cleanActions : mergeUniqueActionItems(current.actionItems, []);
+      const nextAdvice = cleanAdvice.length > 0 ? cleanAdvice : mergeUniqueTextArrays(current.advice, []);
 
       if (nextSummary) setLiveSummary(nextSummary);
       setLiveTopics(nextTopics);
@@ -1000,7 +1019,14 @@ export default function AudioRecorder({ onMeetingProcessed, onRecordingStatusCha
     mediaRecorder.start(1000);
   };
 
-  const startRecording = async () => {
+  const startRecording = async (resumeSnapshot = null) => {
+    const isResuming = Boolean(
+      resumeSnapshot &&
+      typeof resumeSnapshot === 'object' &&
+      resumeSnapshot.id &&
+      !resumeSnapshot.nativeEvent
+    );
+
     // ACTIVACIÓN SÍNCRONA DE AUDIO EN EL GESTO DEL USUARIO (Crítico para Android / WebView)
     try {
       const AudioCtx = window.AudioContext || window.webkitAudioContext;
@@ -1017,22 +1043,52 @@ export default function AudioRecorder({ onMeetingProcessed, onRecordingStatusCha
     }
 
     try {
+      const restoredTitle = isResuming ? (resumeSnapshot.title || meetingTitle || '') : '';
+      const restoredTranscript = isResuming ? (resumeSnapshot.transcript || '') : '';
+      const restoredSummary = isResuming ? (resumeSnapshot.summary || '') : '';
+      const restoredTopics = isResuming && Array.isArray(resumeSnapshot.keyTopics)
+        ? resumeSnapshot.keyTopics.filter(t => typeof t === 'string' && !isPoisonedClientItem(t))
+        : [];
+      const restoredDecisions = isResuming && Array.isArray(resumeSnapshot.keyDecisions)
+        ? resumeSnapshot.keyDecisions.filter(d => typeof d === 'string' && !isPoisonedClientItem(d))
+        : [];
+      const restoredActions = isResuming && Array.isArray(resumeSnapshot.actionItems)
+        ? resumeSnapshot.actionItems.filter(a => a && !isPoisonedClientItem(typeof a === 'string' ? a : a.task))
+        : [];
+      const restoredAdvice = isResuming && Array.isArray(resumeSnapshot.proactiveAdvice)
+        ? resumeSnapshot.proactiveAdvice.filter(a => typeof a === 'string' && !isPoisonedClientItem(a))
+        : [];
+      const restoredUserNotes = isResuming ? (resumeSnapshot.userNotes || userLiveNotes || '') : '';
+
       setError(null);
-      setLiveTranscript('');
+      setLiveTranscript(restoredTranscript);
       setLiveInterim('');
-      setLiveTopics([]);
-      setLiveDecisions([]);
-      setLiveActionItems([]);
-      setLiveAdvice([]);
-      setLiveSummary('');
+      setLiveTopics(restoredTopics);
+      setLiveDecisions(restoredDecisions);
+      setLiveActionItems(restoredActions);
+      setLiveAdvice(restoredAdvice);
+      setLiveSummary(restoredSummary);
+      if (isResuming) {
+        if (restoredTitle) {
+          setMeetingTitle(restoredTitle);
+          liveAiTitleRef.current = restoredTitle;
+        }
+        if (restoredUserNotes) setUserLiveNotes(restoredUserNotes);
+      }
       setLiveChatMessages([
-        { role: 'assistant', text: '¡Hola! Estoy grabando y tomando notas del seminario/reunión en tiempo real. Puedes preguntarme cualquier cosa sobre lo dicho hasta este instante sin cortar la grabación.' }
+        {
+          role: 'assistant',
+          text: isResuming
+            ? `Sesión reanudada (${restoredTranscript.split(/\s+/).filter(Boolean).length} palabras conservadas). Continúo grabando y tomando notas en vivo.`
+            : '¡Hola! Estoy grabando y tomando notas del seminario/reunión en tiempo real. Puedes preguntarme cualquier cosa sobre lo dicho hasta este instante sin cortar la grabación.'
+        }
       ]);
 
-      const newSessionId = 'meet_live_' + Date.now();
-      sessionMeetingIdRef.current = newSessionId;
-      sessionCreatedAtRef.current = new Date().toISOString();
-      fullTranscriptRef.current = '';
+      const sessionId = isResuming ? resumeSnapshot.id : ('meet_live_' + Date.now());
+      const createdAt = (isResuming && resumeSnapshot.createdAt) ? resumeSnapshot.createdAt : new Date().toISOString();
+      sessionMeetingIdRef.current = sessionId;
+      sessionCreatedAtRef.current = createdAt;
+      fullTranscriptRef.current = restoredTranscript;
       speechDeltaRef.current = '';
       pcmBufferRef.current = [];
       pcmSampleCountRef.current = 0;
@@ -1041,19 +1097,49 @@ export default function AudioRecorder({ onMeetingProcessed, onRecordingStatusCha
       lastCheckpointTimeRef.current = 0;
       autoSwitchedRef.current = false;
 
-      // Inicializar la caja negra en IndexedDB
-      await initEmergencyRecording(meetingTitle, newSessionId);
+      stateRef.current = {
+        ...stateRef.current,
+        title: isResuming ? restoredTitle : meetingTitle,
+        transcript: restoredTranscript,
+        summary: restoredSummary,
+        topics: restoredTopics,
+        decisions: restoredDecisions,
+        actionItems: restoredActions,
+        advice: restoredAdvice,
+        userNotes: restoredUserNotes
+      };
+
+      // Inicializar la caja negra en IndexedDB y preservar snapshot si se reanudó
+      await initEmergencyRecording(isResuming ? restoredTitle : meetingTitle, sessionId);
+      if (isResuming) {
+        await saveLiveSessionSnapshot({
+          id: sessionId,
+          createdAt,
+          title: restoredTitle || 'Sesión en Vivo',
+          summary: restoredSummary,
+          keyTopics: restoredTopics,
+          keyDecisions: restoredDecisions,
+          actionItems: restoredActions,
+          proactiveAdvice: restoredAdvice,
+          transcript: restoredTranscript,
+          userNotes: restoredUserNotes
+        });
+      }
 
       // Abrir micrófonos físicos reales (ignorando Wonder Microphone / virtuales mudos)
       const mobile = isMobileDevice();
       const { streams, label: activeMicsLabel } = await openPhysicalAudioStreams(selectedDeviceId || 'auto-mix');
 
+      const createdMs = isResuming && createdAt ? new Date(createdAt).getTime() : NaN;
+      const keepElapsed = isResuming && Number.isFinite(createdMs) && createdMs <= Date.now() && (Date.now() - createdMs) < 16 * 3600 * 1000;
+      const effectiveStart = keepElapsed ? createdMs : Date.now();
+
       zeroAudioSecondsRef.current = 0;
       setZeroMicWarning(false);
       isRecordingRef.current = true;
       setIsRecording(true);
-      setRecordingTime(0);
-      startTimeRef.current = Date.now();
+      setRecordingTime(keepElapsed ? Math.floor((Date.now() - createdMs) / 1000) : 0);
+      startTimeRef.current = effectiveStart;
 
       const analysisIntervalMs = mobile ? 15000 : 12000;
       await attachRecorderToStream(streams, analysisIntervalMs);
@@ -1383,6 +1469,65 @@ export default function AudioRecorder({ onMeetingProcessed, onRecordingStatusCha
     setHasRecoverableAudio(false);
   };
 
+  // Reanudar grabación continua sobre una sesión previa guardada en caja negra / nube
+  const handleResumeUnfinalized = async () => {
+    setRecovering(true);
+    setError(null);
+    try {
+      const recovered = await recoverUnfinalizedAudio();
+      let snap = recovered?.snapshot || null;
+      if (!snap) {
+        try {
+          const backupRaw = localStorage.getItem('proactur_live_snapshot_backup');
+          if (backupRaw) snap = JSON.parse(backupRaw);
+        } catch (_) {}
+      }
+      if (!snap) {
+        snap = {
+          id: 'meet_live_' + Date.now(),
+          createdAt: recovered?.startTime ? new Date(recovered.startTime).toISOString() : new Date().toISOString(),
+          title: recovered?.title || 'Sesión Reanudada',
+          summary: '',
+          keyTopics: [],
+          keyDecisions: [],
+          actionItems: [],
+          proactiveAdvice: [],
+          transcript: '',
+          userNotes: ''
+        };
+      }
+
+      if (navigator.onLine && snap.id) {
+        try {
+          const res = await fetch(`${API}/api/meetings/${encodeURIComponent(snap.id)}`);
+          if (res.ok) {
+            const cloud = await res.json();
+            if (cloud && cloud.id) {
+              snap = {
+                ...snap,
+                title: cloud.title || snap.title,
+                createdAt: cloud.createdAt || snap.createdAt,
+                transcript: (cloud.transcript || '').length >= (snap.transcript || '').length ? cloud.transcript : snap.transcript,
+                summary: (cloud.summary && !isPoisonedClientItem(cloud.summary)) ? cloud.summary : snap.summary,
+                keyTopics: Array.isArray(cloud.keyTopics) && cloud.keyTopics.length > 0 ? cloud.keyTopics : snap.keyTopics,
+                keyDecisions: Array.isArray(cloud.keyDecisions) && cloud.keyDecisions.length > 0 ? cloud.keyDecisions : snap.keyDecisions,
+                actionItems: Array.isArray(cloud.actionItems) && cloud.actionItems.length > 0 ? cloud.actionItems : snap.actionItems,
+                proactiveAdvice: Array.isArray(cloud.proactiveAdvice) && cloud.proactiveAdvice.length > 0 ? cloud.proactiveAdvice : snap.proactiveAdvice
+              };
+            }
+          }
+        } catch (_) {}
+      }
+
+      setHasRecoverableAudio(false);
+      await startRecording(snap);
+    } catch (err) {
+      setError('No se pudo reanudar la sesión previa: ' + err.message);
+    } finally {
+      setRecovering(false);
+    }
+  };
+
   const formatTime = (seconds) => {
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
@@ -1496,13 +1641,15 @@ export default function AudioRecorder({ onMeetingProcessed, onRecordingStatusCha
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-2.5 w-full pt-1">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 w-full pt-1">
             <button
               type="button"
-              onClick={handleDiscardUnfinalized}
-              className="px-3 py-2 rounded-xl text-xs font-semibold text-slate-300 hover:text-white bg-slate-900/70 hover:bg-slate-800 border border-slate-700/70 transition-colors"
+              onClick={handleResumeUnfinalized}
+              disabled={recovering}
+              className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 shadow transition-all"
             >
-              Descartar
+              {recovering ? <Loader2 className="w-3.5 h-3.5 animate-spin shrink-0" /> : <Play className="w-3.5 h-3.5 fill-slate-950 shrink-0" />}
+              <span className="truncate">Continuar Grabando</span>
             </button>
             <button
               type="button"
@@ -1512,6 +1659,14 @@ export default function AudioRecorder({ onMeetingProcessed, onRecordingStatusCha
             >
               {recovering ? <Loader2 className="w-3.5 h-3.5 animate-spin shrink-0" /> : <Sparkles className="w-3.5 h-3.5 shrink-0" />}
               <span className="truncate">Recuperar Minuta</span>
+            </button>
+            <button
+              type="button"
+              onClick={handleDiscardUnfinalized}
+              disabled={recovering}
+              className="px-3 py-2 rounded-xl text-xs font-semibold text-slate-300 hover:text-white bg-slate-900/70 hover:bg-slate-800 border border-slate-700/70 transition-colors"
+            >
+              Descartar
             </button>
           </div>
         </div>
@@ -1617,7 +1772,7 @@ export default function AudioRecorder({ onMeetingProcessed, onRecordingStatusCha
           {!isRecording ? (
             <div className="flex flex-col items-center justify-center py-6 sm:py-8">
               <button
-                onClick={startRecording}
+                onClick={() => startRecording(null)}
                 className="w-20 h-20 sm:w-24 sm:h-24 rounded-full bg-gradient-to-tr from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 text-white flex items-center justify-center shadow-xl shadow-indigo-500/25 hover:scale-105 active:scale-95 transition-all duration-300 group"
                 title="Iniciar grabacion y analisis en vivo"
               >
@@ -2012,7 +2167,7 @@ export default function AudioRecorder({ onMeetingProcessed, onRecordingStatusCha
 
                     {liveSummary ? (
                       <div className="space-y-3">
-                        <p className="text-xs sm:text-sm text-slate-200 leading-relaxed max-h-[160px] overflow-y-auto pr-1 bg-slate-900/60 p-3.5 rounded-2xl border border-slate-800 whitespace-pre-line">
+                        <p className="text-xs sm:text-sm text-slate-200 leading-relaxed max-h-[320px] overflow-y-auto pr-1 bg-slate-900/60 p-3.5 rounded-2xl border border-slate-800 whitespace-pre-line">
                           {liveSummary}
                         </p>
                         {liveTopics.length > 0 && (
@@ -2053,7 +2208,7 @@ export default function AudioRecorder({ onMeetingProcessed, onRecordingStatusCha
                         <p>Esperando decisiones y acuerdos en la sesión...</p>
                       </div>
                     ) : (
-                      <div className="space-y-2 max-h-[160px] overflow-y-auto pr-1">
+                      <div className="space-y-2 max-h-[320px] overflow-y-auto pr-1">
                         {liveDecisions.map((dec, i) => (
                           <div key={i} className="p-3 rounded-xl bg-emerald-950/20 border border-emerald-500/30 text-xs sm:text-sm flex items-start gap-2.5 text-slate-100">
                             <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
@@ -2084,7 +2239,7 @@ export default function AudioRecorder({ onMeetingProcessed, onRecordingStatusCha
                         <p>Detectando compromisos y asignando responsables en vivo...</p>
                       </div>
                     ) : (
-                      <div className="space-y-2 max-h-[160px] overflow-y-auto pr-1">
+                      <div className="space-y-2 max-h-[320px] overflow-y-auto pr-1">
                         {liveActionItems.map((item, i) => (
                           <div key={i} className="p-3 rounded-xl bg-slate-900/90 border border-slate-800 text-xs sm:text-sm flex items-start gap-2.5">
                             <span className="w-2.5 h-2.5 rounded-full bg-blue-400 mt-1.5 shrink-0" />
@@ -2132,7 +2287,7 @@ export default function AudioRecorder({ onMeetingProcessed, onRecordingStatusCha
                         <p>ProActur evalúa riesgos y recomendaciones durante la charla...</p>
                       </div>
                     ) : (
-                      <div className="space-y-2 max-h-[160px] overflow-y-auto pr-1">
+                      <div className="space-y-2 max-h-[320px] overflow-y-auto pr-1">
                         {liveAdvice.map((adv, i) => (
                           <div key={i} className="p-3 rounded-xl bg-amber-950/20 border border-amber-500/30 text-xs sm:text-sm flex items-start gap-2.5 text-slate-100">
                             <span className="text-amber-400 font-bold shrink-0">💡</span>
