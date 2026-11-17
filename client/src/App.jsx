@@ -430,7 +430,7 @@ const handleNewNote = (linkedMeeting = null) => {
       </header>
 
       {/* Contenedor Principal Adaptativo con Margen Inferior Holgado (Sin Solapamientos) */}
-      <main className="max-w-7xl mx-auto px-3 sm:px-6 py-4 sm:py-6 pb-44 lg:pb-16 flex-1 w-full relative">
+      <main className="max-w-7xl mx-auto px-3 sm:px-6 py-4 sm:py-6 pb-44 lg:pb-36 flex-1 w-full relative">
         {/* PÍLDORA DINÁMICA FLOTANTE (DYNAMIC ISLAND): Grabación e IA activas en 2do plano */}
         {recordingState.isRecording && activeTab !== 'meetings' && (
           <div className="sticky top-2 z-50 max-w-xl mx-auto px-2 mb-4 animate-fade-in">
@@ -521,7 +521,7 @@ const handleNewNote = (linkedMeeting = null) => {
         <div className={activeTab === 'meetings' ? 'block' : 'hidden'}>
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 sm:gap-6">
             {/* Columna Izquierda / Cockpit Completo cuando está grabando en vivo */}
-            <aside className={`${recordingState.isRecording ? 'lg:col-span-12' : 'lg:col-span-4'} flex flex-col gap-4 ${showMobileDetail && !recordingState.isRecording ? 'hidden lg:flex' : 'flex'}`}>
+            <aside className={`${recordingState.isRecording ? 'lg:col-span-12' : 'lg:col-span-5'} flex flex-col gap-4 ${showMobileDetail && !recordingState.isRecording ? 'hidden lg:flex' : 'flex'}`}>
               {/* Grabador de Audio único y centralizado */}
               <div>
                 <AudioRecorder
@@ -710,7 +710,7 @@ const handleNewNote = (linkedMeeting = null) => {
             </aside>
 
             {/* Columna Derecha: Detalle de Reunion (oculta mientras hay grabación en vivo para expandir el Cockpit) */}
-            <section className={`lg:col-span-8 space-y-5 sm:space-y-6 ${recordingState.isRecording ? 'hidden' : (!showMobileDetail ? 'hidden lg:block' : 'block')}`}>
+            <section className={`lg:col-span-7 space-y-5 sm:space-y-6 ${recordingState.isRecording ? 'hidden' : (!showMobileDetail ? 'hidden lg:block' : 'block')}`}>
               {/* Boton de regreso en vista movil */}
               <div className="lg:hidden">
                 <button

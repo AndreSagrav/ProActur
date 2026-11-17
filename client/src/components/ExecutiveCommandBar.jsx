@@ -132,13 +132,13 @@ export default function ExecutiveCommandBar({
 
   return (
     <>
-      {/* 1. Modo Minimizado en Móvil (Píldora Discreta que No Cubre Contenido) */}
+      {/* 1. Modo Minimizado (Píldora Discreta que No Cubre Contenido en PC ni Móvil) */}
       {isMinimized && (
-        <div className="fixed bottom-20 right-4 z-40 md:hidden animate-fade-in">
+        <div className="fixed bottom-20 md:bottom-5 right-4 z-40 animate-fade-in">
           <button
             type="button"
             onClick={() => setIsMinimized(false)}
-            className="flex items-center gap-2 px-3.5 py-2.5 rounded-full bg-slate-950/95 border border-white/[0.15] text-amber-300 font-bold text-xs shadow-[0_10px_25px_rgba(0,0,0,0.6)] backdrop-blur-2xl active:scale-95 transition-all"
+            className="flex items-center gap-2 px-3.5 py-2.5 rounded-full bg-slate-950/95 border border-white/[0.15] text-amber-300 font-bold text-xs shadow-[0_10px_25px_rgba(0,0,0,0.6)] backdrop-blur-2xl active:scale-95 transition-all cursor-pointer"
           >
             <Sparkles className="w-3.5 h-3.5 text-amber-400 animate-pulse" />
             <span>Asistente IA</span>
@@ -147,7 +147,7 @@ export default function ExecutiveCommandBar({
       )}
 
       {/* 2. Barra Flotante Principal */}
-      <div className={`${isMinimized ? 'hidden md:block' : 'block'} fixed bottom-20 md:bottom-6 left-1/2 -translate-x-1/2 z-40 w-full max-w-xl px-3 pointer-events-auto transition-all`}>
+      <div className={`${isMinimized ? 'hidden' : 'block'} fixed bottom-20 md:bottom-5 left-1/2 -translate-x-1/2 z-40 w-full max-w-xl px-3 pointer-events-auto transition-all`}>
         {/* Banner de Feedback Rápido */}
         {quickToast && (
           <div className="mb-2 p-3 rounded-2xl bg-slate-900/95 border border-slate-700/80 shadow-2xl backdrop-blur-2xl flex items-center justify-between gap-3 text-xs animate-fade-in">
@@ -248,11 +248,11 @@ export default function ExecutiveCommandBar({
             className="w-full bg-transparent text-xs sm:text-sm text-slate-100 placeholder-slate-400 outline-none px-2.5"
           />
 
-          {/* Botón Minimizar en Móvil */}
+          {/* Botón Minimizar */}
           <button
             type="button"
             onClick={() => setIsMinimized(true)}
-            className="p-1.5 rounded-lg text-slate-500 hover:text-slate-300 md:hidden shrink-0"
+            className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800/80 shrink-0 cursor-pointer transition-colors"
             title="Minimizar barra"
           >
             <ChevronDown className="w-4 h-4" />

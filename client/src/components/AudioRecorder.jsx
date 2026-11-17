@@ -1481,35 +1481,37 @@ export default function AudioRecorder({ onMeetingProcessed, onRecordingStatusCha
       {/* BANNER DE RECUPERACION DE EMERGENCIA (CAJA NEGRA)                   */}
       {/* =================================================================== */}
       {hasRecoverableAudio && !isRecording && (
-        <div className="mb-5 p-4 rounded-xl bg-amber-950/30 border border-amber-500/40 shadow-lg animate-fade-in flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-          <div className="flex items-center gap-3">
-            <div className="p-2 rounded-lg bg-amber-500/20 text-amber-400 shrink-0">
-              <RotateCcw className="w-5 h-5 animate-spin-slow" />
+        <div className="mb-5 p-4 rounded-2xl bg-amber-950/35 border border-amber-500/40 shadow-lg animate-fade-in flex flex-col gap-3">
+          <div className="flex items-start gap-3">
+            <div className="p-2 rounded-xl bg-amber-500/20 text-amber-400 shrink-0 mt-0.5">
+              <RotateCcw className="w-4 h-4 animate-spin-slow" />
             </div>
-            <div>
-              <h5 className="text-xs sm:text-sm font-bold text-amber-200">
+            <div className="min-w-0 flex-1">
+              <h5 className="text-xs font-bold text-amber-200 leading-snug">
                 Sesión Previa Recuperada en Disco Local
               </h5>
-              <p className="text-[11px] text-slate-300">
+              <p className="text-[11px] text-slate-300 leading-relaxed mt-1">
                 Se detectaron datos sin finalizar ({recoverableSeconds}) guardados en la caja negra antes del refresco o cierre.
               </p>
             </div>
           </div>
 
-          <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
+          <div className="grid grid-cols-2 gap-2.5 w-full pt-1">
             <button
+              type="button"
               onClick={handleDiscardUnfinalized}
-              className="px-3 py-1.5 rounded-lg text-xs text-slate-400 hover:text-slate-200 hover:bg-slate-800 transition-colors"
+              className="px-3 py-2 rounded-xl text-xs font-semibold text-slate-300 hover:text-white bg-slate-900/70 hover:bg-slate-800 border border-slate-700/70 transition-colors"
             >
               Descartar
             </button>
             <button
+              type="button"
               onClick={handleRecoverUnfinalized}
               disabled={recovering}
-              className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-bold bg-amber-500 hover:bg-amber-400 text-slate-950 shadow transition-all"
+              className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold bg-amber-500 hover:bg-amber-400 text-slate-950 shadow transition-all"
             >
-              {recovering ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
-              Recuperar y Guardar Minuta
+              {recovering ? <Loader2 className="w-3.5 h-3.5 animate-spin shrink-0" /> : <Sparkles className="w-3.5 h-3.5 shrink-0" />}
+              <span className="truncate">Recuperar Minuta</span>
             </button>
           </div>
         </div>
@@ -1535,42 +1537,42 @@ export default function AudioRecorder({ onMeetingProcessed, onRecordingStatusCha
 
       {/* Selector de Modo de Entrada (Segmented Control 100% Responsivo y Simétrico) */}
       {!isRecording && (
-        <div className="w-full grid grid-cols-3 p-1 bg-slate-950/80 border border-slate-800/80 rounded-2xl mb-4 shadow-inner">
+        <div className="w-full grid grid-cols-3 p-1 bg-slate-950/80 border border-slate-800/80 rounded-2xl mb-4 shadow-inner gap-1">
           <button
             type="button"
             onClick={() => setActiveTab('record')}
-            className={`flex items-center justify-center gap-1.5 py-2.5 px-2 rounded-xl text-xs sm:text-sm font-bold transition-all ${
+            className={`flex items-center justify-center gap-1.5 py-2.5 px-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${
               activeTab === 'record'
                 ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/30'
                 : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900/60'
             }`}
           >
-            <Mic className="w-4 h-4 shrink-0" />
-            <span className="truncate">En Vivo</span>
+            <Mic className="w-3.5 h-3.5 shrink-0" />
+            <span>En Vivo</span>
           </button>
           <button
             type="button"
             onClick={() => setActiveTab('upload')}
-            className={`flex items-center justify-center gap-1.5 py-2.5 px-2 rounded-xl text-xs sm:text-sm font-bold transition-all ${
+            className={`flex items-center justify-center gap-1.5 py-2.5 px-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${
               activeTab === 'upload'
                 ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/30'
                 : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900/60'
             }`}
           >
-            <Upload className="w-4 h-4 shrink-0" />
-            <span className="truncate">Subir Audio</span>
+            <Upload className="w-3.5 h-3.5 shrink-0" />
+            <span>Subir Audio</span>
           </button>
           <button
             type="button"
             onClick={() => setActiveTab('text')}
-            className={`flex items-center justify-center gap-1.5 py-2.5 px-2 rounded-xl text-xs sm:text-sm font-bold transition-all ${
+            className={`flex items-center justify-center gap-1.5 py-2.5 px-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${
               activeTab === 'text'
                 ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/30'
                 : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900/60'
             }`}
           >
-            <FileText className="w-4 h-4 shrink-0" />
-            <span className="truncate">Minuta</span>
+            <FileText className="w-3.5 h-3.5 shrink-0" />
+            <span>Minuta</span>
           </button>
         </div>
       )}
@@ -1579,18 +1581,18 @@ export default function AudioRecorder({ onMeetingProcessed, onRecordingStatusCha
       {!isRecording && (
         <div className="mb-4">
           <div className="flex items-center justify-between gap-2 mb-1.5">
-            <label className="block text-[11px] uppercase tracking-wider text-slate-400 font-semibold truncate">
-              Título de la Reunión (Opcional)
+            <label className="block text-[11px] uppercase tracking-wider text-slate-400 font-semibold whitespace-nowrap">
+              Título de la sesión
             </label>
             {onOpenNotebook && (
               <button
                 type="button"
                 onClick={onOpenNotebook}
-                className="inline-flex items-center gap-1.5 text-xs text-amber-400 hover:text-amber-300 font-bold transition-all active:scale-95 shrink-0 group px-2 py-0.5 rounded-lg hover:bg-amber-500/10"
+                className="inline-flex items-center gap-1.5 text-xs text-amber-400 hover:text-amber-300 font-bold transition-all active:scale-95 shrink-0 group px-2 py-0.5 rounded-lg hover:bg-amber-500/10 whitespace-nowrap"
                 title="Abrir cuaderno ejecutivo de notas en pantalla completa"
               >
-                <BookOpen className="w-3.5 h-3.5 text-amber-400 group-hover:scale-110 transition-transform" />
-                <span>Abrir Cuaderno Fino</span>
+                <BookOpen className="w-3.5 h-3.5 text-amber-400 group-hover:scale-110 transition-transform shrink-0" />
+                <span>Cuaderno Fino</span>
               </button>
             )}
           </div>
@@ -1601,8 +1603,8 @@ export default function AudioRecorder({ onMeetingProcessed, onRecordingStatusCha
               userEditedTitleRef.current = Boolean(e.target.value.trim());
               setMeetingTitle(e.target.value);
             }}
-            placeholder="Título de la reunión (la IA lo generará si lo dejas en blanco)..."
-            className="w-full bg-slate-800/80 border border-slate-700/80 rounded-xl px-4 py-2.5 text-xs sm:text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all"
+            placeholder="Ej. Seminario o reunión (opcional, la IA lo titula)"
+            className="w-full bg-slate-800/80 border border-slate-700/80 rounded-xl px-3.5 py-2.5 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all"
           />
         </div>
       )}
