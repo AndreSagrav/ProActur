@@ -133,12 +133,16 @@ router.get('/meetings/:id', async (req, res) => {
 // Actualizar campos o tareas de una reunión (PATCH)
 router.patch('/meetings/:id', async (req, res) => {
   try {
-    const { actionItems, title, summary, keyDecisions } = req.body;
+    const { actionItems, title, summary, keyDecisions, keyTopics, proactiveAdvice, transcript, tags } = req.body;
     const updated = await storageService.updateMeeting(req.params.id, {
       ...(actionItems !== undefined && { actionItems }),
       ...(title !== undefined && { title }),
       ...(summary !== undefined && { summary }),
-      ...(keyDecisions !== undefined && { keyDecisions })
+      ...(keyDecisions !== undefined && { keyDecisions }),
+      ...(keyTopics !== undefined && { keyTopics }),
+      ...(proactiveAdvice !== undefined && { proactiveAdvice }),
+      ...(transcript !== undefined && { transcript }),
+      ...(tags !== undefined && { tags })
     });
 
     if (!updated) {
@@ -172,7 +176,7 @@ router.delete('/meetings/:id', async (req, res) => {
 // Analizar fragmento de reunion en tiempo real (Live Meeting AI Copilot)
 router.post('/meetings/live-analyze', upload.single('audio'), async (req, res) => {
   try {
-    const { title, transcript, userNotes, previousContext, audioBase64, audioMimeType } = req.body;
+    const { title, transcript, newTranscriptChunk, userNotes, previousContext, audioBase64, audioMimeType } = req.body;
     let prev = null;
     if (previousContext) {
       try { prev = typeof previousContext === 'string' ? JSON.parse(previousContext) : previousContext; } catch (_) {}
@@ -189,13 +193,14 @@ router.post('/meetings/live-analyze', upload.single('audio'), async (req, res) =
       } catch (_) {}
     }
 
-    if (!transcript && !audioBuffer && (!userNotes || !userNotes.trim())) {
+    if (!transcript && !newTranscriptChunk && !audioBuffer && (!userNotes || !userNotes.trim())) {
       return res.status(400).json({ error: 'Se requiere transcripción, fragmento de audio o notas escritas para analizar.' });
     }
 
     const liveAnalysis = await aiService.analyzeLiveMeeting({
       meetingTitle: title,
       transcript: transcript || '',
+      newTranscriptChunk: newTranscriptChunk || '',
       audioBuffer,
       mimeType,
       userNotes: userNotes || "",
@@ -209,15 +214,120 @@ router.post('/meetings/live-analyze', upload.single('audio'), async (req, res) =
   }
 });
 
+// Checkpoint incremental en la nube mientras la reunión sigue grabando
+router.post('/meetings/live-checkpoint', async (req, res) => {
+  try {
+    const data = req.body || {};
+    if (!data.id) {
+      return res.status(400).json({ error: 'Se requiere el id de sesión para guardar checkpoint.' });
+    }
+
+    const saved = await storageService.saveMeeting({
+      id: data.id,
+      title: (data.title && data.title.trim()) ? data.title.trim() : 'Sesión en Vivo (En curso)',
+      summary: data.summary || 'Grabación en curso... acumulando transcripción y notas.',
+      keyTopics: Array.isArray(data.keyTopics) ? data.keyTopics : [],
+      keyDecisions: Array.isArray(data.keyDecisions) ? data.keyDecisions : [],
+      actionItems: Array.isArray(data.actionItems) ? data.actionItems : [],
+      proactiveAdvice: Array.isArray(data.proactiveAdvice) ? data.proactiveAdvice : [],
+      transcript: data.transcript || '',
+      tags: ['en-vivo'],
+      source: 'live-meeting',
+      createdAt: data.createdAt || new Date().toISOString()
+    });
+
+    res.json({ success: true, id: saved.id, updatedAt: new Date().toISOString(), transcriptLength: (saved.transcript || '').length });
+  } catch (err) {
+    console.error('[Live Checkpoint Error]:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Responder preguntas en vivo sobre la transcripción y notas acumuladas hasta el instante
+router.post('/meetings/live-ask', async (req, res) => {
+  try {
+    const {
+      question,
+      meetingId,
+      title,
+      transcript,
+      summary,
+      keyTopics,
+      keyDecisions,
+      actionItems,
+      proactiveAdvice,
+      userNotes,
+      history
+    } = req.body || {};
+
+    if (!question || !question.trim()) {
+      return res.status(400).json({ error: 'Pregunta requerida' });
+    }
+
+    let finalTranscript = transcript || '';
+    let finalSummary = summary || '';
+    let finalTopics = keyTopics || [];
+    let finalDecisions = keyDecisions || [];
+    let finalActions = actionItems || [];
+    let finalAdvice = proactiveAdvice || [];
+    let finalTitle = title || 'Sesión en Vivo';
+
+    // Si en el cliente faltara historial o hubiera refrescado, respaldar desde Supabase
+    if (meetingId && (!finalTranscript || finalTranscript.length < 50)) {
+      const stored = await storageService.getMeetingById(meetingId).catch(() => null);
+      if (stored) {
+        if ((stored.transcript || '').length > finalTranscript.length) finalTranscript = stored.transcript;
+        if (!finalSummary && stored.summary) finalSummary = stored.summary;
+        if ((!finalTopics || finalTopics.length === 0) && stored.keyTopics) finalTopics = stored.keyTopics;
+        if ((!finalDecisions || finalDecisions.length === 0) && stored.keyDecisions) finalDecisions = stored.keyDecisions;
+        if ((!finalActions || finalActions.length === 0) && stored.actionItems) finalActions = stored.actionItems;
+        if ((!finalAdvice || finalAdvice.length === 0) && stored.proactiveAdvice) finalAdvice = stored.proactiveAdvice;
+        if (stored.title) finalTitle = stored.title;
+      }
+    }
+
+    const answer = await aiService.askLiveSession({
+      question,
+      title: finalTitle,
+      transcript: finalTranscript,
+      summary: finalSummary,
+      keyTopics: finalTopics,
+      keyDecisions: finalDecisions,
+      actionItems: finalActions,
+      proactiveAdvice: finalAdvice,
+      userNotes: userNotes || '',
+      history: history || []
+    });
+
+    res.json({
+      question,
+      answer,
+      transcriptLength: finalTranscript.length
+    });
+  } catch (err) {
+    console.error('[Live Ask Error]:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Sincronizar automáticamente acuerdos/tareas extraídas hacia el gestor unificado de tareas
 async function syncMeetingTasks(savedMeeting) {
   try {
     if (!savedMeeting || !Array.isArray(savedMeeting.actionItems) || savedMeeting.actionItems.length === 0) return;
+    const existing = await taskService.getAllTasks().catch(() => []);
+    const existingKeys = new Set(
+      (existing || [])
+        .filter(t => t.meetingId === savedMeeting.id || t.meeting_id === savedMeeting.id)
+        .map(t => String(t.title || '').toLowerCase().trim())
+    );
+
     for (const item of savedMeeting.actionItems) {
       const text = typeof item === 'string' ? item : (item.task || item.text || item.title || '');
-      if (text && text.trim()) {
+      const cleanText = text.trim();
+      if (cleanText && !existingKeys.has(cleanText.toLowerCase())) {
+        existingKeys.add(cleanText.toLowerCase());
         await taskService.createTask({
-          title: text.trim(),
+          title: cleanText,
           priority: 'high',
           source: 'meeting',
           meetingId: savedMeeting.id
@@ -258,16 +368,27 @@ router.post('/meetings/live-finalize', async (req, res) => {
       finalTitle = 'Reunión Ejecutiva ' + new Date().toLocaleDateString('es-ES');
     }
 
+    // Si existía un checkpoint previo en nube con más transcripción, preservar la mayor longitud
+    let finalTranscript = meetingData.transcript || '';
+    if (meetingData.id) {
+      const prev = await storageService.getMeetingById(meetingData.id).catch(() => null);
+      if (prev && (prev.transcript || '').length > finalTranscript.length) {
+        finalTranscript = prev.transcript;
+      }
+    }
+
     const saved = await storageService.saveMeeting({
+      ...(meetingData.id ? { id: meetingData.id } : {}),
       title: finalTitle,
       summary: meetingData.summary || 'Resumen de reunion analizada en vivo por ProActur AI',
       keyTopics: meetingData.keyTopics || [],
       keyDecisions: meetingData.keyDecisions || [],
       actionItems: meetingData.actionItems || [],
       proactiveAdvice: meetingData.proactiveAdvice || [],
-      transcript: meetingData.transcript || '',
+      transcript: finalTranscript,
+      tags: ['finalizada'],
       source: 'live-meeting',
-      createdAt: new Date().toISOString()
+      createdAt: meetingData.createdAt || new Date().toISOString()
     });
 
     await syncMeetingTasks(saved);
@@ -401,7 +522,7 @@ router.post('/meetings/merge', async (req, res) => {
       return res.status(400).json({ error: 'Se requieren al menos 2 reuniones para realizar la fusión.' });
     }
 
-    const allMeetings = await storageService.getMeetings();
+    const allMeetings = await storageService.getAllMeetings();
     const meetingsToMerge = allMeetings.filter(m => meetingIds.includes(m.id));
 
     if (meetingsToMerge.length < 2) {

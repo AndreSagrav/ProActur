@@ -247,38 +247,184 @@ Debes responder ÚNICAMENTE con un objeto JSON válido (sin markdown, sin bloque
       transcript: text || userNotes || ''
     };
   }
-buildLivePrompt(meetingTitle, currentTranscript, previousContext, userNotes = '') {
+  filterWhisperHallucinations(text) {
+    if (!text || typeof text !== 'string') return '';
+    const cleaned = text.trim();
+    if (!cleaned) return '';
+    const hallucinationPatterns = [
+      /^subt[íi]tulos realizados por.*$/i,
+      /^amara\.org$/i,
+      /^gracias por ver.*$/i,
+      /^suscr[íi]bete.*$/i,
+      /^m[úu]sica$/i,
+      /^\[m[úu]sica\]$/i,
+      /^[\s.,…\-_!?]+$/
+    ];
+    if (hallucinationPatterns.some(p => p.test(cleaned))) return '';
+    return cleaned;
+  }
+
+  normalizeCompareKey(text) {
+    return String(text || '')
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^\w\s]/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+
+  mergeUniqueStrings(prevList = [], newList = []) {
+    const result = [];
+    const seen = new Set();
+    for (const item of [...(Array.isArray(prevList) ? prevList : []), ...(Array.isArray(newList) ? newList : [])]) {
+      if (typeof item !== 'string') continue;
+      const trimmed = item.trim();
+      if (!trimmed) continue;
+      const key = this.normalizeCompareKey(trimmed);
+      if (key && !seen.has(key)) {
+        seen.add(key);
+        result.push(trimmed);
+      }
+    }
+    return result;
+  }
+
+  mergeActionItems(prevItems = [], newItems = []) {
+    const result = [];
+    const seen = new Set();
+    for (const raw of [...(Array.isArray(prevItems) ? prevItems : []), ...(Array.isArray(newItems) ? newItems : [])]) {
+      if (!raw) continue;
+      const item = typeof raw === 'string'
+        ? { task: raw, assignee: 'Por asignar', priority: 'Alta', deadline: 'Pendiente', completed: false }
+        : {
+            task: raw.task || raw.text || raw.title || '',
+            assignee: raw.assignee || 'Por asignar',
+            priority: raw.priority || 'Alta',
+            deadline: raw.deadline || 'Pendiente',
+            completed: Boolean(raw.completed)
+          };
+      if (!item.task.trim()) continue;
+      const key = this.normalizeCompareKey(item.task);
+      if (key && !seen.has(key)) {
+        seen.add(key);
+        result.push(item);
+      }
+    }
+    return result;
+  }
+
+  appendTranscriptDelta(baseTranscript = '', delta = '') {
+    const base = (baseTranscript || '').trim();
+    const next = (delta || '').trim();
+    if (!next) return base;
+    if (!base) return next;
+    // Evitar duplicar si el final ya contiene exactamente este fragmento
+    const baseTail = this.normalizeCompareKey(base.slice(-Math.max(next.length + 20, 80)));
+    const nextKey = this.normalizeCompareKey(next);
+    if (nextKey && baseTail.includes(nextKey)) {
+      return base;
+    }
+    return `${base} ${next}`.trim();
+  }
+
+  buildSmartTranscriptContext(transcript = '', question = '', maxChars = 90000) {
+    const text = (transcript || '').trim();
+    if (!text) return 'Transcripción no disponible aún.';
+    if (text.length <= maxChars) return text;
+
+    const headSize = Math.floor(maxChars * 0.14); // Apertura
+    const tailSize = Math.floor(maxChars * 0.36); // Lo más reciente
+    const middleBudget = maxChars - headSize - tailSize;
+
+    const head = text.slice(0, headSize);
+    const tail = text.slice(-tailSize);
+    const middleText = text.slice(headSize, text.length - tailSize);
+
+    // Extraer palabras clave de la pregunta para rescatar fragmentos relevantes del centro
+    const stopWords = new Set(['como', 'cual', 'cuales', 'quien', 'quienes', 'cuando', 'donde', 'porque', 'para', 'sobre', 'entre', 'este', 'esta', 'estos', 'estas', 'todo', 'toda', 'todos', 'todas', 'algo', 'dijo', 'dijeron', 'hablo', 'hablaron', 'reunion', 'seminario', 'clase', 'resumen', 'tema', 'temas']);
+    const keywords = this.normalizeCompareKey(question)
+      .split(' ')
+      .filter(w => w.length >= 4 && !stopWords.has(w));
+
+    const chunkSize = 1800;
+    const chunks = [];
+    for (let i = 0; i < middleText.length; i += chunkSize) {
+      const slice = middleText.slice(i, i + chunkSize);
+      const norm = this.normalizeCompareKey(slice);
+      let score = 0;
+      for (const kw of keywords) {
+        if (norm.includes(kw)) score += 1;
+      }
+      chunks.push({ idx: i, slice, score });
+    }
+
+    // Seleccionar los mejores chunks (si no hay keywords, muestrear uniformemente)
+    let selected = [];
+    if (keywords.length > 0 && chunks.some(c => c.score > 0)) {
+      const ranked = [...chunks].sort((a, b) => b.score - a.score);
+      let used = 0;
+      for (const c of ranked) {
+        if (used + c.slice.length > middleBudget) break;
+        selected.push(c);
+        used += c.slice.length;
+      }
+      selected.sort((a, b) => a.idx - b.idx);
+    } else {
+      const step = Math.max(1, Math.floor(chunks.length / Math.max(1, Math.floor(middleBudget / chunkSize))));
+      let used = 0;
+      for (let i = 0; i < chunks.length; i += step) {
+        if (used + chunks[i].slice.length > middleBudget) break;
+        selected.push(chunks[i]);
+        used += chunks[i].slice.length;
+      }
+    }
+
+    const middleFormatted = selected.map(c => c.slice).join('\n[...]\n');
+    return `[INICIO DE LA SESIÓN]\n${head}\n\n[FRAGMENTOS RELEVANTES INTERMEDIOS]\n${middleFormatted}\n\n[PARTE MÁS RECIENTE / CIERRE]\n${tail}`;
+  }
+
+  buildLivePrompt(meetingTitle, recentTranscript, newChunkText = '', previousContext = null, userNotes = '') {
     return `
-Eres ProActur AI, el copiloto ejecutivo de reuniones de clase mundial trabajando EN TIEMPO REAL.
-Tu mision es escuchar la conversacion y estructurar la minuta ejecutiva en vivo.
+Eres ProActur AI, el copiloto ejecutivo y tomador de notas experto de un seminario o reunión en curso EN TIEMPO REAL.
+Tu misión es tomar notas completas, detalladas y acumulativas SIN BORRAR lo ya registrado previamente.
 
-Titulo de la reunion: ${meetingTitle || 'Reunion en vivo'}
-Contexto previo acumulado:
-- Tareas ya detectadas: ${JSON.stringify(previousContext?.actionItems || [])}
-- Decisiones ya detectadas: ${JSON.stringify(previousContext?.keyDecisions || [])}
+Título de la sesión: ${meetingTitle || 'Sesión en vivo'}
+Estado acumulado previo (DEBES conservarlo e integrarlo con lo nuevo):
+- Resumen acumulado previo: ${JSON.stringify(previousContext?.summary || '')}
+- Temas clave previos: ${JSON.stringify(previousContext?.keyTopics || [])}
+- Decisiones previas: ${JSON.stringify(previousContext?.keyDecisions || [])}
+- Tareas/Compromisos previos: ${JSON.stringify(previousContext?.actionItems || [])}
+- Consejos/Alertas previos: ${JSON.stringify(previousContext?.proactiveAdvice || [])}
 
-${userNotes ? `Notas manuales tomadas por el usuario durante la sesion:\n${userNotes}\n` : ''}
-${currentTranscript ? `Texto preliminar hablado:\n${currentTranscript}\n` : 'Analiza el audio y notas provistas de la sesion.'}
+${userNotes ? `Notas manuales del usuario:\n${userNotes}\n` : ''}
+${recentTranscript ? `Contexto reciente de la conversación:\n${recentTranscript}\n` : ''}
+${newChunkText ? `LO ÚLTIMO HABLADO AHORA MISMO (Analiza e incorpora esto al estado):\n"${newChunkText}"\n` : 'Analiza el audio y notas provistas de la sesión.'}
 
-Devuelve UNICAMENTE un JSON valido (sin bloques markdown de codigo json) con este formato exacto:
+INSTRUCCIONES CRÍTICAS:
+1. Actualiza y enriquece "summary" integrando lo nuevo al resumen previo (si es un seminario o charla larga, organiza ideas principales, conceptos técnicos, datos relevantes y conclusiones en párrafos claros).
+2. En "keyTopics", "keyDecisions", "actionItems" y "proactiveAdvice", incluye tanto los puntos clave nuevos como los previos relevantes (no descartes los anteriores).
+3. En "transcript", devuelve únicamente el texto limpio del último fragmento hablado (el servidor ya conserva la transcripción total acumulada).
+
+Devuelve ÚNICAMENTE un JSON válido (sin markdown) con este formato exacto:
 {
-  "title": "Titulo ejecutivo conciso (maximo 5 a 7 palabras) del tema principal tratado hasta ahora (ej. 'Estrategia Comercial Q3' o 'Capacitacion en Mantenimiento')",
-  "summary": "Sintesis ejecutiva clara y directa de lo tratado",
-  "keyTopics": ["Tema 1", "Tema 2"],
-  "keyDecisions": ["Decision acordada 1", "Decision acordada 2"],
+  "title": "Título ejecutivo conciso (máximo 5 a 7 palabras) del tema central (ej. 'Seminario de Gestión Estratégica')",
+  "summary": "Síntesis ejecutiva acumulativa y bien estructurada de toda la sesión hasta este momento",
+  "keyTopics": ["Tema o bloque 1", "Tema o bloque 2"],
+  "keyDecisions": ["Decisión o conclusión clave 1", "Decisión o conclusión clave 2"],
   "actionItems": [
     {
-      "task": "Descripcion clara del compromiso",
+      "task": "Descripción clara del compromiso o punto de acción",
       "assignee": "Responsable asignado o 'Por asignar'",
       "priority": "Alta | Media | Baja",
-      "deadline": "Fecha limite o 'Pendiente'",
+      "deadline": "Fecha límite o 'Pendiente'",
       "completed": false
     }
   ],
   "proactiveAdvice": [
-    "Consejo proactivo o alerta de riesgo para el equipo"
+    "Nota analítica, consejo proactivo o alerta relevante para el usuario"
   ],
-  "transcript": "Transcripcion del audio"
+  "transcript": "Transcripción limpia del fragmento reciente"
 }
 `;
   }
@@ -425,7 +571,7 @@ async analyzeLiveWithGroq(prompt, specificModel = null) {
     }
   }
 
-  async analyzeLiveWithGemini(prompt, audioBuffer, mimeType, activeTranscript, requestedModel = null) {
+  async analyzeLiveWithGemini(prompt, audioBuffer, mimeType, activeTranscript, requestedModel = null, forceAudio = false) {
     const key = config.GEMINI_API_KEY;
     if (!key) throw new Error('GEMINI_API_KEY no configurada');
 
@@ -436,7 +582,7 @@ async analyzeLiveWithGroq(prompt, specificModel = null) {
       const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent`;
       const parts = [];
 
-      if (!activeTranscript && audioBuffer) {
+      if ((forceAudio || !activeTranscript) && audioBuffer) {
         parts.push({
           inlineData: {
             mimeType: mimeType || 'audio/webm',
@@ -447,7 +593,7 @@ async analyzeLiveWithGroq(prompt, specificModel = null) {
       parts.push({ text: prompt });
 
       const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), 8000);
+      const timer = setTimeout(() => controller.abort(), 9000);
 
       try {
         const response = await fetch(endpoint, {
@@ -488,49 +634,73 @@ async analyzeLiveWithGroq(prompt, specificModel = null) {
     throw lastGeminiError || new Error('Ningún modelo de la familia Gemini respondió con éxito.');
   }
 
-  async analyzeLiveMeeting({ meetingTitle, transcript, userNotes, audioBuffer, mimeType, previousContext }) {
-    let activeTranscript = (transcript || '').trim();
+  async analyzeLiveMeeting({ meetingTitle, transcript, newTranscriptChunk, userNotes, audioBuffer, mimeType, previousContext }) {
+    const baseTranscript = (transcript || '').trim();
+    let speechDelta = (newTranscriptChunk || '').trim();
+    let whisperText = '';
 
-    // 1. Transcripción ultrarrápida (150ms) con Whisper si hay audio
-    if (audioBuffer && (!activeTranscript || activeTranscript.length < 10)) {
+    // 1. Transcribir SIEMPRE el nuevo fragmento de audio entrante (sin bloqueo por longitud previa)
+    if (audioBuffer && audioBuffer.length >= 400) {
       try {
-        const whisperText = await this.transcribeWithGroq(audioBuffer, mimeType);
+        const rawWhisper = await this.transcribeWithGroq(audioBuffer, mimeType);
+        whisperText = this.filterWhisperHallucinations(rawWhisper);
         if (whisperText) {
-          activeTranscript = activeTranscript ? (activeTranscript + ' ' + whisperText).trim() : whisperText;
-          console.log('[Whisper Live]', whisperText);
+          console.log('[Whisper Live Delta]', whisperText.substring(0, 120));
         }
       } catch (wErr) {
         console.warn('[Whisper Live Warn]:', wErr.message);
       }
     }
 
-    // 2. Si no hay nada de texto ni notas, estado de espera limpio
-    if (!activeTranscript && (!userNotes || !userNotes.trim()) && !audioBuffer) {
+    // Priorizar Whisper si transcribió contenido real; si no, usar delta de SpeechRecognition
+    const deltaText = whisperText || this.filterWhisperHallucinations(speechDelta);
+    const fullAccumulatedTranscript = this.appendTranscriptDelta(baseTranscript, deltaText);
+    const notesText = (userNotes || '').trim();
+    const hasPrevSummary = Boolean(previousContext?.summary && previousContext.summary.trim().length > 20);
+
+    // 2. Si no hay nada nuevo ni previo, estado de espera limpio
+    if (!fullAccumulatedTranscript && !notesText && !audioBuffer) {
       return {
-        summary: "Escuchando conversación en vivo...",
-        keyTopics: [],
-        keyDecisions: [],
-        actionItems: [],
-        proactiveAdvice: ["Habla al micrófono o escribe notas para que ProActur extraiga acuerdos en tiempo real."],
-        transcript: ""
+        summary: 'Escuchando sesión en vivo...',
+        keyTopics: previousContext?.keyTopics || [],
+        keyDecisions: previousContext?.keyDecisions || [],
+        actionItems: previousContext?.actionItems || [],
+        proactiveAdvice: previousContext?.proactiveAdvice?.length > 0
+          ? previousContext.proactiveAdvice
+          : ['Habla al micrófono o escribe notas para que ProActur tome apuntes y acuerdos en tiempo real.'],
+        transcript: '',
+        lastChunkTranscript: ''
       };
     }
 
-    const prompt = this.buildLivePrompt(meetingTitle, activeTranscript, previousContext, userNotes);
+    // 3. Si este bloque fue silencio puro (sin texto nuevo) y ya tenemos resumen previo sin notas nuevas, preservar sin gastar cuota LLM
+    if (!deltaText && hasPrevSummary && !notesText) {
+      return {
+        title: previousContext?.title,
+        summary: previousContext.summary,
+        keyTopics: previousContext?.keyTopics || [],
+        keyDecisions: previousContext?.keyDecisions || [],
+        actionItems: previousContext?.actionItems || [],
+        proactiveAdvice: previousContext?.proactiveAdvice || [],
+        transcript: fullAccumulatedTranscript,
+        lastChunkTranscript: ''
+      };
+    }
 
-    // 3. Fallback en cascada sobre modelos inteligentes de élite
+    const recentTranscript = fullAccumulatedTranscript.slice(-10000);
+    const prompt = this.buildLivePrompt(meetingTitle, recentTranscript, deltaText, previousContext, notesText);
+
+    // 4. Fallback en cascada sobre modelos ejecutivos
     let executiveModels = this.getExecutiveModels();
-    // Si no hay transcripción de texto previa pero sí audio, priorizar Gemini multimodal (oye el audio directamente)
-    if (!activeTranscript && audioBuffer && config.GEMINI_API_KEY) {
+    if (!deltaText && !baseTranscript && audioBuffer && config.GEMINI_API_KEY) {
       executiveModels = [
         { provider: 'gemini', model: 'gemini-3.6-flash', name: 'Gemini Multimodal' },
         ...executiveModels.filter(m => m.provider !== 'gemini')
       ];
     }
-    let lastError = null;
 
     for (const item of executiveModels) {
-      const { provider, model, name } = item;
+      const { provider, model } = item;
       try {
         let result = null;
         if (provider === 'groq' && config.GROQ_API_KEY) {
@@ -538,24 +708,54 @@ async analyzeLiveWithGroq(prompt, specificModel = null) {
         } else if (provider === 'openrouter' && config.OPENROUTER_API_KEY) {
           result = await this.analyzeLiveWithOpenRouter(prompt, model);
         } else if (provider === 'gemini' && config.GEMINI_API_KEY) {
-          result = await this.analyzeLiveWithGemini(prompt, audioBuffer, mimeType, activeTranscript, model);
+          result = await this.analyzeLiveWithGemini(prompt, audioBuffer, mimeType, deltaText || recentTranscript, model, !deltaText);
         }
 
         if (result && result.summary) {
-          if (activeTranscript && (!result.transcript || result.transcript.length < activeTranscript.length)) {
-            result.transcript = activeTranscript;
-          }
-          return result;
+          const mergedTopics = this.mergeUniqueStrings(previousContext?.keyTopics, result.keyTopics);
+          const mergedDecisions = this.mergeUniqueStrings(previousContext?.keyDecisions, result.keyDecisions);
+          const mergedActions = this.mergeActionItems(previousContext?.actionItems, result.actionItems);
+          const mergedAdvice = this.mergeUniqueStrings(previousContext?.proactiveAdvice, result.proactiveAdvice);
+          const modelChunkText = !deltaText && result.transcript && result.transcript.length > 5
+            ? this.filterWhisperHallucinations(result.transcript)
+            : '';
+          const finalTranscript = modelChunkText
+            ? this.appendTranscriptDelta(fullAccumulatedTranscript, modelChunkText)
+            : fullAccumulatedTranscript;
+
+          const safeSummary = (result.summary && result.summary.trim().length >= 30)
+            ? result.summary.trim()
+            : (previousContext?.summary || result.summary);
+
+          return {
+            ...result,
+            summary: safeSummary,
+            keyTopics: mergedTopics,
+            keyDecisions: mergedDecisions,
+            actionItems: mergedActions,
+            proactiveAdvice: mergedAdvice,
+            transcript: finalTranscript,
+            lastChunkTranscript: deltaText || modelChunkText
+          };
         }
       } catch (err) {
-        console.warn(`[Live AI] ${provider} no disponible (${err.message}), probando alternativa...`);
-        lastError = err;
+        console.warn(`[Live AI] ${provider} (${model}) no disponible (${err.message}), probando alternativa...`);
       }
     }
 
-    // Si fallaron todos los modelos remotos, el motor de respaldo local asume el control: CERO FALLO
-    console.warn('[AI Engine] Activando motor determinista local de máxima resiliencia...');
-    return this.generateDeterministicFallback(activeTranscript, meetingTitle, userNotes);
+    // 5. Motor determinista local preservando estado previo + transcripción íntegra
+    console.warn('[AI Engine] Activando motor determinista local preservando acumulado...');
+    const fallback = this.generateDeterministicFallback(deltaText || recentTranscript, meetingTitle, notesText);
+    return {
+      ...fallback,
+      summary: (previousContext?.summary && previousContext.summary.length > 40) ? previousContext.summary : fallback.summary,
+      keyTopics: this.mergeUniqueStrings(previousContext?.keyTopics, fallback.keyTopics),
+      keyDecisions: this.mergeUniqueStrings(previousContext?.keyDecisions, fallback.keyDecisions),
+      actionItems: this.mergeActionItems(previousContext?.actionItems, fallback.actionItems),
+      proactiveAdvice: this.mergeUniqueStrings(previousContext?.proactiveAdvice, fallback.proactiveAdvice),
+      transcript: fullAccumulatedTranscript,
+      lastChunkTranscript: deltaText
+    };
   }
 
   async processWithGemini({ audioBuffer, mimeType, rawText, meetingTitle }) {
@@ -940,24 +1140,124 @@ Instrucciones:
     throw lastError || new Error('No se pudo obtener respuesta del Segundo Cerebro.');
   }
 
+  async askLiveSession({
+    question,
+    title = 'Sesión en Vivo',
+    transcript = '',
+    summary = '',
+    keyTopics = [],
+    keyDecisions = [],
+    actionItems = [],
+    proactiveAdvice = [],
+    userNotes = '',
+    history = []
+  }) {
+    if (!question || !question.trim()) {
+      throw new Error('Pregunta requerida');
+    }
+
+    const transcriptContext = this.buildSmartTranscriptContext(transcript, question, 90000);
+    const topicsStr = (Array.isArray(keyTopics) ? keyTopics : []).join(', ');
+    const decisionsStr = (Array.isArray(keyDecisions) ? keyDecisions : []).map(d => `- ${d}`).join('\n');
+    const tasksStr = (Array.isArray(actionItems) ? actionItems : [])
+      .map(a => `- ${a.task || a} (Resp: ${a.assignee || 'Por asignar'}, Plazo: ${a.deadline || 'Pendiente'})`)
+      .join('\n');
+    const adviceStr = (Array.isArray(proactiveAdvice) ? proactiveAdvice : []).map(a => `- ${a}`).join('\n');
+    const recentHistory = (Array.isArray(history) ? history : [])
+      .slice(-6)
+      .map(h => `${h.role === 'user' ? 'Usuario' : 'Copiloto'}: ${h.text}`)
+      .join('\n');
+
+    const prompt = `
+Eres ProActur AI, el Copiloto Ejecutivo en tiempo real que está escuchando y tomando notas de esta reunión / seminario EN VIVO.
+Responde la pregunta del usuario basándote en TODO lo transcrito hasta este momento, en las notas tomadas y en los acuerdos detectados.
+
+SESIÓN EN CURSO:
+- TÍTULO: ${title}
+- RESUMEN ACUMULADO: ${summary || 'En curso...'}
+- TEMAS CLAVE: ${topicsStr || 'Por consolidar'}
+- DECISIONES / CONCLUSIONES:
+${decisionsStr || 'Ninguna registrada aún.'}
+- COMPROMISOS Y TAREAS:
+${tasksStr || 'Ninguno registrado aún.'}
+- NOTAS Y ALERTAS PROACTIVAS:
+${adviceStr || 'Ninguna aún.'}
+- NOTAS MANUALES DEL USUARIO:
+${userNotes || 'Sin notas manuales.'}
+
+TRANSCRIPCIÓN ACUMULADA DE LA SESIÓN (${(transcript || '').length} caracteres totales):
+"""
+${transcriptContext}
+"""
+
+${recentHistory ? `HISTORIAL RECIENTE DEL CHAT EN VIVO:\n${recentHistory}\n` : ''}
+PREGUNTA DEL USUARIO EN VIVO:
+"${question}"
+
+INSTRUCCIONES:
+1. Responde de manera clara, directa, precisa y en español basándote en la transcripción y notas de esta sesión.
+2. Si el tema sí se mencionó en la transcripción, cita exactamente qué se dijo, conceptos, ejemplos o conclusiones.
+3. Si aún no se ha hablado de ese tema en lo que va de la sesión, indícalo claramente sin inventar datos.
+`;
+
+    return await this._runLongContextQuery(prompt, summary || 'Sesión activa en curso.');
+  }
+
+  async _runLongContextQuery(prompt, fallbackSummary = '') {
+    const models = [
+      { provider: 'groq', model: config.GROQ_CHAT_MODEL || 'openai/gpt-oss-120b', name: 'Groq GPT-OSS 120B' },
+      { provider: 'groq', model: 'llama-3.3-70b-versatile', name: 'Groq Llama 3.3 70B' },
+      { provider: 'openrouter', model: 'deepseek/deepseek-chat', name: 'DeepSeek V3' },
+      { provider: 'openrouter', model: 'qwen/qwen-2.5-72b-instruct', name: 'Qwen 2.5 72B' },
+      { provider: 'gemini', model: this.geminiModel, name: 'Gemini Configurado' },
+      { provider: 'gemini', model: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash' },
+      { provider: 'gemini', model: 'gemini-2.0-flash', name: 'Gemini 2.0 Flash' }
+    ];
+
+    for (const item of models) {
+      const { provider, model, name } = item;
+      try {
+        if (provider === 'groq' && config.GROQ_API_KEY) {
+          const ans = await this.callGroq(prompt, 'Eres un asistente ejecutivo experto en analizar transcripciones completas y responder preguntas precisas.', model);
+          if (ans) return ans;
+        } else if (provider === 'openrouter' && config.OPENROUTER_API_KEY) {
+          const ans = await this.callOpenRouter(prompt, 'Eres un asistente ejecutivo experto en analizar transcripciones completas y responder preguntas precisas.', model);
+          if (ans) return ans;
+        } else if (provider === 'gemini' && config.GEMINI_API_KEY) {
+          const ans = await this.callGeminiText(prompt, '', model);
+          if (ans) return ans;
+        }
+      } catch (err) {
+        console.warn(`[LongContext AI] Error con ${name}:`, err.message);
+      }
+    }
+
+    return fallbackSummary
+      ? `No fue posible consultar a los modelos remotos en este instante. Resumen acumulado disponible:\n\n${fallbackSummary}`
+      : 'No fue posible consultar a los modelos remotos en este instante. Verifica tu conexión e intenta de nuevo.';
+  }
+
   async askMeeting(question, meeting) {
     if (!meeting) throw new Error('Se requiere información de la reunión');
 
     const title = meeting.title || 'Reunión sin título';
     const date = meeting.createdAt || meeting.date || 'Fecha no registrada';
     const summary = meeting.summary || 'Sin resumen registrado';
+    const topics = (meeting.keyTopics || []).join(', ');
     const decisions = (meeting.keyDecisions || []).join('\n- ');
     const tasks = (meeting.actionItems || []).map(a => `- ${a.task} (Responsable: ${a.assignee || 'No asignado'}, Plazo: ${a.deadline || 'Sin plazo'})`).join('\n');
     const advice = (meeting.proactiveAdvice || []).join('\n- ');
-    const transcript = meeting.transcript || 'Transcripción no disponible';
+    const fullTranscript = meeting.transcript || 'Transcripción no disponible';
+    const smartTranscript = this.buildSmartTranscriptContext(fullTranscript, question, 95000);
 
     const prompt = `
 Eres el Copiloto Ejecutivo de ProActur.
-El usuario está revisando el registro histórico de una reunión específica y te hace una consulta directa sobre ella.
+El usuario está revisando el registro histórico de una reunión o seminario completo y te hace una consulta directa sobre ella.
 
-INFORMACIÓN EXCLUSIVA DE ESTA REUNIÓN:
+INFORMACIÓN EXCLUSIVA DE ESTA SESIÓN:
 - TÍTULO: ${title}
 - FECHA: ${date}
+- TEMAS CLAVE: ${topics || 'No especificados'}
 - RESUMEN EJECUTIVO:
 ${summary}
 
@@ -970,120 +1270,21 @@ ${tasks || 'No se registraron tareas pendientes.'}
 - CONSEJOS PROACTIVOS Y ALERTAS:
 ${advice ? '- ' + advice : 'No hay consejos adicionales.'}
 
-- TRANSCRIPCIÓN TEXTUAL COMPLETA:
+- TRANSCRIPCIÓN TEXTUAL COMPLETA (${fullTranscript.length} caracteres totales):
 """
-${transcript.substring(0, 20000)}
+${smartTranscript}
 """
 
 PREGUNTA DEL USUARIO:
 "${question}"
 
 INSTRUCCIONES CLAVE:
-1. Responde de forma concisa, profesional, ejecutiva y certera basada ÚNICAMENTE en la información de esta reunión.
-2. Si te piden redactar un correo, una lista de pendientes o clarificar posturas de participantes, usa formato Markdown limpio.
-3. Si el dato solicitado no aparece en la reunión, indícalo claramente con honestidad sin inventar información.
+1. Responde de forma concisa, profesional, ejecutiva y certera basada ÚNICAMENTE en la información de esta sesión.
+2. Si te piden redactar un correo, un resumen, una lista de pendientes o clarificar conceptos/posturas de participantes o ponentes, usa formato Markdown limpio.
+3. Si el dato solicitado no aparece en la sesión, indícalo claramente con honestidad sin inventar información.
 `;
 
-    const executiveModels = [
-      { provider: 'groq', model: config.GROQ_CHAT_MODEL || 'openai/gpt-oss-120b', name: 'Groq GPT-OSS 120B' },
-      { provider: 'openrouter', model: 'deepseek/deepseek-chat', name: 'DeepSeek V3' },
-      { provider: 'gemini', model: this.geminiModel, name: 'Gemini Flash' }
-    ];
-
-    for (const item of executiveModels) {
-      const { provider, model, name } = item;
-
-      if (provider === 'groq' && config.GROQ_API_KEY) {
-        try {
-          const controller = new AbortController();
-          const timer = setTimeout(() => controller.abort(), 9000);
-          const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${config.GROQ_API_KEY}`
-            },
-            body: JSON.stringify({
-              model,
-              messages: [{ role: 'user', content: prompt }],
-              temperature: 0.2
-            }),
-            signal: controller.signal
-          });
-          clearTimeout(timer);
-
-          if (res.ok) {
-            const data = await res.json();
-            const ans = data.choices?.[0]?.message?.content;
-            if (ans && ans.trim()) return ans.trim();
-          }
-        } catch (err) {
-          console.warn(`[Meeting AI] Error con ${name}:`, err.message);
-        }
-      }
-
-      if (provider === 'openrouter' && config.OPENROUTER_API_KEY) {
-        try {
-          const controller = new AbortController();
-          const timer = setTimeout(() => controller.abort(), 9000);
-          const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${config.OPENROUTER_API_KEY}`,
-              'HTTP-Referer': 'https://pro-actur.vercel.app',
-              'X-Title': 'ProActur AI'
-            },
-            body: JSON.stringify({
-              model,
-              messages: [{ role: 'user', content: prompt }],
-              temperature: 0.2
-            }),
-            signal: controller.signal
-          });
-          clearTimeout(timer);
-
-          if (res.ok) {
-            const data = await res.json();
-            const ans = data.choices?.[0]?.message?.content;
-            if (ans && ans.trim()) return ans.trim();
-          }
-        } catch (err) {
-          console.warn(`[Meeting AI] Error con ${name}:`, err.message);
-        }
-      }
-
-      if (provider === 'gemini' && config.GEMINI_API_KEY) {
-        try {
-          const controller = new AbortController();
-          const timer = setTimeout(() => controller.abort(), 9000);
-          const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${this.geminiModel}:generateContent`;
-          const res = await fetch(endpoint, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'x-goog-api-key': config.GEMINI_API_KEY
-            },
-            body: JSON.stringify({
-              contents: [{ parts: [{ text: prompt }] }],
-              generationConfig: { temperature: 0.2 }
-            }),
-            signal: controller.signal
-          });
-          clearTimeout(timer);
-
-          if (res.ok) {
-            const data = await res.json();
-            const ans = data.candidates?.[0]?.content?.parts?.[0]?.text;
-            if (ans && ans.trim()) return ans.trim();
-          }
-        } catch (err) {
-          console.warn(`[Meeting AI] Error con Gemini:`, err.message);
-        }
-      }
-    }
-
-    return `He revisado el registro de "${title}". Sobre tu consulta: ${summary}`;
+    return await this._runLongContextQuery(prompt, `He revisado el registro de "${title}". Sobre tu consulta: ${summary}`);
   }
 
 

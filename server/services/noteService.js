@@ -5,7 +5,7 @@ class NoteService {
     return {
       id: n.id,
       title: n.title || 'Nota sin titulo',
-      content_text: n.contentText || '',
+      content_text: n.contentText || n.content || '',
       content_strokes: n.contentStrokes || null,
       thumbnail_url: n.thumbnailUrl || null,
       mode: n.mode || 'keyboard',

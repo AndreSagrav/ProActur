@@ -204,6 +204,10 @@ class StorageService {
         if (updates.title !== undefined) updatePayload.title = updates.title;
         if (updates.summary !== undefined) updatePayload.summary = updates.summary;
         if (updates.keyDecisions !== undefined) updatePayload.key_decisions = updates.keyDecisions;
+        if (updates.keyTopics !== undefined) updatePayload.key_topics = updates.keyTopics;
+        if (updates.proactiveAdvice !== undefined) updatePayload.proactive_advice = updates.proactiveAdvice;
+        if (updates.transcript !== undefined) updatePayload.transcript = updates.transcript;
+        if (updates.tags !== undefined) updatePayload.tags = updates.tags;
         if (updates.notionSync !== undefined) updatePayload.notion_sync = updates.notionSync;
 
         await supabase

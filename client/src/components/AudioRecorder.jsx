@@ -9,6 +9,7 @@ import {
 import {
   initEmergencyRecording,
   appendAudioChunk,
+  saveLiveSessionSnapshot,
   checkUnfinalizedRecording,
   recoverUnfinalizedAudio,
   clearEmergencyRecording
@@ -22,6 +23,78 @@ const isMobileDevice = () => {
   return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)
     || (window.innerWidth <= 768);
 };
+
+function getSupportedAudioMimeType() {
+  if (typeof MediaRecorder === 'undefined' || typeof MediaRecorder.isTypeSupported !== 'function') {
+    return 'audio/webm';
+  }
+  const candidates = [
+    'audio/webm;codecs=opus',
+    'audio/webm',
+    'audio/mp4',
+    'audio/ogg;codecs=opus'
+  ];
+  for (const type of candidates) {
+    if (MediaRecorder.isTypeSupported(type)) return type;
+  }
+  return 'audio/webm';
+}
+
+function normalizeKey(str) {
+  return String(str || '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^\w\s]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function mergeUniqueTextArrays(prevArr = [], nextArr = []) {
+  const out = [];
+  const seen = new Set();
+  for (const item of [...(Array.isArray(prevArr) ? prevArr : []), ...(Array.isArray(nextArr) ? nextArr : [])]) {
+    if (typeof item !== 'string') continue;
+    const t = item.trim();
+    if (!t) continue;
+    const k = normalizeKey(t);
+    if (k && !seen.has(k)) {
+      seen.add(k);
+      out.push(t);
+    }
+  }
+  return out;
+}
+
+function mergeUniqueActionItems(prevArr = [], nextArr = []) {
+  const out = [];
+  const seen = new Set();
+  for (const raw of [...(Array.isArray(prevArr) ? prevArr : []), ...(Array.isArray(nextArr) ? nextArr : [])]) {
+    if (!raw) continue;
+    const item = typeof raw === 'string'
+      ? { task: raw, assignee: 'Por asignar', priority: 'Alta', deadline: 'Pendiente', completed: false }
+      : raw;
+    const taskText = String(item.task || item.text || item.title || '').trim();
+    if (!taskText) continue;
+    const k = normalizeKey(taskText);
+    if (k && !seen.has(k)) {
+      seen.add(k);
+      out.push({ ...item, task: taskText });
+    }
+  }
+  return out;
+}
+
+function appendTranscriptSafely(base, delta) {
+  const b = (base || '').trim();
+  const d = (delta || '').trim();
+  if (!d) return b;
+  if (!b) return d;
+  const tailNorm = normalizeKey(b.slice(-Math.max(d.length + 25, 90)));
+  const deltaNorm = normalizeKey(d);
+  if (deltaNorm && tailNorm.includes(deltaNorm)) return b;
+  return `${b} ${d}`.trim();
+}
 
 // Genera un archivo WAV RIFF PCM 16-bit mono estándar a partir de muestras float (-1.0 a 1.0)
 function encodePcmToWav(samples, sampleRate = 16000) {
@@ -86,6 +159,7 @@ export default function AudioRecorder({ onMeetingProcessed, onRecordingStatusCha
   // Estados del copiloto en tiempo real (Live ProActur AI)
   const [liveTranscript, setLiveTranscript] = useState('');
   const [liveInterim, setLiveInterim] = useState('');
+  const [liveTopics, setLiveTopics] = useState([]);
   const [liveDecisions, setLiveDecisions] = useState([]);
   const [liveActionItems, setLiveActionItems] = useState([]);
   const [liveAdvice, setLiveAdvice] = useState([]);
@@ -93,9 +167,9 @@ export default function AudioRecorder({ onMeetingProcessed, onRecordingStatusCha
   const [liveNotesMode, setLiveNotesMode] = useState('keyboard'); // 'keyboard' | 'pencil'
   const [liveNotesStrokes, setLiveNotesStrokes] = useState([]);
   const [liveStatusMessage, setLiveStatusMessage] = useState('');
-  const [activeLiveTab, setActiveLiveTab] = useState('notes'); // 'notes' | 'chat'
+  const [activeLiveTab, setActiveLiveTab] = useState('notes'); // 'notes' | 'transcript' | 'chat'
   const [liveChatMessages, setLiveChatMessages] = useState([
-    { role: 'assistant', text: '¡Hola! Estoy escuchando la reunión. Puedes hacerme preguntas en vivo o pedirme que registre acuerdos o tareas puntuales.' }
+    { role: 'assistant', text: '¡Hola! Estoy grabando y tomando notas del seminario/reunión en tiempo real. Puedes preguntarme cualquier cosa sobre lo dicho hasta este instante sin cortar la grabación.' }
   ]);
   const [liveChatInput, setLiveChatInput] = useState('');
   const [liveChatLoading, setLiveChatLoading] = useState(false);
@@ -105,19 +179,37 @@ export default function AudioRecorder({ onMeetingProcessed, onRecordingStatusCha
   const mediaRecorderRef = useRef(null);
   const audioChunksRef = useRef([]);
   const timerRef = useRef(null);
+  const workerTimerRef = useRef(null);
   const recognitionRef = useRef(null);
   const liveAnalysisTimerRef = useRef(null);
   const silenceOscRef = useRef(null);
   const scriptNodeRef = useRef(null);
+  const activeStreamRef = useRef(null);
   const pcmBufferRef = useRef([]);
   const pcmSampleCountRef = useRef(0);
   const silentAudioRef = useRef(null);
   const wakeLockRef = useRef(null);
   const startTimeRef = useRef(null);
 
+  // Refs incrementales anti-stale-closure para sesiones de 8+ horas
+  const sessionMeetingIdRef = useRef(null);
+  const sessionCreatedAtRef = useRef(null);
+  const fullTranscriptRef = useRef('');
+  const speechDeltaRef = useRef('');
+  const lastLiveAnalysisTimeRef = useRef(0);
+  const lastCheckpointTimeRef = useRef(0);
+  const isAnalyzingRef = useRef(false);
+  const externalNotesRef = useRef(externalNotebookNotes || '');
+
+  useEffect(() => {
+    externalNotesRef.current = typeof externalNotebookNotes === 'string' ? externalNotebookNotes : '';
+  }, [externalNotebookNotes]);
+
   // Referencias mutables para evitar stale closures
   const stateRef = useRef({
     transcript: '',
+    userNotes: '',
+    topics: [],
     decisions: [],
     actionItems: [],
     advice: [],
@@ -129,8 +221,9 @@ export default function AudioRecorder({ onMeetingProcessed, onRecordingStatusCha
 
   useEffect(() => {
     stateRef.current = {
-      transcript: liveTranscript,
-    userNotes: userLiveNotes,
+      transcript: fullTranscriptRef.current || liveTranscript,
+      userNotes: userLiveNotes,
+      topics: liveTopics,
       decisions: liveDecisions,
       actionItems: liveActionItems,
       advice: liveAdvice,
@@ -139,7 +232,7 @@ export default function AudioRecorder({ onMeetingProcessed, onRecordingStatusCha
       isRecording,
       isAnalyzing: isAnalyzingLive
     };
-  }, [liveTranscript, liveDecisions, liveActionItems, liveAdvice, liveSummary, meetingTitle, isRecording, isAnalyzingLive]);
+  }, [liveTranscript, userLiveNotes, liveTopics, liveDecisions, liveActionItems, liveAdvice, liveSummary, meetingTitle, isRecording, isAnalyzingLive]);
 
   // Sincronización continua de estado con la aplicación y Dynamic Island
   useEffect(() => {
@@ -150,7 +243,7 @@ export default function AudioRecorder({ onMeetingProcessed, onRecordingStatusCha
         triggerAnalysis: triggerLiveAnalysis
       };
     }
-  }, [meetingTitle, liveDecisions, liveActionItems, liveSummary, liveTranscript]);
+  });
 
   useEffect(() => {
     if (onRecordingStatusChange) {
@@ -171,7 +264,10 @@ export default function AudioRecorder({ onMeetingProcessed, onRecordingStatusCha
     checkUnfinalizedRecording().then(res => {
       if (res && res.hasUnfinalized) {
         setHasRecoverableAudio(true);
-        setRecoverableSeconds(res.chunkCount);
+        const mins = res.snapshot?.transcript
+          ? `${res.snapshot.transcript.split(/\s+/).filter(Boolean).length} palabras`
+          : `${res.chunkCount} segundos de audio`;
+        setRecoverableSeconds(mins);
       }
     });
   }, []);
@@ -179,7 +275,7 @@ export default function AudioRecorder({ onMeetingProcessed, onRecordingStatusCha
   // 2. Proteccion contra cierre o refresco accidental de pestana (beforeunload)
   useEffect(() => {
     const handleBeforeUnload = (e) => {
-      if (isRecording) {
+      if (isRecordingRef.current) {
         e.preventDefault();
         e.returnValue = 'Hay una reunion activa grabandose en vivo. Si sales o refrescas se interrumpira la sesion.';
         return e.returnValue;
@@ -187,7 +283,31 @@ export default function AudioRecorder({ onMeetingProcessed, onRecordingStatusCha
     };
     window.addEventListener('beforeunload', handleBeforeUnload);
     return () => window.removeEventListener('beforeunload', handleBeforeUnload);
-  }, [isRecording]);
+  }, []);
+
+  // 2b. Re-adquisición de WakeLock y AudioContext cuando el usuario regresa a la pestaña (minimizado/cambio de pestaña)
+  useEffect(() => {
+    const handleVisibilityChange = async () => {
+      if (document.visibilityState === 'visible' && isRecordingRef.current) {
+        try {
+          if (audioContextRef.current && audioContextRef.current.state === 'suspended') {
+            await audioContextRef.current.resume();
+          }
+          if (silentAudioRef.current && silentAudioRef.current.paused) {
+            silentAudioRef.current.play().catch(() => {});
+          }
+          if ('wakeLock' in navigator && !wakeLockRef.current) {
+            navigator.wakeLock.request('screen').then(lock => {
+              wakeLockRef.current = lock;
+              lock.addEventListener?.('release', () => { wakeLockRef.current = null; });
+            }).catch(() => {});
+          }
+        } catch (_) {}
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+  }, []);
 
   // 3. Resiliencia de red: auto-pausa y auto-reanudación de análisis ante cortes de internet
   useEffect(() => {
@@ -199,14 +319,14 @@ export default function AudioRecorder({ onMeetingProcessed, onRecordingStatusCha
           if (isRecordingRef.current) {
             triggerLiveAnalysis();
           }
-        }, 1500);
+        }, 1200);
       }
     };
 
     const handleOffline = () => {
       console.warn('[ProActur Network] Pérdida de conexión a internet.');
       if (isRecordingRef.current) {
-        setLiveStatusMessage('📡 Sin internet: Grabación segura en disco (Caja Negra). Se sincronizará al reconectar.');
+        setLiveStatusMessage('📡 Sin internet: Grabación y transcripción locales activas. Se sincronizará al reconectar.');
       }
     };
 
@@ -224,6 +344,9 @@ export default function AudioRecorder({ onMeetingProcessed, onRecordingStatusCha
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
       if (liveAnalysisTimerRef.current) clearInterval(liveAnalysisTimerRef.current);
+      if (workerTimerRef.current) {
+        try { workerTimerRef.current.terminate(); } catch (_) {}
+      }
       if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
       if (audioContextRef.current) {
         try { audioContextRef.current.close(); } catch (_) {}
@@ -274,42 +397,42 @@ export default function AudioRecorder({ onMeetingProcessed, onRecordingStatusCha
 
       // 2. Buffer circular de audio PCM directo a 16kHz para transcripción Whisper/Gemini sin corrupción WebM
       try {
-        if (!scriptNodeRef.current) {
-          const scriptNode = audioCtx.createScriptProcessor(4096, 1, 1);
-          const targetRate = 16000;
-          const sourceRate = audioCtx.sampleRate || 44100;
-          const downsampleRatio = sourceRate / targetRate;
-
-          pcmBufferRef.current = [];
-          pcmSampleCountRef.current = 0;
-          // Máximo 15 segundos a 16kHz = 240,000 muestras
-          const maxSamples = 16000 * 15;
-
-          scriptNode.onaudioprocess = (audioEvent) => {
-            if (!isRecordingRef.current) return;
-            const inputData = audioEvent.inputBuffer.getChannelData(0);
-            const newLength = Math.floor(inputData.length / downsampleRatio);
-            const downsampled = new Float32Array(newLength);
-            for (let i = 0; i < newLength; i++) {
-              downsampled[i] = inputData[Math.floor(i * downsampleRatio)];
-            }
-
-            pcmBufferRef.current.push(downsampled);
-            pcmSampleCountRef.current += newLength;
-
-            while (pcmSampleCountRef.current > maxSamples && pcmBufferRef.current.length > 1) {
-              const removed = pcmBufferRef.current.shift();
-              pcmSampleCountRef.current -= removed.length;
-            }
-          };
-
-          source.connect(scriptNode);
-          const zeroGain = audioCtx.createGain();
-          zeroGain.gain.value = 0;
-          scriptNode.connect(zeroGain);
-          zeroGain.connect(audioCtx.destination);
-          scriptNodeRef.current = scriptNode;
+        if (scriptNodeRef.current) {
+          try { scriptNodeRef.current.disconnect(); } catch (_) {}
+          scriptNodeRef.current = null;
         }
+        const scriptNode = audioCtx.createScriptProcessor(4096, 1, 1);
+        const targetRate = 16000;
+        const sourceRate = audioCtx.sampleRate || 44100;
+        const downsampleRatio = sourceRate / targetRate;
+
+        // Capacidad máxima en cola: 35 segundos a 16kHz (seguro para payload < 4.5MB de Vercel)
+        const maxSamples = 16000 * 35;
+
+        scriptNode.onaudioprocess = (audioEvent) => {
+          if (!isRecordingRef.current) return;
+          const inputData = audioEvent.inputBuffer.getChannelData(0);
+          const newLength = Math.floor(inputData.length / downsampleRatio);
+          const downsampled = new Float32Array(newLength);
+          for (let i = 0; i < newLength; i++) {
+            downsampled[i] = inputData[Math.floor(i * downsampleRatio)];
+          }
+
+          pcmBufferRef.current.push(downsampled);
+          pcmSampleCountRef.current += newLength;
+
+          while (pcmSampleCountRef.current > maxSamples && pcmBufferRef.current.length > 1) {
+            const removed = pcmBufferRef.current.shift();
+            pcmSampleCountRef.current -= removed.length;
+          }
+        };
+
+        source.connect(scriptNode);
+        const zeroGain = audioCtx.createGain();
+        zeroGain.gain.value = 0;
+        scriptNode.connect(zeroGain);
+        zeroGain.connect(audioCtx.destination);
+        scriptNodeRef.current = scriptNode;
       } catch (pcmErr) {
         console.warn('[AudioContext] PCM ScriptProcessor error:', pcmErr);
       }
@@ -394,7 +517,11 @@ export default function AudioRecorder({ onMeetingProcessed, onRecordingStatusCha
           }
 
           if (finalChunk.trim()) {
-            setLiveTranscript(prev => (prev + ' ' + finalChunk.trim()).trim());
+            const cleanChunk = finalChunk.trim();
+            speechDeltaRef.current = (speechDeltaRef.current + ' ' + cleanChunk).trim();
+            const updatedFull = appendTranscriptSafely(fullTranscriptRef.current, cleanChunk);
+            fullTranscriptRef.current = updatedFull;
+            setLiveTranscript(updatedFull);
           }
           setLiveInterim(interim.trim());
         };
@@ -431,52 +558,116 @@ export default function AudioRecorder({ onMeetingProcessed, onRecordingStatusCha
     return startRecognitionInstance();
   };
 
-  // Analisis incremental continuo con Gemini enviando audio y notas en vivo
-  const triggerLiveAnalysis = async (explicitNotes = null) => {
+  // Persistir snapshot local y checkpoint en Supabase cada ~30s sin detener la sesión
+  const syncLiveCheckpoint = async (snapshotData, forceCloud = false) => {
+    try {
+      await saveLiveSessionSnapshot(snapshotData);
+    } catch (_) {}
+
+    const now = Date.now();
+    if (!forceCloud && (now - lastCheckpointTimeRef.current < 28000)) return;
+    if (!navigator.onLine || !snapshotData?.id) return;
+
+    lastCheckpointTimeRef.current = now;
+    try {
+      const res = await fetch(`${API}/api/meetings/live-checkpoint`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(snapshotData)
+      });
+      if (res.ok) {
+        const words = (snapshotData.transcript || '').split(/\s+/).filter(Boolean).length;
+        const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+        setLiveStatusMessage(`☁️ Guardado en nube y disco (${timeStr}) • ${words} palabras`);
+      }
+    } catch (_) {}
+  };
+
+  // Analisis incremental continuo enviando nuevo bloque de audio + delta de texto y acumulando notas
+  const triggerLiveAnalysis = async (explicitNotes = null, forceFlush = false) => {
     const current = stateRef.current;
-    if (!isRecordingRef.current || current.isAnalyzing) return;
+    if ((!isRecordingRef.current && !forceFlush) || isAnalyzingRef.current) return;
 
-    // Si no hay internet, no intentamos llamar a la nube: el micrófono sigue grabando en disco local
-    if (!navigator.onLine) {
-      setLiveStatusMessage('📡 Sin conexión: Audio seguro en disco (Caja Negra). Esperando internet...');
-      return;
-    }
-
-    const externalNotes = typeof externalNotebookNotes === 'string' ? externalNotebookNotes : '';
+    const externalNotes = externalNotesRef.current || '';
     const internalNotes = typeof explicitNotes === 'string' ? explicitNotes : (current.userNotes || '');
-    const notesToUse = [internalNotes, externalNotes].filter(Boolean).join('\n\n');
-    const userNotesText = notesToUse.trim();
-    const textToAnalyze = (current.transcript || '').trim();
-    const hasAudio = audioChunksRef.current && audioChunksRef.current.length > 0;
+    const userNotesText = [internalNotes, externalNotes].filter(Boolean).join('\n\n').trim();
+    const currentFullTranscript = fullTranscriptRef.current || current.transcript || '';
+    const speechDelta = speechDeltaRef.current.trim();
 
-    if (!hasAudio && textToAnalyze.length < 3 && userNotesText.length < 3) {
-      setLiveStatusMessage('ℹ️ Habla al micrófono o escribe notas para que la IA extraiga acuerdos.');
+    // Extraer atómicamente los fragmentos PCM acumulados desde el último envío (sin perder audio si tarda)
+    let drainedChunks = [];
+    let drainedSamples = 0;
+    if (pcmBufferRef.current && pcmBufferRef.current.length > 0 && pcmSampleCountRef.current > (forceFlush ? 4000 : 8000)) {
+      drainedChunks = pcmBufferRef.current;
+      drainedSamples = pcmSampleCountRef.current;
+      pcmBufferRef.current = [];
+      pcmSampleCountRef.current = 0;
+    }
+
+    const hasPcmAudio = drainedSamples > 0;
+    const hasWebmFallback = !hasPcmAudio && audioChunksRef.current && audioChunksRef.current.length > 0;
+
+    if (!navigator.onLine) {
+      // Re-encolar PCM si estamos offline y guardar snapshot local
+      if (hasPcmAudio) {
+        pcmBufferRef.current = [...drainedChunks, ...pcmBufferRef.current];
+        pcmSampleCountRef.current += drainedSamples;
+      }
+      await saveLiveSessionSnapshot({
+        id: sessionMeetingIdRef.current,
+        title: current.title || 'Reunión en Vivo',
+        summary: current.summary,
+        keyTopics: current.topics,
+        keyDecisions: current.decisions,
+        actionItems: current.actionItems,
+        proactiveAdvice: current.advice,
+        transcript: currentFullTranscript,
+        userNotes: userNotesText,
+        createdAt: sessionCreatedAtRef.current
+      });
+      setLiveStatusMessage('📡 Sin internet: Transcripción y notas seguras en disco local. Esperando red...');
       return;
     }
 
+    if (!hasPcmAudio && !hasWebmFallback && speechDelta.length < 3 && currentFullTranscript.length < 3 && userNotesText.length < 3) {
+      setLiveStatusMessage('🎙️ Escuchando... habla al micrófono o escribe notas para generar apuntes.');
+      return;
+    }
+
+    isAnalyzingRef.current = true;
     setIsAnalyzingLive(true);
-    setLiveStatusMessage('⚡ Analizando con IA...');
+    setLiveStatusMessage('⚡ Transcribiendo y actualizando notas...');
+
+    // Limpiar delta solo al enviarlo (si falla, se restaura en catch)
+    if (speechDelta) {
+      speechDeltaRef.current = '';
+    }
 
     const controller = new AbortController();
-    // 18s timeout para permitir transcripción Whisper + inferencia LLM sin abortos prematuros
-    const timeoutMs = 18000;
+    const timeoutMs = 20000;
     const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
     try {
-      // Payload JSON (compatible con Vercel Serverless — no usa multipart/FormData)
       const payload = {
         title: current.title || 'Reunión en Vivo',
-        transcript: textToAnalyze || '',
-        userNotes: userNotesText || ''
+        transcript: currentFullTranscript.slice(-12000),
+        newTranscriptChunk: speechDelta,
+        userNotes: userNotesText,
+        previousContext: {
+          title: current.title,
+          summary: current.summary,
+          keyTopics: current.topics,
+          keyDecisions: current.decisions,
+          actionItems: current.actionItems,
+          proactiveAdvice: current.advice
+        }
       };
 
-      // Empaquetar audio reciente en WAV 16kHz limpio para Whisper / Gemini multimodal
-      if (pcmBufferRef.current && pcmBufferRef.current.length > 0 && pcmSampleCountRef.current > 8000) {
+      if (hasPcmAudio) {
         try {
-          const totalSamples = pcmSampleCountRef.current;
-          const flatSamples = new Float32Array(totalSamples);
+          const flatSamples = new Float32Array(drainedSamples);
           let offset = 0;
-          for (const chunk of pcmBufferRef.current) {
+          for (const chunk of drainedChunks) {
             flatSamples.set(chunk, offset);
             offset += chunk.length;
           }
@@ -492,12 +683,13 @@ export default function AudioRecorder({ onMeetingProcessed, onRecordingStatusCha
         } catch (packErr) {
           console.warn('[PCM WAV Packing Warn]:', packErr.message);
         }
-      } else if (hasAudio) {
+      } else if (hasWebmFallback && currentFullTranscript.length < 20) {
         try {
-          const recordedMime = mediaRecorderRef.current?.mimeType || 'audio/webm';
-          const audioBlob = new Blob(audioChunksRef.current, { type: recordedMime });
-          if (audioBlob.size > 500) {
-            const arrayBuf = await audioBlob.arrayBuffer();
+          const recordedMime = mediaRecorderRef.current?.mimeType || getSupportedAudioMimeType();
+          const recentChunks = audioChunksRef.current.slice(-12);
+          const smallBlob = new Blob(recentChunks, { type: recordedMime });
+          if (smallBlob.size > 500 && smallBlob.size < 2500000) {
+            const arrayBuf = await smallBlob.arrayBuffer();
             const bytes = new Uint8Array(arrayBuf);
             let binary = '';
             const chunkSize = 8192;
@@ -508,15 +700,8 @@ export default function AudioRecorder({ onMeetingProcessed, onRecordingStatusCha
             payload.audioMimeType = recordedMime;
           }
         } catch (packErr) {
-          console.warn('[Audio WebM Packing Warn]:', packErr.message);
+          console.warn('[Audio Fallback Packing Warn]:', packErr.message);
         }
-      }
-
-      if (current.actionItems.length > 0 || current.decisions.length > 0) {
-        payload.previousContext = {
-          actionItems: current.actionItems,
-          keyDecisions: current.decisions
-        };
       }
 
       const res = await fetch(`${API}/api/meetings/live-analyze`, {
@@ -532,39 +717,163 @@ export default function AudioRecorder({ onMeetingProcessed, onRecordingStatusCha
       }
 
       const data = await res.json();
+
+      let nextTitle = current.title;
       if (data.title && typeof data.title === 'string' && data.title.trim().length > 3) {
         liveAiTitleRef.current = data.title.trim();
         if (!userEditedTitleRef.current) {
-          setMeetingTitle(data.title.trim());
+          nextTitle = data.title.trim();
+          setMeetingTitle(nextTitle);
         }
       }
-      if (data.summary) setLiveSummary(data.summary);
-      if (Array.isArray(data.keyDecisions) && data.keyDecisions.length > 0) {
-        setLiveDecisions(data.keyDecisions);
+
+      // Integrar transcripción nueva sin perder nunca la historia acumulada del día
+      let updatedTranscript = fullTranscriptRef.current;
+      if (data.lastChunkTranscript && data.lastChunkTranscript.trim()) {
+        updatedTranscript = appendTranscriptSafely(updatedTranscript, data.lastChunkTranscript);
+      } else if (data.transcript && data.transcript.length > updatedTranscript.length) {
+        updatedTranscript = data.transcript;
       }
-      if (Array.isArray(data.actionItems) && data.actionItems.length > 0) {
-        setLiveActionItems(data.actionItems);
+      if (updatedTranscript !== fullTranscriptRef.current) {
+        fullTranscriptRef.current = updatedTranscript;
+        setLiveTranscript(updatedTranscript);
       }
-      if (Array.isArray(data.proactiveAdvice) && data.proactiveAdvice.length > 0) {
-        setLiveAdvice(data.proactiveAdvice);
-      }
-      if (data.transcript) {
-        setLiveTranscript(data.transcript);
-      }
+
+      const nextSummary = (data.summary && data.summary.trim().length > 15) ? data.summary.trim() : current.summary;
+      const nextTopics = mergeUniqueTextArrays(current.topics, data.keyTopics);
+      const nextDecisions = mergeUniqueTextArrays(current.decisions, data.keyDecisions);
+      const nextActions = mergeUniqueActionItems(current.actionItems, data.actionItems);
+      const nextAdvice = mergeUniqueTextArrays(current.advice, data.proactiveAdvice);
+
+      if (nextSummary) setLiveSummary(nextSummary);
+      setLiveTopics(nextTopics);
+      setLiveDecisions(nextDecisions);
+      setLiveActionItems(nextActions);
+      setLiveAdvice(nextAdvice);
+
+      // Actualizar stateRef síncronamente para el siguiente tick inmediato
+      stateRef.current = {
+        ...stateRef.current,
+        title: nextTitle,
+        transcript: updatedTranscript,
+        summary: nextSummary,
+        topics: nextTopics,
+        decisions: nextDecisions,
+        actionItems: nextActions,
+        advice: nextAdvice
+      };
+
+      const wordsCount = updatedTranscript.split(/\s+/).filter(Boolean).length;
       const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-      setLiveStatusMessage(`✓ Actualizado (${timeStr})`);
+      setLiveStatusMessage(`✓ Notas al día (${timeStr}) • ${wordsCount} palabras transcritas`);
+
+      // Respaldar en IndexedDB y periódicamente en Supabase
+      await syncLiveCheckpoint({
+        id: sessionMeetingIdRef.current,
+        title: nextTitle || 'Sesión en Vivo',
+        summary: nextSummary,
+        keyTopics: nextTopics,
+        keyDecisions: nextDecisions,
+        actionItems: nextActions,
+        proactiveAdvice: nextAdvice,
+        transcript: updatedTranscript,
+        userNotes: userNotesText,
+        createdAt: sessionCreatedAtRef.current
+      }, forceFlush);
     } catch (err) {
+      // Si falló la red o timeout, re-encolar el audio PCM para reintentar en el próximo ciclo (hasta tope 35s)
+      if (hasPcmAudio && pcmSampleCountRef.current < 16000 * 20) {
+        pcmBufferRef.current = [...drainedChunks, ...pcmBufferRef.current];
+        pcmSampleCountRef.current += drainedSamples;
+      }
+      if (speechDelta) {
+        speechDeltaRef.current = (speechDelta + ' ' + speechDeltaRef.current).trim();
+      }
       if (err.name === 'AbortError') {
-        console.warn('[Live Analysis] Request timeout, reanudando...');
-        setLiveStatusMessage('⚡ Reanudando escucha...');
+        console.warn('[Live Analysis] Request timeout, reintentando en el siguiente ciclo...');
+        setLiveStatusMessage('⚡ Red lenta: reintentando envío de bloque...');
       } else {
         console.warn('[Live Analysis Warn]', err.message);
-        setLiveStatusMessage(`Aviso: ${err.message}`);
+        setLiveStatusMessage(`⚠️ ${err.message} (audio respaldado en disco)`);
       }
     } finally {
       clearTimeout(timeoutId);
-      setIsAnalyzingLive(false); // Siempre se libera inmediatamente
+      isAnalyzingRef.current = false;
+      setIsAnalyzingLive(false);
     }
+  };
+
+  // Crea e inicia la captura sobre un MediaStream (permite auto-recuperación si el SO corta el track)
+  const attachRecorderToStream = (stream, analysisIntervalMs) => {
+    activeStreamRef.current = stream;
+    setupAudioAnalyzer(stream);
+
+    const preferredMime = getSupportedAudioMimeType();
+    let mediaRecorder;
+    try {
+      mediaRecorder = new MediaRecorder(stream, { mimeType: preferredMime });
+    } catch (_) {
+      mediaRecorder = new MediaRecorder(stream);
+    }
+    mediaRecorderRef.current = mediaRecorder;
+
+    mediaRecorder.ondataavailable = (e) => {
+      if (e.data && e.data.size > 0) {
+        // Ventana rodante de 30s en RAM para evitar consumo excesivo de memoria en jornadas de 8-12h
+        audioChunksRef.current.push(e.data);
+        if (audioChunksRef.current.length > 30) {
+          audioChunksRef.current.shift();
+        }
+        appendAudioChunk(e.data);
+      }
+
+      // Impulso desde el hardware de audio: NO sufre throttling cuando Chrome/Edge está minimizado
+      if (isRecordingRef.current && startTimeRef.current) {
+        const elapsed = Math.floor((Date.now() - startTimeRef.current) / 1000);
+        setRecordingTime(elapsed);
+
+        if (
+          Date.now() - lastLiveAnalysisTimeRef.current >= analysisIntervalMs &&
+          !isAnalyzingRef.current
+        ) {
+          lastLiveAnalysisTimeRef.current = Date.now();
+          triggerLiveAnalysis();
+        }
+      }
+    };
+
+    mediaRecorder.onstop = () => {
+      const actualMime = mediaRecorder.mimeType || preferredMime || 'audio/webm';
+      if (audioChunksRef.current.length > 0) {
+        setAudioBlob(new Blob(audioChunksRef.current, { type: actualMime }));
+      }
+      stream.getTracks().forEach(track => track.stop());
+    };
+
+    // Auto-recuperación si el sistema operativo o driver cierra el micrófono inesperadamente
+    stream.getAudioTracks().forEach(track => {
+      track.onended = async () => {
+        console.warn('[AudioTrack] Track finalizado por el sistema.');
+        if (isRecordingRef.current) {
+          setLiveStatusMessage('🔄 Reconectando micrófono automáticamente...');
+          try {
+            const newStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            if (isRecordingRef.current) {
+              attachRecorderToStream(newStream, analysisIntervalMs);
+              setLiveStatusMessage('✓ Micrófono reconectado. Grabación continua activa.');
+            }
+          } catch (recErr) {
+            console.error('[AudioTrack Recovery Err]', recErr);
+            setLiveStatusMessage('⚠️ El sistema cerró el micrófono. Verifica permisos.');
+          }
+        }
+      };
+      track.onmute = () => console.warn('[AudioTrack] Micrófono silenciado temporalmente por el SO');
+      track.onunmute = () => console.log('[AudioTrack] Micrófono desilenciado por el SO');
+    });
+
+    mediaRecorder.onerror = (e) => console.warn('[MediaRecorder Error]', e);
+    mediaRecorder.start(1000);
   };
 
   const startRecording = async () => {
@@ -587,22 +896,35 @@ export default function AudioRecorder({ onMeetingProcessed, onRecordingStatusCha
       setError(null);
       setLiveTranscript('');
       setLiveInterim('');
+      setLiveTopics([]);
       setLiveDecisions([]);
       setLiveActionItems([]);
       setLiveAdvice([]);
       setLiveSummary('');
+      setLiveChatMessages([
+        { role: 'assistant', text: '¡Hola! Estoy grabando y tomando notas del seminario/reunión en tiempo real. Puedes preguntarme cualquier cosa sobre lo dicho hasta este instante sin cortar la grabación.' }
+      ]);
+
+      const newSessionId = 'meet_live_' + Date.now();
+      sessionMeetingIdRef.current = newSessionId;
+      sessionCreatedAtRef.current = new Date().toISOString();
+      fullTranscriptRef.current = '';
+      speechDeltaRef.current = '';
+      pcmBufferRef.current = [];
+      pcmSampleCountRef.current = 0;
+      audioChunksRef.current = [];
+      lastLiveAnalysisTimeRef.current = Date.now();
+      lastCheckpointTimeRef.current = 0;
 
       // Inicializar la caja negra en IndexedDB
-      await initEmergencyRecording(meetingTitle);
+      await initEmergencyRecording(meetingTitle, newSessionId);
 
-      // Solicitar micrófono con constraints optimizadas para móvil
+      // Solicitar micrófono con constraints optimizadas
       const mobile = isMobileDevice();
       let stream;
       try {
         const audioConstraints = mobile
           ? {
-              // MOBILE: NO pedir sampleRate fijo (muchos Android no soportan 44100)
-              // NO activar noiseSuppression (Android la aplica muy agresivamente, aplana la señal)
               echoCancellation: true,
               noiseSuppression: false,
               autoGainControl: true
@@ -615,49 +937,51 @@ export default function AudioRecorder({ onMeetingProcessed, onRecordingStatusCha
             };
         stream = await navigator.mediaDevices.getUserMedia({ audio: audioConstraints });
       } catch (micErr) {
-        // Reintentar con constraint mínima si la primera falla
         console.warn('[ProActur Mic] Reintentando con constraint básica:', micErr.message);
         stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       }
+
       isRecordingRef.current = true;
       setIsRecording(true);
-
-      // Configurar medidor de voz
-      setupAudioAnalyzer(stream);
-
-      const mediaRecorder = new MediaRecorder(stream);
-      mediaRecorderRef.current = mediaRecorder;
-      audioChunksRef.current = [];
-
-      mediaRecorder.ondataavailable = (e) => {
-        if (e.data.size > 0) {
-          audioChunksRef.current.push(e.data);
-          // Escribir inmediatamente a disco local en IndexedDB cada segundo
-          appendAudioChunk(e.data);
-        }
-      };
-
-      mediaRecorder.onstop = () => {
-        const blob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
-        setAudioBlob(blob);
-        stream.getTracks().forEach(track => track.stop());
-      };
-
-      // Captura chunks cada 1 segundo (1000ms) para resiliencia total
-      mediaRecorder.start(1000);
-      setIsRecording(true);
       setRecordingTime(0);
-
-      // Calcular tiempo con reloj absoluto para que no se desincronice si la app pasa a segundo plano
       startTimeRef.current = Date.now();
-      timerRef.current = setInterval(() => {
-        if (startTimeRef.current) {
+
+      const analysisIntervalMs = mobile ? 15000 : 12000;
+      attachRecorderToStream(stream, analysisIntervalMs);
+
+      // Web Worker timer inmune al throttling de pestañas en segundo plano / ventana minimizada
+      try {
+        if (workerTimerRef.current) workerTimerRef.current.terminate();
+        const workerBlob = new Blob([
+          'setInterval(() => { postMessage("tick"); }, 1000);'
+        ], { type: 'application/javascript' });
+        const workerUrl = URL.createObjectURL(workerBlob);
+        const worker = new Worker(workerUrl);
+        URL.revokeObjectURL(workerUrl);
+        worker.onmessage = () => {
+          if (!isRecordingRef.current || !startTimeRef.current) return;
           const elapsed = Math.floor((Date.now() - startTimeRef.current) / 1000);
           setRecordingTime(elapsed);
-        }
-      }, 1000);
 
-      // 1. Silent Audio Loop en elemento HTML5 (mantiene el proceso de audio del WebView vivo en Android en segundo plano)
+          if (
+            Date.now() - lastLiveAnalysisTimeRef.current >= analysisIntervalMs &&
+            !isAnalyzingRef.current
+          ) {
+            lastLiveAnalysisTimeRef.current = Date.now();
+            triggerLiveAnalysis();
+          }
+        };
+        workerTimerRef.current = worker;
+      } catch (wErr) {
+        console.warn('[WebWorker Timer Warn]', wErr);
+        timerRef.current = setInterval(() => {
+          if (startTimeRef.current) {
+            setRecordingTime(Math.floor((Date.now() - startTimeRef.current) / 1000));
+          }
+        }, 1000);
+      }
+
+      // 1. Silent Audio Loop en elemento HTML5 (mantiene el proceso de audio vivo en segundo plano)
       try {
         const silentBuffer = encodePcmToWav(new Float32Array(16000), 16000);
         const silentBlob = new Blob([silentBuffer], { type: 'audio/wav' });
@@ -671,54 +995,31 @@ export default function AudioRecorder({ onMeetingProcessed, onRecordingStatusCha
         console.warn('[SilentAudio KeepAlive Warn]', sErr);
       }
 
-      // 2. MediaSession API: informa a Android que hay audio activo y muestra notificación de sistema
+      // 2. MediaSession API
       try {
         if ('mediaSession' in navigator) {
           navigator.mediaSession.metadata = new MediaMetadata({
-            title: meetingTitle || 'ProActur AI - Grabando Reunión',
-            artist: 'Grabación activa en segundo plano',
+            title: meetingTitle || 'ProActur AI - Grabando Sesión',
+            artist: 'Grabación continua y notas en vivo',
             album: 'ProActur AI'
           });
           navigator.mediaSession.playbackState = 'playing';
         }
       } catch (_) {}
 
-      // 3. Screen Wake Lock API
+      // 3. Screen Wake Lock API con re-adquisición
       try {
         if ('wakeLock' in navigator) {
           navigator.wakeLock.request('screen').then(lock => {
             wakeLockRef.current = lock;
+            lock.addEventListener?.('release', () => { wakeLockRef.current = null; });
           }).catch(() => {});
         }
       } catch (_) {}
 
-      // Manejo de eventos de tracks para no abortar si el SO silencia temporalmente
-      stream.getAudioTracks().forEach(track => {
-        track.onended = () => console.warn('[AudioTrack] Track finalizado por el sistema');
-        track.onmute = () => console.warn('[AudioTrack] Micrófono silenciado temporalmente por el SO');
-        track.onunmute = () => console.log('[AudioTrack] Micrófono desilenciado por el SO');
-      });
-      mediaRecorder.onerror = (e) => console.warn('[MediaRecorder Error]', e);
-
       // Reconocimiento de voz nativo en paralelo
       recognitionRef.current = initSpeechRecognition();
-
-      // MOBILE FIX: Si SpeechRecognition no está disponible (WebView),
-      // forzar análisis temprano para que Whisper transcriba el audio del servidor
-      if (!recognitionRef.current) {
-        console.log('[ProActur Mobile] SpeechRecognition no disponible, activando Whisper remoto');
-        setLiveStatusMessage('🎙️ Modo WebView: Transcripción vía servidor activada');
-        // Primer análisis después de 5 segundos para acumular audio suficiente
-        setTimeout(() => {
-          if (isRecordingRef.current) triggerLiveAnalysis();
-        }, 5000);
-      }
-
-      // Análisis periódico: 15s en móvil (más tiempo para red + Whisper), 10s en desktop
-      const analysisInterval = isMobileDevice() ? 15000 : 10000;
-      liveAnalysisTimerRef.current = setInterval(() => {
-        triggerLiveAnalysis();
-      }, analysisInterval);
+      setLiveStatusMessage('🎙️ Grabación continua activa (resiste minimizado y cambio de pestañas).');
 
     } catch (err) {
       console.error('Error accediendo al microfono:', err);
@@ -726,7 +1027,7 @@ export default function AudioRecorder({ onMeetingProcessed, onRecordingStatusCha
     }
   };
 
-    const askSessionAi = async (text) => {
+  const askSessionAi = async (text) => {
     if (!text.trim() || liveChatLoading) return;
     const q = text.trim();
     setLiveChatInput('');
@@ -735,14 +1036,25 @@ export default function AudioRecorder({ onMeetingProcessed, onRecordingStatusCha
 
     try {
       const current = stateRef.current;
-      const res = await fetch(`${API}/api/second-brain/ask`, {
+      const res = await fetch(`${API}/api/meetings/live-ask`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          question: `[Reunión en Curso: "${current.title || 'Sesión en vivo'}" | Notas: "${current.userNotes || ''}" | Transcripción: "${current.transcript || ''}"] Pregunta del usuario: ${q}`
+          question: q,
+          meetingId: sessionMeetingIdRef.current,
+          title: current.title || 'Sesión en vivo',
+          transcript: (fullTranscriptRef.current || current.transcript || '').trim(),
+          summary: current.summary,
+          keyTopics: current.topics,
+          keyDecisions: current.decisions,
+          actionItems: current.actionItems,
+          proactiveAdvice: current.advice,
+          userNotes: [current.userNotes, externalNotesRef.current].filter(Boolean).join('\n\n'),
+          history: liveChatMessages.slice(-6)
         })
       });
       const data = await res.json();
+      if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
       setLiveChatMessages(prev => [...prev, { role: 'assistant', text: data.answer || 'No pude procesar la consulta.' }]);
     } catch (e) {
       setLiveChatMessages(prev => [...prev, { role: 'assistant', text: 'Error conectando con la IA: ' + e.message }]);
@@ -752,69 +1064,98 @@ export default function AudioRecorder({ onMeetingProcessed, onRecordingStatusCha
   };
 
   const stopAndFinalizeRecording = async () => {
-    isRecordingRef.current = false;
-    setAudioLevel(0);
-    if (mediaRecorderRef.current && isRecording) {
-      setIsRecording(false);
-      if (timerRef.current) clearInterval(timerRef.current);
-      if (liveAnalysisTimerRef.current) clearInterval(liveAnalysisTimerRef.current);
-      if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
-      if (silenceOscRef.current) {
-        try { silenceOscRef.current.stop(); silenceOscRef.current.disconnect(); } catch (_) {}
-        silenceOscRef.current = null;
-      }
-      if (scriptNodeRef.current) {
-        try { scriptNodeRef.current.disconnect(); } catch (_) {}
-        scriptNodeRef.current = null;
-      }
-      pcmBufferRef.current = [];
-      pcmSampleCountRef.current = 0;
-      if (audioContextRef.current) {
-        try { audioContextRef.current.close(); } catch (_) {}
-      }
-      if (recognitionRef.current) {
-        try { recognitionRef.current.stop(); } catch (_) {}
-      }
-      if (silentAudioRef.current) {
-        try {
-          silentAudioRef.current.pause();
-          silentAudioRef.current.src = '';
-        } catch (_) {}
-        silentAudioRef.current = null;
-      }
-      if (wakeLockRef.current) {
-        try { wakeLockRef.current.release(); } catch (_) {}
-        wakeLockRef.current = null;
-      }
-      try {
-        if ('mediaSession' in navigator) {
-          navigator.mediaSession.playbackState = 'none';
-        }
-      } catch (_) {}
-      startTimeRef.current = null;
-      mediaRecorderRef.current.stop();
-    }
+    if (!isRecordingRef.current && !isRecording) return;
 
     setLoading(true);
     setError(null);
+    isRecordingRef.current = false;
+    setIsRecording(false);
+    setAudioLevel(0);
+
+    // Capturar último fragmento hablado antes de apagar el micrófono
+    try {
+      if (pcmSampleCountRef.current > 4000 || speechDeltaRef.current.trim().length > 2) {
+        await triggerLiveAnalysis(null, true);
+      }
+    } catch (_) {}
+
+    if (timerRef.current) clearInterval(timerRef.current);
+    if (liveAnalysisTimerRef.current) clearInterval(liveAnalysisTimerRef.current);
+    if (workerTimerRef.current) {
+      try { workerTimerRef.current.terminate(); } catch (_) {}
+      workerTimerRef.current = null;
+    }
+    if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
+    if (silenceOscRef.current) {
+      try { silenceOscRef.current.stop(); silenceOscRef.current.disconnect(); } catch (_) {}
+      silenceOscRef.current = null;
+    }
+    if (scriptNodeRef.current) {
+      try { scriptNodeRef.current.disconnect(); } catch (_) {}
+      scriptNodeRef.current = null;
+    }
+    pcmBufferRef.current = [];
+    pcmSampleCountRef.current = 0;
+    if (audioContextRef.current) {
+      try { audioContextRef.current.close(); } catch (_) {}
+      audioContextRef.current = null;
+    }
+    if (recognitionRef.current) {
+      try { recognitionRef.current.stop(); } catch (_) {}
+    }
+    if (silentAudioRef.current) {
+      try {
+        silentAudioRef.current.pause();
+        silentAudioRef.current.src = '';
+      } catch (_) {}
+      silentAudioRef.current = null;
+    }
+    if (wakeLockRef.current) {
+      try { wakeLockRef.current.release(); } catch (_) {}
+      wakeLockRef.current = null;
+    }
+    try {
+      if ('mediaSession' in navigator) {
+        navigator.mediaSession.playbackState = 'none';
+      }
+    } catch (_) {}
+    startTimeRef.current = null;
+
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+      try { mediaRecorderRef.current.stop(); } catch (_) {}
+    }
 
     const current = stateRef.current;
-    const fullTranscript = (current.transcript + ' ' + liveInterim).trim();
+    const finalTranscript = appendTranscriptSafely(
+      fullTranscriptRef.current || current.transcript || '',
+      (speechDeltaRef.current + ' ' + liveInterim).trim()
+    );
+    const combinedNotes = [current.userNotes, externalNotesRef.current].filter(Boolean).join('\n\n').trim();
 
     try {
-      // 1. Si ya se habia estructurado la minuta en vivo, finalizamos directamente
-      if (current.actionItems.length > 0 || current.decisions.length > 0) {
+      // Si hay transcripción, notas, decisiones o tareas acumuladas, finalizar directamente con toda la sesión en Supabase
+      if (
+        finalTranscript.length >= 10 ||
+        current.actionItems.length > 0 ||
+        current.decisions.length > 0 ||
+        (current.summary && current.summary.length > 20) ||
+        combinedNotes.length > 10
+      ) {
         const res = await fetch(`${API}/api/meetings/live-finalize`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
+            id: sessionMeetingIdRef.current,
+            createdAt: sessionCreatedAtRef.current,
             title: userEditedTitleRef.current ? current.title.trim() : (liveAiTitleRef.current || current.title.trim()),
             aiTitle: liveAiTitleRef.current || undefined,
-            summary: current.summary || 'Resumen de reunion en vivo',
+            summary: current.summary || 'Resumen de sesión grabada y analizada en vivo por ProActur AI',
+            keyTopics: current.topics,
             keyDecisions: current.decisions,
             actionItems: current.actionItems,
             proactiveAdvice: current.advice,
-            transcript: fullTranscript
+            userNotes: combinedNotes,
+            transcript: finalTranscript
           })
         });
 
@@ -822,77 +1163,82 @@ export default function AudioRecorder({ onMeetingProcessed, onRecordingStatusCha
           const savedMeeting = await res.json();
           await clearEmergencyRecording();
           setHasRecoverableAudio(false);
+          setLoading(false);
           onMeetingProcessed(savedMeeting);
           return;
         }
       }
 
-      // 2. Procesar audio acumulado completo con Gemini
-      const processRecordedBlob = async () => {
-        try {
-          const recordedMime = mediaRecorderRef.current?.mimeType || 'audio/webm';
-          let finalBlob = null;
-          if (audioChunksRef.current && audioChunksRef.current.length > 0) {
-            finalBlob = new Blob(audioChunksRef.current, { type: recordedMime });
-          } else {
-            // Intentar recuperar de IndexedDB si el buffer en memoria estuviese vacío
-            const emergency = await recoverUnfinalizedAudio().catch(() => null);
-            if (emergency && emergency.blob) {
-              finalBlob = emergency.blob;
-            }
-          }
-
-          if (finalBlob && finalBlob.size > 200) {
-            await processAudioMeeting(finalBlob, 'reunion_grabada.webm');
-            await clearEmergencyRecording();
-            setHasRecoverableAudio(false);
-          } else {
-            setLoading(false);
-            setError('No se capturó audio en la sesión. Verifica los permisos de tu micrófono.');
-          }
-        } catch (procErr) {
-          console.error('[Audio Finalize Process Error]:', procErr);
-          setError('Error procesando audio final: ' + procErr.message);
-          setLoading(false);
-        }
-      };
-
-      // Si el grabador aún no ha disparado onstop, esperar al evento con timeout de seguridad
-      if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
-        const recorder = mediaRecorderRef.current;
-        const originalOnStop = recorder.onstop;
-        recorder.onstop = (e) => {
-          if (typeof originalOnStop === 'function') originalOnStop(e);
-          processRecordedBlob();
-        };
-        try { recorder.stop(); } catch (_) {}
+      // Respaldo para grabaciones muy cortas (<20s) donde aún no se acumuló texto
+      const recordedMime = mediaRecorderRef.current?.mimeType || getSupportedAudioMimeType();
+      let finalBlob = null;
+      if (audioChunksRef.current && audioChunksRef.current.length > 0) {
+        finalBlob = new Blob(audioChunksRef.current, { type: recordedMime });
       } else {
-        setTimeout(processRecordedBlob, 100);
+        const emergency = await recoverUnfinalizedAudio().catch(() => null);
+        if (emergency && emergency.blob) {
+          finalBlob = emergency.blob;
+        }
       }
 
+      if (finalBlob && finalBlob.size > 200) {
+        const ext = recordedMime.includes('mp4') ? 'mp4' : 'webm';
+        await processAudioMeeting(finalBlob, `reunion_grabada.${ext}`);
+        await clearEmergencyRecording();
+        setHasRecoverableAudio(false);
+      } else {
+        setLoading(false);
+        setError('No se capturó audio suficiente en la sesión. Verifica tu micrófono.');
+      }
     } catch (err) {
       console.error('[Finalize Meeting Error]', err);
-      setError('Error guardando la reunion: ' + err.message);
+      setError('Error guardando la reunión: ' + err.message);
       setLoading(false);
     }
   };
 
-  // Recuperar grabacion no finalizada tras refresco o apagado
+  // Recuperar grabacion o sesión en vivo no finalizada tras refresco o apagado
   const handleRecoverUnfinalized = async () => {
     setRecovering(true);
     setError(null);
     try {
       const recovered = await recoverUnfinalizedAudio();
+      if (recovered?.snapshot && ((recovered.snapshot.transcript || '').length > 20 || (recovered.snapshot.summary || '').length > 20)) {
+        const snap = recovered.snapshot;
+        const res = await fetch(`${API}/api/meetings/live-finalize`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            id: snap.id,
+            createdAt: snap.createdAt,
+            title: snap.title || 'Sesión Recuperada',
+            summary: snap.summary || 'Sesión recuperada desde respaldo local.',
+            keyTopics: snap.keyTopics || [],
+            keyDecisions: snap.keyDecisions || [],
+            actionItems: snap.actionItems || [],
+            proactiveAdvice: snap.proactiveAdvice || [],
+            userNotes: snap.userNotes || '',
+            transcript: snap.transcript || ''
+          })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Error finalizando sesión recuperada');
+        await clearEmergencyRecording();
+        setHasRecoverableAudio(false);
+        onMeetingProcessed(data);
+        return;
+      }
+
       if (recovered && recovered.blob) {
         await processAudioMeeting(recovered.blob, 'reunion_recuperada.webm');
         await clearEmergencyRecording();
         setHasRecoverableAudio(false);
       } else {
-        setError('No se encontro audio util en la caja negra.');
+        setError('No se encontró audio o transcripción útil en la caja negra.');
         setHasRecoverableAudio(false);
       }
     } catch (err) {
-      setError('Fallo al recuperar la grabacion: ' + err.message);
+      setError('Fallo al recuperar la grabación: ' + err.message);
     } finally {
       setRecovering(false);
     }
@@ -1008,10 +1354,10 @@ export default function AudioRecorder({ onMeetingProcessed, onRecordingStatusCha
             </div>
             <div>
               <h5 className="text-xs sm:text-sm font-bold text-amber-200">
-                Sesion Previa Recuperada en Disco Local
+                Sesión Previa Recuperada en Disco Local
               </h5>
               <p className="text-[11px] text-slate-300">
-                Se detectaron {recoverableSeconds} segundos de audio guardados en la caja negra antes del refresco o cierre.
+                Se detectaron datos sin finalizar ({recoverableSeconds}) guardados en la caja negra antes del refresco o cierre.
               </p>
             </div>
           </div>
@@ -1029,8 +1375,26 @@ export default function AudioRecorder({ onMeetingProcessed, onRecordingStatusCha
               className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-bold bg-amber-500 hover:bg-amber-400 text-slate-950 shadow transition-all"
             >
               {recovering ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
-              Recuperar y Procesar Ahora
+              Recuperar y Guardar Minuta
             </button>
+          </div>
+        </div>
+      )}
+
+      {error && (
+        <div className="mb-4 p-3.5 rounded-xl bg-rose-950/40 border border-rose-500/40 text-rose-200 text-xs flex items-center gap-2.5">
+          <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
+          <span className="flex-1">{error}</span>
+          <button type="button" onClick={() => setError(null)} className="text-rose-300 hover:text-white font-bold">✕</button>
+        </div>
+      )}
+
+      {loading && !isRecording && (
+        <div className="mb-4 p-4 rounded-2xl bg-indigo-950/40 border border-indigo-500/40 text-indigo-200 text-xs sm:text-sm flex items-center gap-3 animate-pulse">
+          <Loader2 className="w-5 h-5 animate-spin text-indigo-400 shrink-0" />
+          <div>
+            <p className="font-bold">Finalizando y guardando la transcripción completa...</p>
+            <p className="text-[11px] text-indigo-300/80">Consolidando notas, acuerdos y tareas en Supabase para tus consultas.</p>
           </div>
         </div>
       )}
@@ -1160,8 +1524,13 @@ export default function AudioRecorder({ onMeetingProcessed, onRecordingStatusCha
                         )}
                       </div>
                       <p className="text-xs text-slate-400 mt-1 font-medium">
-                        {meetingTitle || 'Reunión en vivo'} &bull; Escucha activa y estructuración continua
+                        {meetingTitle || 'Sesión en vivo'} &bull; Escucha activa y respaldo continuo
                       </p>
+                      {liveStatusMessage && (
+                        <p className="text-[11px] text-emerald-300/90 mt-1 font-mono">
+                          {liveStatusMessage}
+                        </p>
+                      )}
                     </div>
                   </div>
 
@@ -1237,34 +1606,49 @@ export default function AudioRecorder({ onMeetingProcessed, onRecordingStatusCha
                 </div>
               </div>
 
-                            {/* PANEL DUAL: MIS NOTAS EN VIVO & CHAT CON LA IA DE LA SESION */}
+              {/* PANEL TRIPLE: NOTAS EN VIVO, TRANSCRIPCIÓN EN VIVO & COPILOTO IA */}
               <div className="bg-slate-900/90 border border-indigo-500/30 rounded-3xl p-4 sm:p-5 shadow-2xl space-y-4">
-                {/* Control Segmentado Premium de Pestañas (100% responsive sin solapamiento) */}
-                <div className="grid grid-cols-2 p-1.5 bg-slate-950/90 rounded-2xl border border-slate-800/80 gap-1.5 shadow-inner">
+                {/* Control Segmentado de Pestañas */}
+                <div className="grid grid-cols-3 p-1.5 bg-slate-950/90 rounded-2xl border border-slate-800/80 gap-1.5 shadow-inner">
                   <button
                     type="button"
                     onClick={() => setActiveLiveTab('notes')}
-                    className={`flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl text-xs sm:text-sm font-bold transition-all duration-200 ${
+                    className={`flex items-center justify-center gap-1.5 py-2.5 px-2 rounded-xl text-xs font-bold transition-all duration-200 ${
                       activeLiveTab === 'notes'
                         ? 'bg-gradient-to-r from-indigo-600 to-blue-600 text-white shadow-lg shadow-indigo-500/25'
                         : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900/70'
                     }`}
                   >
-                    <PenTool className="w-4 h-4 shrink-0" />
+                    <PenTool className="w-3.5 h-3.5 shrink-0" />
                     <span className="truncate">Notas en Vivo</span>
                   </button>
 
                   <button
                     type="button"
+                    onClick={() => setActiveLiveTab('transcript')}
+                    className={`flex items-center justify-center gap-1.5 py-2.5 px-2 rounded-xl text-xs font-bold transition-all duration-200 ${
+                      activeLiveTab === 'transcript'
+                        ? 'bg-gradient-to-r from-emerald-600 to-teal-600 text-white shadow-lg shadow-emerald-500/25'
+                        : 'text-emerald-400/80 hover:text-emerald-300 hover:bg-slate-900/70'
+                    }`}
+                  >
+                    <FileText className="w-3.5 h-3.5 shrink-0" />
+                    <span className="truncate">
+                      Transcripción ({(liveTranscript || '').split(/\s+/).filter(Boolean).length})
+                    </span>
+                  </button>
+
+                  <button
+                    type="button"
                     onClick={() => setActiveLiveTab('chat')}
-                    className={`flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl text-xs sm:text-sm font-bold transition-all duration-200 ${
+                    className={`flex items-center justify-center gap-1.5 py-2.5 px-2 rounded-xl text-xs font-bold transition-all duration-200 ${
                       activeLiveTab === 'chat'
                         ? 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-lg shadow-purple-500/25'
                         : 'text-purple-400 hover:text-purple-300 hover:bg-slate-900/70'
                     }`}
                   >
-                    <Brain className="w-4 h-4 shrink-0" />
-                    <span className="truncate">Copiloto IA</span>
+                    <Brain className="w-3.5 h-3.5 shrink-0" />
+                    <span className="truncate">Preguntar IA</span>
                   </button>
                 </div>
 
@@ -1327,7 +1711,30 @@ export default function AudioRecorder({ onMeetingProcessed, onRecordingStatusCha
                 )}
 
                 {/* Contenido segun la pestaña activa */}
-                {activeLiveTab === 'chat' ? (
+                {activeLiveTab === 'transcript' ? (
+                  <div className="space-y-2.5">
+                    <div className="flex items-center justify-between text-xs text-slate-400">
+                      <span className="font-semibold text-emerald-300">
+                        Transcripción acumulada en tiempo real ({(liveTranscript || '').split(/\s+/).filter(Boolean).length} palabras)
+                      </span>
+                      {liveTranscript && (
+                        <button
+                          type="button"
+                          onClick={() => navigator.clipboard.writeText(liveTranscript)}
+                          className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-[11px] font-semibold"
+                        >
+                          Copiar texto
+                        </button>
+                      )}
+                    </div>
+                    <div className="bg-slate-950/90 border border-slate-800 rounded-xl p-3.5 h-56 overflow-y-auto text-xs font-mono text-slate-200 leading-relaxed whitespace-pre-wrap">
+                      {liveTranscript || 'Escuchando... la transcripción aparecerá aquí cada pocos segundos.'}
+                      {liveInterim && (
+                        <span className="text-indigo-400/80 italic"> {liveInterim}</span>
+                      )}
+                    </div>
+                  </div>
+                ) : activeLiveTab === 'chat' ? (
                   <div className="space-y-3">
                     <div className="bg-slate-950/80 border border-slate-800 rounded-xl p-3 h-44 overflow-y-auto space-y-2.5">
                       {liveChatMessages.map((m, idx) => (
@@ -1337,7 +1744,7 @@ export default function AudioRecorder({ onMeetingProcessed, onRecordingStatusCha
                               ✨
                             </div>
                           )}
-                          <div className={`max-w-[85%] rounded-xl px-3 py-2 text-xs leading-relaxed ${
+                          <div className={`max-w-[85%] rounded-xl px-3 py-2 text-xs leading-relaxed whitespace-pre-wrap ${
                             m.role === 'user' ? 'bg-indigo-600 text-white' : 'bg-slate-900 border border-slate-800 text-slate-200'
                           }`}>
                             {m.text}
@@ -1347,7 +1754,7 @@ export default function AudioRecorder({ onMeetingProcessed, onRecordingStatusCha
                       {liveChatLoading && (
                         <div className="text-[11px] text-slate-400 flex items-center gap-1.5">
                           <Loader2 className="w-3 h-3 animate-spin text-indigo-400" />
-                          <span>La IA está consultando la reunión en vivo...</span>
+                          <span>La IA está consultando la transcripción acumulada del seminario...</span>
                         </div>
                       )}
                     </div>
@@ -1357,7 +1764,7 @@ export default function AudioRecorder({ onMeetingProcessed, onRecordingStatusCha
                         type="text"
                         value={liveChatInput}
                         onChange={(e) => setLiveChatInput(e.target.value)}
-                        placeholder="Pregúntale a la IA en vivo: '¿Qué acuerdos llevamos?', 'Anota que la entrega es el viernes'..."
+                        placeholder="Pregúntale en vivo sobre lo hablado hasta ahora..."
                         className="flex-1 bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-indigo-500"
                       />
                       <button
@@ -1423,9 +1830,20 @@ export default function AudioRecorder({ onMeetingProcessed, onRecordingStatusCha
                     </div>
 
                     {liveSummary ? (
-                      <p className="text-xs sm:text-sm text-slate-200 leading-relaxed max-h-[160px] overflow-y-auto pr-1 bg-slate-900/60 p-3.5 rounded-2xl border border-slate-800">
-                        {liveSummary}
-                      </p>
+                      <div className="space-y-3">
+                        <p className="text-xs sm:text-sm text-slate-200 leading-relaxed max-h-[160px] overflow-y-auto pr-1 bg-slate-900/60 p-3.5 rounded-2xl border border-slate-800 whitespace-pre-line">
+                          {liveSummary}
+                        </p>
+                        {liveTopics.length > 0 && (
+                          <div className="flex flex-wrap gap-1.5">
+                            {liveTopics.map((topic, idx) => (
+                              <span key={idx} className="px-2.5 py-1 rounded-lg bg-indigo-500/15 border border-indigo-500/30 text-[11px] text-indigo-200 font-semibold">
+                                #{topic}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                      </div>
                     ) : (
                       <div className="text-center py-8 text-slate-400 text-xs italic space-y-2">
                         <Sparkles className="w-6 h-6 text-indigo-400/50 mx-auto animate-pulse" />
