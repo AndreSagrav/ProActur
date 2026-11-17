@@ -178,6 +178,8 @@ export default function AudioRecorder({ onMeetingProcessed, onRecordingStatusCha
   const audioContextRef = useRef(null);
   const analyserRef = useRef(null);
   const animFrameRef = useRef(null);
+  const trackProcessorActiveRef = useRef(false);
+  const trackReadersRef = useRef([]);
 
   // Estados del copiloto en tiempo real (Live ProActur AI)
   const [liveTranscript, setLiveTranscript] = useState('');
@@ -282,37 +284,70 @@ export default function AudioRecorder({ onMeetingProcessed, onRecordingStatusCha
     }
   }, [isRecording, recordingTime, audioLevel, liveDecisions.length, liveActionItems.length, meetingTitle]);
 
-  // 1. Verificacion de grabaciones no finalizadas en IndexedDB al cargar (auto-reanuda tras refresco reciente)
+  // 1. Auto-reanudación inmediata tras refresco o recuperación de sesión del mismo día
   useEffect(() => {
-    checkUnfinalizedRecording().then(res => {
+    const attemptAutoResume = async () => {
+      let localBackup = null;
+      try {
+        const raw = localStorage.getItem('proactur_live_snapshot_backup');
+        if (raw) localBackup = JSON.parse(raw);
+      } catch (_) {}
+
+      const res = await checkUnfinalizedRecording().catch(() => ({ hasUnfinalized: false }));
+      const snap = res?.snapshot || localBackup;
+      const lastActiveTime = Number(snap?.updatedAt || res?.meta?.startTime || 0);
+      const hasContent = Boolean(snap && ((snap.transcript || '').trim().length > 20 || (snap.summary || '').trim().length > 20));
+      const isSameDaySession = lastActiveTime > 0 && (Date.now() - lastActiveTime < 12 * 3600 * 1000);
+
+      if ((res?.hasUnfinalized || hasContent) && isSameDaySession && !autoResumeTriggeredRef.current && !isRecordingRef.current) {
+        autoResumeTriggeredRef.current = true;
+        handleResumeUnfinalized();
+        return;
+      }
+
       if (res && res.hasUnfinalized) {
-        const snapUpdatedAt = Number(res.snapshot?.updatedAt || 0);
-        const isFreshReload = snapUpdatedAt > 0 && (Date.now() - snapUpdatedAt < 180000);
-        if (isFreshReload && !autoResumeTriggeredRef.current && !isRecordingRef.current) {
-          autoResumeTriggeredRef.current = true;
-          handleResumeUnfinalized();
-          return;
-        }
         setHasRecoverableAudio(true);
         const mins = res.snapshot?.transcript
           ? `${res.snapshot.transcript.split(/\s+/).filter(Boolean).length} palabras`
           : `${res.chunkCount} segundos de audio`;
         setRecoverableSeconds(mins);
       }
-    });
+    };
+    attemptAutoResume();
   }, []);
 
-  // 2. Proteccion contra cierre o refresco accidental de pestana (beforeunload)
+  // 2. Guardado síncrono instantáneo al refrescar o cerrar (sin bloquear F5 con diálogos)
   useEffect(() => {
-    const handleBeforeUnload = (e) => {
-      if (isRecordingRef.current) {
-        e.preventDefault();
-        e.returnValue = 'Hay una reunion activa grabandose en vivo. Si sales o refrescas se interrumpira la sesion.';
-        return e.returnValue;
-      }
+    const persistSyncBeforeUnload = () => {
+      if (!isRecordingRef.current) return;
+      try {
+        const current = stateRef.current;
+        const transcriptNow = appendTranscriptSafely(
+          fullTranscriptRef.current || current.transcript || '',
+          speechDeltaRef.current.trim()
+        );
+        localStorage.setItem('proactur_live_snapshot_backup', JSON.stringify({
+          id: sessionMeetingIdRef.current,
+          createdAt: sessionCreatedAtRef.current,
+          title: current.title || liveAiTitleRef.current || 'Sesión en Vivo',
+          summary: current.summary || '',
+          keyTopics: current.topics || [],
+          keyDecisions: current.decisions || [],
+          actionItems: current.actionItems || [],
+          proactiveAdvice: current.advice || [],
+          transcript: transcriptNow,
+          userNotes: [current.userNotes, externalNotesRef.current].filter(Boolean).join('\n\n'),
+          updatedAt: Date.now()
+        }));
+      } catch (_) {}
     };
-    window.addEventListener('beforeunload', handleBeforeUnload);
-    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+
+    window.addEventListener('beforeunload', persistSyncBeforeUnload);
+    window.addEventListener('pagehide', persistSyncBeforeUnload);
+    return () => {
+      window.removeEventListener('beforeunload', persistSyncBeforeUnload);
+      window.removeEventListener('pagehide', persistSyncBeforeUnload);
+    };
   }, []);
 
   // 2b. Re-adquisición de WakeLock y AudioContext cuando el usuario regresa a la pestaña (minimizado/cambio de pestaña)
@@ -378,6 +413,7 @@ export default function AudioRecorder({ onMeetingProcessed, onRecordingStatusCha
         try { workerTimerRef.current.terminate(); } catch (_) {}
       }
       if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
+      stopDirectTrackProcessors();
       if (audioContextRef.current) {
         try { audioContextRef.current.close(); } catch (_) {}
       }
@@ -386,6 +422,133 @@ export default function AudioRecorder({ onMeetingProcessed, onRecordingStatusCha
       }
     };
   }, []);
+
+  const stopDirectTrackProcessors = () => {
+    trackProcessorActiveRef.current = false;
+    if (trackReadersRef.current.length > 0) {
+      for (const r of trackReadersRef.current) {
+        try { r.cancel().catch(() => {}); } catch (_) {}
+      }
+      trackReadersRef.current = [];
+    }
+  };
+
+  // Helper compartido para muestrear PCM a 16kHz en la ventana circular de 35s
+  const pushDownsampledPcm = (inputSamples, sourceRate, gain = 1) => {
+    if (!inputSamples || inputSamples.length === 0) return;
+    const downsampleRatio = (sourceRate || 44100) / 16000;
+    const newLength = Math.max(1, Math.floor(inputSamples.length / downsampleRatio));
+    const downsampled = new Float32Array(newLength);
+    for (let i = 0; i < newLength; i++) {
+      const idx = Math.min(inputSamples.length - 1, Math.floor(i * downsampleRatio));
+      downsampled[i] = Math.max(-1, Math.min(1, inputSamples[idx] * gain));
+    }
+
+    pcmBufferRef.current.push(downsampled);
+    pcmSampleCountRef.current += newLength;
+    const maxSamples = 16000 * 35;
+    while (pcmSampleCountRef.current > maxSamples && pcmBufferRef.current.length > 1) {
+      const removed = pcmBufferRef.current.shift();
+      pcmSampleCountRef.current -= removed.length;
+    }
+  };
+
+  const readAudioDataChannelZero = (frame) => {
+    const count = frame.numberOfFrames || 0;
+    if (count === 0) return new Float32Array(0);
+    try {
+      const buf = new Float32Array(count);
+      frame.copyTo(buf, { planeIndex: 0, format: 'f32-planar' });
+      return buf;
+    } catch (_) {
+      const fmt = frame.format || '';
+      const byteSize = frame.allocationSize({ planeIndex: 0 });
+      const raw = new ArrayBuffer(byteSize);
+      frame.copyTo(raw, { planeIndex: 0 });
+      const channels = Math.max(1, frame.numberOfChannels || 1);
+      if (fmt === 'f32' || fmt === 'f32-planar') {
+        const view = new Float32Array(raw);
+        const step = fmt === 'f32' ? channels : 1;
+        if (step === 1) return view;
+        const out = new Float32Array(count);
+        for (let i = 0; i < count; i++) out[i] = view[i * step];
+        return out;
+      }
+      if (fmt === 's16' || fmt === 's16-planar') {
+        const view = new Int16Array(raw);
+        const step = fmt === 's16' ? channels : 1;
+        const out = new Float32Array(count);
+        for (let i = 0; i < count; i++) out[i] = view[i * step] / 32768;
+        return out;
+      }
+      return new Float32Array(0);
+    }
+  };
+
+  // Lector directo inmune a políticas de suspensión de AudioContext tras F5
+  const startDirectTrackFallback = (streamList) => {
+    if (typeof window === 'undefined' || typeof window.MediaStreamTrackProcessor !== 'function') {
+      return false;
+    }
+    stopDirectTrackProcessors();
+    const candidates = (streamList || []).filter(s => s && s.getAudioTracks().length > 0).slice(0, 2);
+    if (candidates.length === 0) return false;
+
+    trackProcessorActiveRef.current = true;
+    const streamLevels = new Array(candidates.length).fill(0);
+    let primaryStreamIdx = 0;
+
+    candidates.forEach((stream, idx) => {
+      try {
+        const track = stream.getAudioTracks()[0];
+        const processor = new window.MediaStreamTrackProcessor({ track });
+        const reader = processor.readable.getReader();
+        trackReadersRef.current.push(reader);
+
+        (async () => {
+          while (trackProcessorActiveRef.current && isRecordingRef.current) {
+            if (audioContextRef.current?.state === 'running') {
+              stopDirectTrackProcessors();
+              break;
+            }
+            const { value: frame, done } = await reader.read();
+            if (done || !frame) break;
+            try {
+              const samples = readAudioDataChannelZero(frame);
+              let maxPeak = 0;
+              let sumSq = 0;
+              const gain = 2.5;
+              for (let i = 0; i < samples.length; i++) {
+                const v = Math.abs(Math.max(-1, Math.min(1, samples[i] * gain)));
+                if (v > maxPeak) maxPeak = v;
+                sumSq += v * v;
+              }
+              const rms = samples.length > 0 ? Math.sqrt(sumSq / samples.length) : 0;
+              const normalized = maxPeak < 0.0005 ? 0 : Math.min(100, Math.round(Math.max(rms * 420, maxPeak * 110)));
+              streamLevels[idx] = normalized;
+              if (normalized > streamLevels[primaryStreamIdx] + 5) {
+                primaryStreamIdx = idx;
+              }
+              const topLevel = Math.max(...streamLevels);
+              audioLevelRef.current = topLevel;
+              if (topLevel > 0) zeroAudioSecondsRef.current = 0;
+              setAudioLevel(topLevel);
+
+              if (idx === primaryStreamIdx) {
+                pushDownsampledPcm(samples, frame.sampleRate || 48000, gain);
+              }
+            } finally {
+              try { frame.close(); } catch (_) {}
+            }
+          }
+        })().catch(() => {});
+      } catch (tpErr) {
+        console.warn('[MediaStreamTrackProcessor Warn]', tpErr);
+      }
+    });
+
+    return trackReadersRef.current.length > 0;
+  };
 
   // Medidor de voz en vivo de alta precisión + pre-amplificador y mezclador multi-micrófono
   const setupAudioAnalyzer = async (inputStreams) => {
@@ -411,17 +574,20 @@ export default function AudioRecorder({ onMeetingProcessed, onRecordingStatusCha
       }
 
       if (audioCtx.state === 'suspended') {
-        setAudioCtxSuspended(true);
+        const directOk = startDirectTrackFallback(streamList);
+        setAudioCtxSuspended(!directOk);
         const unlockAudio = () => {
           if (audioContextRef.current && audioContextRef.current.state === 'suspended') {
             audioContextRef.current.resume().then(() => {
               if (audioContextRef.current?.state === 'running') {
                 setAudioCtxSuspended(false);
+                stopDirectTrackProcessors();
               }
             }).catch(() => {});
           }
           if (audioContextRef.current?.state === 'running') {
             setAudioCtxSuspended(false);
+            stopDirectTrackProcessors();
             window.removeEventListener('pointerdown', unlockAudio);
             window.removeEventListener('keydown', unlockAudio);
           }
@@ -431,12 +597,14 @@ export default function AudioRecorder({ onMeetingProcessed, onRecordingStatusCha
         audioCtx.onstatechange = () => {
           if (audioCtx.state === 'running') {
             setAudioCtxSuspended(false);
+            stopDirectTrackProcessors();
             window.removeEventListener('pointerdown', unlockAudio);
             window.removeEventListener('keydown', unlockAudio);
           }
         };
       } else {
         setAudioCtxSuspended(false);
+        stopDirectTrackProcessors();
       }
 
       const analyser = audioCtx.createAnalyser();
@@ -483,27 +651,11 @@ export default function AudioRecorder({ onMeetingProcessed, onRecordingStatusCha
           scriptNodeRef.current = null;
         }
         const scriptNode = audioCtx.createScriptProcessor(4096, 1, 1);
-        const targetRate = 16000;
         const sourceRate = audioCtx.sampleRate || 44100;
-        const downsampleRatio = sourceRate / targetRate;
-        const maxSamples = 16000 * 35;
 
         scriptNode.onaudioprocess = (audioEvent) => {
           if (!isRecordingRef.current) return;
-          const inputData = audioEvent.inputBuffer.getChannelData(0);
-          const newLength = Math.floor(inputData.length / downsampleRatio);
-          const downsampled = new Float32Array(newLength);
-          for (let i = 0; i < newLength; i++) {
-            downsampled[i] = Math.max(-1, Math.min(1, inputData[Math.floor(i * downsampleRatio)]));
-          }
-
-          pcmBufferRef.current.push(downsampled);
-          pcmSampleCountRef.current += newLength;
-
-          while (pcmSampleCountRef.current > maxSamples && pcmBufferRef.current.length > 1) {
-            const removed = pcmBufferRef.current.shift();
-            pcmSampleCountRef.current -= removed.length;
-          }
+          pushDownsampledPcm(audioEvent.inputBuffer.getChannelData(0), sourceRate, 1);
         };
 
         preampGain.connect(scriptNode);
@@ -521,6 +673,10 @@ export default function AudioRecorder({ onMeetingProcessed, onRecordingStatusCha
 
       const updateLevel = () => {
         if (!isRecordingRef.current) return;
+        if (audioCtx.state === 'suspended' && trackProcessorActiveRef.current) {
+          animFrameRef.current = requestAnimationFrame(updateLevel);
+          return;
+        }
 
         // Precisión Float32 en rango [-1, 1]: detecta incluso voces lejanas en auditorios
         let maxPeak = 0;
@@ -972,6 +1128,7 @@ export default function AudioRecorder({ onMeetingProcessed, onRecordingStatusCha
   };
 
   const stopAllCaptureStreams = () => {
+    stopDirectTrackProcessors();
     if (activeStreamRef.current) {
       try { activeStreamRef.current.getTracks().forEach(t => t.stop()); } catch (_) {}
       activeStreamRef.current = null;
@@ -990,14 +1147,15 @@ export default function AudioRecorder({ onMeetingProcessed, onRecordingStatusCha
     extraStreamsRef.current = rawStreams;
 
     const mixedStream = (await setupAudioAnalyzer(rawStreams)) || rawStreams[0];
+    const recorderStream = (audioContextRef.current?.state === 'suspended') ? rawStreams[0] : mixedStream;
     activeStreamRef.current = mixedStream;
 
     const preferredMime = getSupportedAudioMimeType();
     let mediaRecorder;
     try {
-      mediaRecorder = new MediaRecorder(mixedStream, { mimeType: preferredMime });
+      mediaRecorder = new MediaRecorder(recorderStream, { mimeType: preferredMime });
     } catch (_) {
-      mediaRecorder = new MediaRecorder(mixedStream);
+      mediaRecorder = new MediaRecorder(recorderStream);
     }
     mediaRecorderRef.current = mediaRecorder;
 
