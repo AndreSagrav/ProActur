@@ -1325,6 +1325,71 @@ Instrucciones:
     throw lastError || new Error('No se pudo obtener respuesta del Segundo Cerebro.');
   }
 
+  _buildSessionQueryPrompt({
+    mode = 'archive',
+    question,
+    title,
+    date = '',
+    summary = '',
+    keyTopics = [],
+    keyDecisions = [],
+    actionItems = [],
+    proactiveAdvice = [],
+    userNotes = '',
+    transcript = '',
+    history = [],
+    maxTranscriptChars = 55000
+  }) {
+    const cleanTopics = this.mergeUniqueStrings([], keyTopics, 18);
+    const cleanDecisions = this.mergeUniqueStrings([], keyDecisions, 18);
+    const cleanTasks = this.mergeActionItems([], actionItems, 14);
+    const cleanAdvice = this.mergeUniqueStrings([], proactiveAdvice, 10);
+
+    const topicsStr = cleanTopics.join(', ');
+    const decisionsStr = cleanDecisions.map(d => `- ${d}`).join('\n');
+    const tasksStr = cleanTasks
+      .map(a => `- ${a.task} (Resp: ${a.assignee || 'Por asignar'}, Plazo: ${a.deadline || 'Pendiente'})`)
+      .join('\n');
+    const adviceStr = cleanAdvice.map(a => `- ${a}`).join('\n');
+    const transcriptContext = this.buildSmartTranscriptContext(transcript, question, maxTranscriptChars);
+    const recentHistory = (Array.isArray(history) ? history : [])
+      .slice(-6)
+      .map(h => `${h.role === 'user' ? 'Usuario' : 'Copiloto'}: ${h.text}`)
+      .join('\n');
+
+    const header = mode === 'live'
+      ? 'Eres ProActur AI, Copiloto Ejecutivo en vivo escuchando esta sesión.'
+      : 'Eres ProActur AI, Copiloto Ejecutivo analizando el registro completo de esta sesión.';
+
+    return `
+${header}
+
+SESIÓN:
+- TÍTULO: ${title || 'Sesión'}
+${date ? `- FECHA: ${date}\n` : ''}- TEMAS CLAVE: ${topicsStr || 'No especificados'}
+- RESUMEN: ${summary || 'No disponible'}
+- ACUERDOS Y DECISIONES:
+${decisionsStr || 'Ninguno registrado.'}
+- TAREAS Y COMPROMISOS:
+${tasksStr || 'Ninguna registrada.'}
+- ALERTAS / CONSEJOS:
+${adviceStr || 'Ninguno.'}
+${userNotes ? `- NOTAS DEL USUARIO:\n${userNotes}\n` : ''}
+- TRANSCRIPCIÓN (${(transcript || '').length} caracteres totales):
+"""
+${transcriptContext}
+"""
+
+${recentHistory ? `HISTORIAL RECIENTE:\n${recentHistory}\n` : ''}PREGUNTA DEL USUARIO:
+"${question}"
+
+INSTRUCCIONES:
+1. Responde de forma directa, clara, precisa y en español.
+2. Prioriza lo dicho en la transcripción y notas de esta sesión (citando datos, ejemplos o conclusiones concretas).
+3. Si te hacen una pregunta técnica o de evaluación sobre la tecnología tratada en la sesión cuyo detalle exacto no aparezca literal en el fragmento, acláralo y responde con rigor técnico del dominio sin inventar citas falsas de la reunión.
+`;
+  }
+
   async askLiveSession({
     question,
     title = 'Sesión en Vivo',
@@ -1341,75 +1406,35 @@ Instrucciones:
       throw new Error('Pregunta requerida');
     }
 
-    const transcriptContext = this.buildSmartTranscriptContext(transcript, question, 90000);
-    const topicsStr = (Array.isArray(keyTopics) ? keyTopics : []).join(', ');
-    const decisionsStr = (Array.isArray(keyDecisions) ? keyDecisions : []).map(d => `- ${d}`).join('\n');
-    const tasksStr = (Array.isArray(actionItems) ? actionItems : [])
-      .map(a => `- ${a.task || a} (Resp: ${a.assignee || 'Por asignar'}, Plazo: ${a.deadline || 'Pendiente'})`)
-      .join('\n');
-    const adviceStr = (Array.isArray(proactiveAdvice) ? proactiveAdvice : []).map(a => `- ${a}`).join('\n');
-    const recentHistory = (Array.isArray(history) ? history : [])
-      .slice(-6)
-      .map(h => `${h.role === 'user' ? 'Usuario' : 'Copiloto'}: ${h.text}`)
-      .join('\n');
+    const baseArgs = { mode: 'live', question, title, summary, keyTopics, keyDecisions, actionItems, proactiveAdvice, userNotes, transcript, history };
+    const fullPrompt = this._buildSessionQueryPrompt({ ...baseArgs, maxTranscriptChars: 55000 });
+    const compactPrompt = this._buildSessionQueryPrompt({ ...baseArgs, maxTranscriptChars: 16000 });
 
-    const prompt = `
-Eres ProActur AI, el Copiloto Ejecutivo en tiempo real que está escuchando y tomando notas de esta reunión / seminario EN VIVO.
-Responde la pregunta del usuario basándote en TODO lo transcrito hasta este momento, en las notas tomadas y en los acuerdos detectados.
-
-SESIÓN EN CURSO:
-- TÍTULO: ${title}
-- RESUMEN ACUMULADO: ${summary || 'En curso...'}
-- TEMAS CLAVE: ${topicsStr || 'Por consolidar'}
-- DECISIONES / CONCLUSIONES:
-${decisionsStr || 'Ninguna registrada aún.'}
-- COMPROMISOS Y TAREAS:
-${tasksStr || 'Ninguno registrado aún.'}
-- NOTAS Y ALERTAS PROACTIVAS:
-${adviceStr || 'Ninguna aún.'}
-- NOTAS MANUALES DEL USUARIO:
-${userNotes || 'Sin notas manuales.'}
-
-TRANSCRIPCIÓN ACUMULADA DE LA SESIÓN (${(transcript || '').length} caracteres totales):
-"""
-${transcriptContext}
-"""
-
-${recentHistory ? `HISTORIAL RECIENTE DEL CHAT EN VIVO:\n${recentHistory}\n` : ''}
-PREGUNTA DEL USUARIO EN VIVO:
-"${question}"
-
-INSTRUCCIONES:
-1. Responde de manera clara, directa, precisa y en español basándote en la transcripción y notas de esta sesión.
-2. Si el tema sí se mencionó en la transcripción, cita exactamente qué se dijo, conceptos, ejemplos o conclusiones.
-3. Si aún no se ha hablado de ese tema en lo que va de la sesión, indícalo claramente sin inventar datos.
-`;
-
-    return await this._runLongContextQuery(prompt, summary || 'Sesión activa en curso.');
+    return await this._runLongContextQuery(fullPrompt, summary || 'Sesión activa en curso.', compactPrompt);
   }
 
-  async _runLongContextQuery(prompt, fallbackSummary = '') {
+  async _runLongContextQuery(prompt, fallbackSummary = '', compactPrompt = null) {
+    const groqOrSmallPrompt = compactPrompt || prompt;
     const models = [
+      ...this.getGeminiModels().slice(0, 4).map(m => ({ provider: 'gemini', model: m, name: `Gemini (${m})` })),
       { provider: 'groq', model: config.GROQ_CHAT_MODEL || 'openai/gpt-oss-120b', name: 'Groq GPT-OSS 120B' },
       { provider: 'groq', model: 'llama-3.3-70b-versatile', name: 'Groq Llama 3.3 70B' },
-      { provider: 'openrouter', model: 'deepseek/deepseek-chat', name: 'DeepSeek V3' },
-      { provider: 'openrouter', model: 'qwen/qwen-2.5-72b-instruct', name: 'Qwen 2.5 72B' },
-      { provider: 'gemini', model: this.geminiModel, name: 'Gemini Configurado' },
-      { provider: 'gemini', model: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash' },
-      { provider: 'gemini', model: 'gemini-2.0-flash', name: 'Gemini 2.0 Flash' }
+      { provider: 'groq', model: 'qwen/qwen3.8-27b', name: 'Groq Qwen 3.8 27B' },
+      { provider: 'openrouter', model: 'nvidia/nemotron-3.5-super-vl:free', name: 'Nemotron 3.5 (Free)' },
+      { provider: 'openrouter', model: 'recursive/flint-v1.0:free', name: 'Flint v1.0 (Free)' }
     ];
 
     for (const item of models) {
       const { provider, model, name } = item;
       try {
-        if (provider === 'groq' && config.GROQ_API_KEY) {
-          const ans = await this.callGroq(prompt, 'Eres un asistente ejecutivo experto en analizar transcripciones completas y responder preguntas precisas.', model);
+        if (provider === 'gemini' && config.GEMINI_API_KEY) {
+          const ans = await this.callGeminiText(prompt, '', model);
+          if (ans) return ans;
+        } else if (provider === 'groq' && config.GROQ_API_KEY) {
+          const ans = await this.callGroq(groqOrSmallPrompt, 'Eres un asistente ejecutivo experto en analizar transcripciones completas y responder preguntas precisas.', model);
           if (ans) return ans;
         } else if (provider === 'openrouter' && config.OPENROUTER_API_KEY) {
-          const ans = await this.callOpenRouter(prompt, 'Eres un asistente ejecutivo experto en analizar transcripciones completas y responder preguntas precisas.', model);
-          if (ans) return ans;
-        } else if (provider === 'gemini' && config.GEMINI_API_KEY) {
-          const ans = await this.callGeminiText(prompt, '', model);
+          const ans = await this.callOpenRouter(groqOrSmallPrompt, 'Eres un asistente ejecutivo experto en analizar transcripciones completas y responder preguntas precisas.', model);
           if (ans) return ans;
         }
       } catch (err) {
@@ -1428,48 +1453,24 @@ INSTRUCCIONES:
     const title = meeting.title || 'Reunión sin título';
     const date = meeting.createdAt || meeting.date || 'Fecha no registrada';
     const summary = meeting.summary || 'Sin resumen registrado';
-    const topics = (meeting.keyTopics || []).join(', ');
-    const decisions = (meeting.keyDecisions || []).join('\n- ');
-    const tasks = (meeting.actionItems || []).map(a => `- ${a.task} (Responsable: ${a.assignee || 'No asignado'}, Plazo: ${a.deadline || 'Sin plazo'})`).join('\n');
-    const advice = (meeting.proactiveAdvice || []).join('\n- ');
-    const fullTranscript = meeting.transcript || 'Transcripción no disponible';
-    const smartTranscript = this.buildSmartTranscriptContext(fullTranscript, question, 95000);
 
-    const prompt = `
-Eres el Copiloto Ejecutivo de ProActur.
-El usuario está revisando el registro histórico de una reunión o seminario completo y te hace una consulta directa sobre ella.
+    const baseArgs = {
+      mode: 'archive',
+      question,
+      title,
+      date,
+      summary,
+      keyTopics: meeting.keyTopics || [],
+      keyDecisions: meeting.keyDecisions || [],
+      actionItems: meeting.actionItems || [],
+      proactiveAdvice: meeting.proactiveAdvice || [],
+      transcript: meeting.transcript || 'Transcripción no disponible'
+    };
 
-INFORMACIÓN EXCLUSIVA DE ESTA SESIÓN:
-- TÍTULO: ${title}
-- FECHA: ${date}
-- TEMAS CLAVE: ${topics || 'No especificados'}
-- RESUMEN EJECUTIVO:
-${summary}
+    const fullPrompt = this._buildSessionQueryPrompt({ ...baseArgs, maxTranscriptChars: 65000 });
+    const compactPrompt = this._buildSessionQueryPrompt({ ...baseArgs, maxTranscriptChars: 16000 });
 
-- ACUERDOS Y DECISIONES CLAVE:
-${decisions ? '- ' + decisions : 'No se registraron decisiones formales.'}
-
-- COMPROMISOS Y TAREAS ASIGNADAS:
-${tasks || 'No se registraron tareas pendientes.'}
-
-- CONSEJOS PROACTIVOS Y ALERTAS:
-${advice ? '- ' + advice : 'No hay consejos adicionales.'}
-
-- TRANSCRIPCIÓN TEXTUAL COMPLETA (${fullTranscript.length} caracteres totales):
-"""
-${smartTranscript}
-"""
-
-PREGUNTA DEL USUARIO:
-"${question}"
-
-INSTRUCCIONES CLAVE:
-1. Responde de forma concisa, profesional, ejecutiva y certera basada ÚNICAMENTE en la información de esta sesión.
-2. Si te piden redactar un correo, un resumen, una lista de pendientes o clarificar conceptos/posturas de participantes o ponentes, usa formato Markdown limpio.
-3. Si el dato solicitado no aparece en la sesión, indícalo claramente con honestidad sin inventar información.
-`;
-
-    return await this._runLongContextQuery(prompt, `He revisado el registro de "${title}". Sobre tu consulta: ${summary}`);
+    return await this._runLongContextQuery(fullPrompt, `He revisado el registro de "${title}". Sobre tu consulta: ${summary}`, compactPrompt);
   }
 
 
@@ -1691,7 +1692,7 @@ Devuelve ÚNICAMENTE un objeto JSON válido (sin markdown) con esta estructura e
     messages.push({ role: 'user', content: prompt });
 
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 15000);
+    const timer = setTimeout(() => controller.abort(), 9500);
 
     try {
       const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
@@ -1734,7 +1735,7 @@ Devuelve ÚNICAMENTE un objeto JSON válido (sin markdown) con esta estructura e
     contents.push({ parts: [{ text: fullText }] });
 
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 15000);
+    const timer = setTimeout(() => controller.abort(), 9500);
 
     try {
       const res = await fetch(endpoint, {
@@ -1774,7 +1775,7 @@ Devuelve ÚNICAMENTE un objeto JSON válido (sin markdown) con esta estructura e
     messages.push({ role: 'user', content: prompt });
 
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 18000);
+    const timer = setTimeout(() => controller.abort(), 9500);
 
     try {
       const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
