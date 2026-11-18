@@ -8,12 +8,70 @@ import {
 
 const API = import.meta.env.VITE_API_URL || '';
 
+function normalizeDisplayTokens(text) {
+  const stopWords = new Set([
+    'de', 'la', 'el', 'los', 'las', 'en', 'para', 'por', 'con', 'una', 'uno',
+    'del', 'al', 'que', 'como', 'sobre', 'entre', 'se', 'su', 'sus', 'antes'
+  ]);
+  return new Set(
+    String(text || '')
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^\w\s]/g, ' ')
+      .split(/\s+/)
+      .filter(w => w.length > 2 && !stopWords.has(w))
+  );
+}
+
+function isNearDuplicateTokens(a, b) {
+  if (!a.size || !b.size) return false;
+  let inter = 0;
+  for (const t of a) if (b.has(t)) inter += 1;
+  const union = a.size + b.size - inter;
+  if (union > 0 && (inter / union) >= 0.55) return true;
+  return Math.min(a.size, b.size) >= 3 && (inter / Math.min(a.size, b.size)) >= 0.8;
+}
+
+function dedupeDisplayStrings(items = []) {
+  const out = [];
+  const tokenSets = [];
+  for (const raw of Array.isArray(items) ? items : []) {
+    if (typeof raw !== 'string') continue;
+    const text = raw.trim();
+    if (!text) continue;
+    const tokens = normalizeDisplayTokens(text);
+    if (tokenSets.some(prev => isNearDuplicateTokens(tokens, prev))) continue;
+    tokenSets.push(tokens);
+    out.push(text);
+  }
+  return out;
+}
+
+function dedupeActionItems(items = []) {
+  const out = [];
+  const tokenSets = [];
+  for (const raw of Array.isArray(items) ? items : []) {
+    if (!raw) continue;
+    const text = String(typeof raw === 'string' ? raw : (raw.task || raw.text || '')).trim();
+    if (!text) continue;
+    const tokens = normalizeDisplayTokens(text);
+    if (tokenSets.some(prev => isNearDuplicateTokens(tokens, prev))) continue;
+    tokenSets.push(tokens);
+    out.push(typeof raw === 'string' ? { task: text, completed: false } : { ...raw, task: text });
+  }
+  return out;
+}
+
 export default function MeetingDetails({ meeting, onUpdateMeeting, onDeleteMeeting, onScheduleFollowUp, onCreateNote }) {
   const [syncingNotion, setSyncingNotion] = useState(false);
   const [syncStatus, setSyncStatus] = useState(null);
   const [showTranscript, setShowTranscript] = useState(false);
+  const [showAllDecisions, setShowAllDecisions] = useState(false);
+  const [showAllAdvice, setShowAllAdvice] = useState(false);
+  const [showAllTasks, setShowAllTasks] = useState(false);
   const [copied, setCopied] = useState(false);
-    const [actionItems, setActionItems] = useState(meeting.actionItems || []);
+  const [actionItems, setActionItems] = useState(() => dedupeActionItems(meeting.actionItems || []));
 
   // Estados del Chat con IA enfocado exclusivamente en esta reunión
   const [meetingChatMessages, setMeetingChatMessages] = useState([
@@ -76,9 +134,16 @@ export default function MeetingDetails({ meeting, onUpdateMeeting, onDeleteMeeti
   };
 
   useEffect(() => {
-    setActionItems(meeting.actionItems || []);
+    setActionItems(dedupeActionItems(meeting.actionItems || []));
     setSyncStatus(null);
+    setShowAllDecisions(false);
+    setShowAllAdvice(false);
+    setShowAllTasks(false);
   }, [meeting.id]);
+
+  const cleanDecisions = dedupeDisplayStrings(meeting.keyDecisions || []);
+  const cleanAdvice = dedupeDisplayStrings(meeting.proactiveAdvice || []);
+  const COMPACT_LIMIT = 5;
 
   const handleCopyTranscript = () => {
     if (!meeting.transcript) return;
@@ -170,7 +235,7 @@ export default function MeetingDetails({ meeting, onUpdateMeeting, onDeleteMeeti
           {/* Copiar Resumen y Acuerdos */}
           <button
             onClick={() => {
-              const text = `# ${meeting.title}\n\n## Resumen\n${meeting.summary}\n\n## Acuerdos Clave\n${(meeting.keyDecisions || []).map(d => '- ' + d).join('\n')}\n\n## Tareas\n${(meeting.tasks || []).map(t => '- [ ] ' + t.text + (t.assignee ? ' (@' + t.assignee + ')' : '')).join('\n')}`;
+              const text = `# ${meeting.title}\n\n## Resumen\n${meeting.summary}\n\n## Acuerdos Clave\n${cleanDecisions.map(d => '- ' + d).join('\n')}\n\n## Tareas\n${actionItems.map(t => `- [${t.completed ? 'x' : ' '}] ${t.task}${t.assignee ? ' (@' + t.assignee + ')' : ''}`).join('\n')}`;
               navigator.clipboard.writeText(text);
               alert('¡Resumen, acuerdos y tareas copiados al portapapeles!');
             }}
@@ -223,44 +288,82 @@ export default function MeetingDetails({ meeting, onUpdateMeeting, onDeleteMeeti
         <div className="flex items-center gap-2 text-indigo-400 text-xs font-bold uppercase tracking-wider mb-2">
           <Lightbulb className="w-4 h-4" /> Resumen Ejecutivo
         </div>
-        <p className="text-sm text-slate-200 leading-relaxed whitespace-pre-line">{meeting.summary}</p>
+        <p className="text-sm text-slate-200 leading-relaxed whitespace-pre-line max-h-60 overflow-y-auto pr-1">{meeting.summary}</p>
       </div>
 
       {/* Grid: Decisions & Proactive Advice */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div className="bg-slate-800/40 border border-slate-800 rounded-xl p-4">
-          <div className="flex items-center gap-2 text-slate-200 text-xs font-bold uppercase tracking-wider mb-3">
-            <Target className="w-4 h-4 text-amber-400" /> Decisiones Clave
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-start">
+        <div className="bg-slate-800/40 border border-slate-800 rounded-xl p-4 flex flex-col justify-between">
+          <div>
+            <div className="flex items-center justify-between gap-2 text-slate-200 text-xs font-bold uppercase tracking-wider mb-3">
+              <span className="flex items-center gap-2">
+                <Target className="w-4 h-4 text-amber-400" /> Decisiones Clave
+              </span>
+              {cleanDecisions.length > 0 && (
+                <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-300 border border-amber-500/20">
+                  {cleanDecisions.length}
+                </span>
+              )}
+            </div>
+            {cleanDecisions.length > 0 ? (
+              <ul className={`space-y-2 ${showAllDecisions ? 'max-h-72 overflow-y-auto pr-1' : ''}`}>
+                {(showAllDecisions ? cleanDecisions : cleanDecisions.slice(0, COMPACT_LIMIT)).map((dec, idx) => (
+                  <li key={idx} className="flex items-start gap-2 text-xs text-slate-300 leading-relaxed">
+                    <span className="w-1.5 h-1.5 rounded-full bg-amber-400 mt-1.5 shrink-0" />
+                    <span>{dec}</span>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="text-xs text-slate-500 italic">No se registraron decisiones formales.</p>
+            )}
           </div>
-          {meeting.keyDecisions && meeting.keyDecisions.length > 0 ? (
-            <ul className="space-y-2">
-              {meeting.keyDecisions.map((dec, idx) => (
-                <li key={idx} className="flex items-start gap-2 text-xs text-slate-300">
-                  <span className="w-1.5 h-1.5 rounded-full bg-amber-400 mt-1.5 shrink-0" />
-                  <span>{dec}</span>
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <p className="text-xs text-slate-500 italic">No se registraron decisiones formales.</p>
+          {cleanDecisions.length > COMPACT_LIMIT && (
+            <button
+              type="button"
+              onClick={() => setShowAllDecisions(v => !v)}
+              className="mt-3 pt-2 border-t border-slate-800/80 w-full flex items-center justify-center gap-1.5 text-[11px] font-semibold text-amber-300 hover:text-amber-200 transition-colors"
+            >
+              {showAllDecisions ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+              <span>{showAllDecisions ? 'Mostrar resumen compacto' : `Ver las ${cleanDecisions.length} decisiones`}</span>
+            </button>
           )}
         </div>
 
-        <div className="bg-slate-800/40 border border-slate-800 rounded-xl p-4">
-          <div className="flex items-center gap-2 text-slate-200 text-xs font-bold uppercase tracking-wider mb-3">
-            <AlertTriangle className="w-4 h-4 text-indigo-400" /> Consejos Proactivos del Asistente
+        <div className="bg-slate-800/40 border border-slate-800 rounded-xl p-4 flex flex-col justify-between">
+          <div>
+            <div className="flex items-center justify-between gap-2 text-slate-200 text-xs font-bold uppercase tracking-wider mb-3">
+              <span className="flex items-center gap-2">
+                <AlertTriangle className="w-4 h-4 text-indigo-400" /> Consejos Proactivos del Asistente
+              </span>
+              {cleanAdvice.length > 0 && (
+                <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-indigo-500/10 text-indigo-300 border border-indigo-500/20">
+                  {cleanAdvice.length}
+                </span>
+              )}
+            </div>
+            {cleanAdvice.length > 0 ? (
+              <ul className={`space-y-2 ${showAllAdvice ? 'max-h-72 overflow-y-auto pr-1' : ''}`}>
+                {(showAllAdvice ? cleanAdvice : cleanAdvice.slice(0, COMPACT_LIMIT)).map((adv, idx) => (
+                  <li key={idx} className="flex items-start gap-2 text-xs text-indigo-200 leading-relaxed">
+                    <span className="w-1.5 h-1.5 rounded-full bg-indigo-400 mt-1.5 shrink-0" />
+                    <span>{adv}</span>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="text-xs text-slate-500 italic">Sin alertas ni riesgos identificados.</p>
+            )}
           </div>
-          {meeting.proactiveAdvice && meeting.proactiveAdvice.length > 0 ? (
-            <ul className="space-y-2">
-              {meeting.proactiveAdvice.map((adv, idx) => (
-                <li key={idx} className="flex items-start gap-2 text-xs text-indigo-200">
-                  <span className="w-1.5 h-1.5 rounded-full bg-indigo-400 mt-1.5 shrink-0" />
-                  <span>{adv}</span>
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <p className="text-xs text-slate-500 italic">Sin alertas ni riesgos identificados.</p>
+          {cleanAdvice.length > COMPACT_LIMIT && (
+            <button
+              type="button"
+              onClick={() => setShowAllAdvice(v => !v)}
+              className="mt-3 pt-2 border-t border-slate-800/80 w-full flex items-center justify-center gap-1.5 text-[11px] font-semibold text-indigo-300 hover:text-indigo-200 transition-colors"
+            >
+              {showAllAdvice ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+              <span>{showAllAdvice ? 'Mostrar resumen compacto' : `Ver los ${cleanAdvice.length} consejos`}</span>
+            </button>
           )}
         </div>
       </div>
@@ -272,11 +375,21 @@ export default function MeetingDetails({ meeting, onUpdateMeeting, onDeleteMeeti
             <CheckSquare className="w-4 h-4 text-emerald-400" />
             Tareas y Compromisos ({actionItems.filter(a => a.completed).length}/{actionItems.length})
           </div>
+          {actionItems.length > COMPACT_LIMIT && (
+            <button
+              type="button"
+              onClick={() => setShowAllTasks(v => !v)}
+              className="flex items-center gap-1 text-[11px] font-semibold text-emerald-300 hover:text-emerald-200 transition-colors"
+            >
+              {showAllTasks ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+              <span>{showAllTasks ? 'Compactar' : `Ver todas (${actionItems.length})`}</span>
+            </button>
+          )}
         </div>
 
         {actionItems && actionItems.length > 0 ? (
-          <div className="space-y-2">
-            {actionItems.map((item, idx) => (
+          <div className={`space-y-2 ${showAllTasks ? 'max-h-80 overflow-y-auto pr-1' : ''}`}>
+            {(showAllTasks ? actionItems : actionItems.slice(0, COMPACT_LIMIT)).map((item, idx) => (
               <div
                 key={idx}
                 onClick={() => toggleTask(idx)}
