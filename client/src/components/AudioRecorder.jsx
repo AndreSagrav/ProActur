@@ -192,7 +192,7 @@ export default function AudioRecorder({ onMeetingProcessed, onRecordingStatusCha
   const [liveNotesMode, setLiveNotesMode] = useState('keyboard'); // 'keyboard' | 'pencil'
   const [liveNotesStrokes, setLiveNotesStrokes] = useState([]);
   const [liveStatusMessage, setLiveStatusMessage] = useState('');
-  const [activeLiveTab, setActiveLiveTab] = useState('notes'); // 'notes' | 'transcript' | 'chat'
+  const [activeLiveTab, setActiveLiveTab] = useState(() => (isMobileDevice() ? 'summary' : 'notes')); // 'summary' | 'notes' | 'transcript' | 'chat'
   const [liveChatMessages, setLiveChatMessages] = useState([
     { role: 'assistant', text: '¡Hola! Estoy grabando y tomando notas del seminario/reunión en tiempo real. Puedes preguntarme cualquier cosa sobre lo dicho hasta este instante sin cortar la grabación.' }
   ]);
@@ -1442,6 +1442,13 @@ export default function AudioRecorder({ onMeetingProcessed, onRecordingStatusCha
         }
       } catch (_) {}
 
+      // 4. Servicio Nativo en Primer Plano Android (Capacitor): evita suspensión con pantalla apagada
+      try {
+        window.Capacitor?.Plugins?.RecordingService?.start?.({
+          title: restoredTitle || meetingTitle || 'Grabando sesión en vivo'
+        })?.catch?.(() => {});
+      } catch (_) {}
+
       // Reconocimiento de voz nativo en paralelo
       recognitionRef.current = initSpeechRecognition();
       setLiveStatusMessage(`🎙️ Capturando: ${activeMicsLabel} (resiste minimizado y cambio de pestañas).`);
@@ -1543,6 +1550,7 @@ export default function AudioRecorder({ onMeetingProcessed, onRecordingStatusCha
       if ('mediaSession' in navigator) {
         navigator.mediaSession.playbackState = 'none';
       }
+      window.Capacitor?.Plugins?.RecordingService?.stop?.()?.catch?.(() => {});
     } catch (_) {}
     startTimeRef.current = null;
 
@@ -2145,77 +2153,90 @@ export default function AudioRecorder({ onMeetingProcessed, onRecordingStatusCha
                   )}
                 </div>
 
-                {/* Fila 3: Botones de Accion con Ancho Completo y Sin Amontonamiento */}
-                <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-end gap-3 pt-1">
+                {/* Fila 3: Botones de Accion Lado a Lado en Móvil y Compactos en Desktop */}
+                <div className="grid grid-cols-2 sm:flex sm:items-center sm:justify-end gap-2.5 sm:gap-3 pt-1">
                   <button
                     type="button"
                     onClick={() => triggerLiveAnalysis(userLiveNotes)}
                     disabled={isAnalyzingLive}
-                    className="flex-1 sm:flex-initial flex items-center justify-center gap-2 px-5 py-3 rounded-2xl text-xs sm:text-sm font-bold bg-slate-800 hover:bg-slate-700 text-indigo-300 border border-slate-700 hover:border-indigo-500/50 transition-all shadow-md disabled:opacity-50"
+                    className="flex items-center justify-center gap-1.5 px-3 sm:px-5 py-3 rounded-2xl text-xs sm:text-sm font-bold bg-slate-800/90 hover:bg-slate-700 text-indigo-300 border border-white/[0.08] hover:border-indigo-500/40 transition-all shadow-sm disabled:opacity-50 active:scale-95"
                   >
-                    {isAnalyzingLive ? <Loader2 className="w-4 h-4 animate-spin text-amber-400" /> : <Zap className="w-4 h-4 text-amber-400" />}
-                    <span>{isAnalyzingLive ? 'Analizando con Gemini...' : '⚡ Analizar Ahora'}</span>
+                    {isAnalyzingLive ? <Loader2 className="w-4 h-4 animate-spin text-amber-400 shrink-0" /> : <Zap className="w-4 h-4 text-amber-400 shrink-0" />}
+                    <span className="truncate">{isAnalyzingLive ? 'Analizando...' : 'Analizar'}</span>
                   </button>
 
                   <button
                     type="button"
                     onClick={stopAndFinalizeRecording}
-                    className="flex-1 sm:flex-initial flex items-center justify-center gap-2 px-6 py-3 rounded-2xl text-xs sm:text-sm font-black bg-gradient-to-r from-red-600 via-rose-600 to-pink-600 hover:from-red-500 hover:to-pink-500 text-white shadow-xl shadow-red-600/30 transition-all"
+                    className="flex items-center justify-center gap-1.5 px-3 sm:px-6 py-3 rounded-2xl text-xs sm:text-sm font-black bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 hover:to-rose-500 text-white shadow-lg shadow-red-600/25 transition-all active:scale-95"
                   >
-                    <Square className="w-4 h-4 fill-white" />
-                    <span>Finalizar y Guardar Minuta</span>
+                    <Square className="w-3.5 h-3.5 fill-white shrink-0" />
+                    <span className="truncate">Guardar Minuta</span>
                   </button>
                 </div>
               </div>
 
-              {/* PANEL TRIPLE: NOTAS EN VIVO, TRANSCRIPCIÓN EN VIVO & COPILOTO IA */}
-              <div className="bg-slate-900/90 border border-indigo-500/30 rounded-3xl p-4 sm:p-5 shadow-2xl space-y-4">
+              {/* PANEL UNIFICADO EN VIVO (4 Tabs en Móvil / 3 Tabs + Pilares en Desktop) */}
+              <div className="bg-slate-900/90 border border-white/[0.08] rounded-3xl p-3 sm:p-5 shadow-xl space-y-4">
                 {/* Control Segmentado de Pestañas */}
-                <div className="grid grid-cols-3 p-1.5 bg-slate-950/90 rounded-2xl border border-slate-800/80 gap-1.5 shadow-inner">
+                <div className="grid grid-cols-4 md:grid-cols-3 p-1 bg-slate-950/90 rounded-2xl border border-white/[0.06] gap-1 shadow-inner">
+                  <button
+                    type="button"
+                    onClick={() => setActiveLiveTab('summary')}
+                    className={`md:hidden flex items-center justify-center gap-1 py-2.5 px-1.5 rounded-xl text-[11px] font-bold transition-all duration-200 ${
+                      activeLiveTab === 'summary'
+                        ? 'bg-indigo-600 text-white shadow-sm'
+                        : 'text-slate-400 hover:text-slate-200'
+                    }`}
+                  >
+                    <Sparkles className="w-3.5 h-3.5 shrink-0" />
+                    <span className="truncate">En Vivo</span>
+                  </button>
+
                   <button
                     type="button"
                     onClick={() => setActiveLiveTab('notes')}
-                    className={`flex items-center justify-center gap-1.5 py-2.5 px-2 rounded-xl text-xs font-bold transition-all duration-200 ${
+                    className={`flex items-center justify-center gap-1.5 py-2.5 px-1.5 sm:px-2 rounded-xl text-[11px] sm:text-xs font-bold transition-all duration-200 ${
                       activeLiveTab === 'notes'
-                        ? 'bg-gradient-to-r from-indigo-600 to-blue-600 text-white shadow-lg shadow-indigo-500/25'
+                        ? 'bg-indigo-600 text-white shadow-sm'
                         : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900/70'
                     }`}
                   >
                     <PenTool className="w-3.5 h-3.5 shrink-0" />
-                    <span className="truncate">Notas en Vivo</span>
+                    <span className="truncate">Notas</span>
                   </button>
 
                   <button
                     type="button"
                     onClick={() => setActiveLiveTab('transcript')}
-                    className={`flex items-center justify-center gap-1.5 py-2.5 px-2 rounded-xl text-xs font-bold transition-all duration-200 ${
+                    className={`flex items-center justify-center gap-1.5 py-2.5 px-1.5 sm:px-2 rounded-xl text-[11px] sm:text-xs font-bold transition-all duration-200 ${
                       activeLiveTab === 'transcript'
-                        ? 'bg-gradient-to-r from-emerald-600 to-teal-600 text-white shadow-lg shadow-emerald-500/25'
+                        ? 'bg-emerald-600 text-white shadow-sm'
                         : 'text-emerald-400/80 hover:text-emerald-300 hover:bg-slate-900/70'
                     }`}
                   >
                     <FileText className="w-3.5 h-3.5 shrink-0" />
                     <span className="truncate">
-                      Transcripción ({(liveTranscript || '').split(/\s+/).filter(Boolean).length})
+                      Texto ({(liveTranscript || '').split(/\s+/).filter(Boolean).length})
                     </span>
                   </button>
 
                   <button
                     type="button"
                     onClick={() => setActiveLiveTab('chat')}
-                    className={`flex items-center justify-center gap-1.5 py-2.5 px-2 rounded-xl text-xs font-bold transition-all duration-200 ${
+                    className={`flex items-center justify-center gap-1.5 py-2.5 px-1.5 sm:px-2 rounded-xl text-[11px] sm:text-xs font-bold transition-all duration-200 ${
                       activeLiveTab === 'chat'
-                        ? 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-lg shadow-purple-500/25'
+                        ? 'bg-purple-600 text-white shadow-sm'
                         : 'text-purple-400 hover:text-purple-300 hover:bg-slate-900/70'
                     }`}
                   >
                     <Brain className="w-3.5 h-3.5 shrink-0" />
-                    <span className="truncate">Preguntar IA</span>
+                    <span className="truncate">IA</span>
                   </button>
                 </div>
 
                 {/* Sub-barra de Modo de Entrada (Solo cuando la pestaña Notas está activa) */}
-                {activeLiveTab === 'notes' && (
+                {(activeLiveTab === 'notes' || (activeLiveTab === 'summary' && !isMobileDevice())) && (
                   <div className="space-y-3">
                     {onOpenNotebook && (
                       <div className="p-3.5 bg-gradient-to-r from-amber-500/10 via-indigo-600/10 to-violet-600/10 border border-indigo-500/30 rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-3 shadow-md">
@@ -2338,7 +2359,7 @@ export default function AudioRecorder({ onMeetingProcessed, onRecordingStatusCha
                       </button>
                     </form>
                   </div>
-                ) : (
+                ) : activeLiveTab === 'summary' && isMobileDevice() ? null : (
                   <div className="space-y-2">
                     {liveNotesMode === 'keyboard' ? (
                       <div className="space-y-2">
@@ -2377,7 +2398,7 @@ export default function AudioRecorder({ onMeetingProcessed, onRecordingStatusCha
               </div>
 
               {/* MINUTA EJECUTIVA ESTRUCTURADA EN TIEMPO REAL (LOS 4 PILARES DE PROACTUR) */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-5 pt-2">
+              <div className={`${activeLiveTab === 'summary' ? 'grid' : 'hidden md:grid'} grid-cols-1 md:grid-cols-2 gap-4 md:gap-5 pt-1 md:pt-2`}>
                 {/* Pilar 1: Resumen Ejecutivo en Vivo */}
                 <div className="bg-slate-950/85 border border-indigo-500/25 rounded-3xl p-5 sm:p-6 shadow-xl flex flex-col justify-between min-h-[220px]">
                   <div className="space-y-3">

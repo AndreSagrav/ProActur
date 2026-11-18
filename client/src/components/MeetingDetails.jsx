@@ -3,7 +3,7 @@ import {
   CheckSquare, Square, ExternalLink, Share2, CheckCircle2,
   AlertTriangle, ChevronDown, ChevronUp, Calendar, User, Clock,
   Lightbulb, Target, FileText, Loader2, Trash2, BookOpen, CalendarPlus,
-  Copy, Check, Volume2, Brain, Send, Sparkles, MessageSquare, CornerDownLeft, GitMerge
+  Copy, Check, Volume2, Brain, Send, Sparkles, MessageSquare, CornerDownLeft, GitMerge, Search
 } from 'lucide-react';
 
 const API = import.meta.env.VITE_API_URL || '';
@@ -67,6 +67,8 @@ export default function MeetingDetails({ meeting, onUpdateMeeting, onDeleteMeeti
   const [syncingNotion, setSyncingNotion] = useState(false);
   const [syncStatus, setSyncStatus] = useState(null);
   const [showTranscript, setShowTranscript] = useState(false);
+  const [mobileSection, setMobileSection] = useState('summary'); // 'summary' | 'tasks' | 'transcript' | 'ask'
+  const [transcriptQuery, setTranscriptQuery] = useState('');
   const [showAllDecisions, setShowAllDecisions] = useState(false);
   const [showAllAdvice, setShowAllAdvice] = useState(false);
   const [showAllTasks, setShowAllTasks] = useState(false);
@@ -139,6 +141,8 @@ export default function MeetingDetails({ meeting, onUpdateMeeting, onDeleteMeeti
     setShowAllDecisions(false);
     setShowAllAdvice(false);
     setShowAllTasks(false);
+    setMobileSection('summary');
+    setTranscriptQuery('');
   }, [meeting.id]);
 
   const cleanDecisions = dedupeDisplayStrings(meeting.keyDecisions || []);
@@ -283,8 +287,31 @@ export default function MeetingDetails({ meeting, onUpdateMeeting, onDeleteMeeti
         </div>
       </div>
 
+      {/* Control Segmentado Editorial (Solo Móvil < md): evita sábanas infinitas */}
+      <div className="md:hidden grid grid-cols-4 p-1 bg-slate-950/90 border border-white/[0.08] rounded-2xl gap-1">
+        {[
+          { key: 'summary', label: 'Resumen' },
+          { key: 'tasks', label: `Acuerdos (${actionItems.length})` },
+          { key: 'transcript', label: 'Texto' },
+          { key: 'ask', label: 'IA' }
+        ].map(tab => (
+          <button
+            key={tab.key}
+            type="button"
+            onClick={() => setMobileSection(tab.key)}
+            className={`py-2 px-1.5 rounded-xl text-[11px] font-bold transition-all truncate ${
+              mobileSection === tab.key
+                ? 'bg-indigo-600 text-white shadow-sm'
+                : 'text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
       {/* Executive Summary */}
-      <div className="bg-indigo-950/20 border border-indigo-500/20 rounded-xl p-4">
+      <div className={`${mobileSection === 'summary' ? 'block' : 'hidden md:block'} bg-indigo-950/20 border border-indigo-500/20 rounded-xl p-4`}>
         <div className="flex items-center gap-2 text-indigo-400 text-xs font-bold uppercase tracking-wider mb-2">
           <Lightbulb className="w-4 h-4" /> Resumen Ejecutivo
         </div>
@@ -292,7 +319,7 @@ export default function MeetingDetails({ meeting, onUpdateMeeting, onDeleteMeeti
       </div>
 
       {/* Grid: Decisions & Proactive Advice */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-start">
+      <div className={`${mobileSection === 'summary' ? 'grid' : 'hidden md:grid'} grid-cols-1 md:grid-cols-2 gap-4 items-start`}>
         <div className="bg-slate-800/40 border border-slate-800 rounded-xl p-4 flex flex-col justify-between">
           <div>
             <div className="flex items-center justify-between gap-2 text-slate-200 text-xs font-bold uppercase tracking-wider mb-3">
@@ -369,7 +396,7 @@ export default function MeetingDetails({ meeting, onUpdateMeeting, onDeleteMeeti
       </div>
 
       {/* Action Items */}
-      <div className="bg-slate-800/40 border border-slate-800 rounded-xl p-4">
+      <div className={`${mobileSection === 'tasks' ? 'block' : 'hidden md:block'} bg-slate-800/40 border border-slate-800 rounded-xl p-4`}>
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-2 text-slate-200 text-xs font-bold uppercase tracking-wider">
             <CheckSquare className="w-4 h-4 text-emerald-400" />
@@ -433,10 +460,10 @@ export default function MeetingDetails({ meeting, onUpdateMeeting, onDeleteMeeti
 
       {/* Seccion Dedicada: Grabacion & Transcripcion Completa */}
       {(meeting.transcript || meeting.audioUrl) && (
-        <div className="border border-slate-800 rounded-2xl overflow-hidden bg-slate-900/60 shadow-md">
+        <div className={`${mobileSection === 'transcript' ? 'block' : 'hidden md:block'} border border-slate-800 rounded-2xl overflow-hidden bg-slate-900/60 shadow-md`}>
           <button
             onClick={() => setShowTranscript(!showTranscript)}
-            className="w-full flex items-center justify-between p-4 bg-slate-800/40 hover:bg-slate-800/70 text-left transition-colors text-xs font-bold text-slate-300"
+            className="hidden md:flex w-full items-center justify-between p-4 bg-slate-800/40 hover:bg-slate-800/70 text-left transition-colors text-xs font-bold text-slate-300"
           >
             <span className="flex items-center gap-2">
               <FileText className="w-4 h-4 text-indigo-400" />
@@ -450,8 +477,8 @@ export default function MeetingDetails({ meeting, onUpdateMeeting, onDeleteMeeti
             </div>
           </button>
 
-          {showTranscript && (
-            <div className="p-4 bg-slate-950/80 border-t border-slate-800 space-y-3">
+          {(showTranscript || mobileSection === 'transcript') && (
+            <div className="p-4 bg-slate-950/80 md:border-t border-slate-800 space-y-3">
               {meeting.audioUrl && (
                 <div className="p-3 bg-slate-900 rounded-xl border border-slate-800 flex items-center gap-3">
                   <Volume2 className="w-4 h-4 text-indigo-400 shrink-0" />
@@ -460,21 +487,36 @@ export default function MeetingDetails({ meeting, onUpdateMeeting, onDeleteMeeti
               )}
 
               {meeting.transcript && (
-                <div>
-                  <div className="flex items-center justify-between mb-2">
+                <div className="space-y-2.5">
+                  <div className="flex items-center justify-between gap-2">
                     <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
-                      Transcripción Íntegra de la Sesión
+                      Transcripción ({meeting.transcript.split(/\s+/).filter(Boolean).length} palabras)
                     </span>
                     <button
                       onClick={handleCopyTranscript}
-                      className="flex items-center gap-1 text-[11px] px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 transition-colors"
+                      className="flex items-center gap-1 text-[11px] px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 transition-colors shrink-0"
                     >
                       {copied ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
-                      {copied ? 'Copiado' : 'Copiar Texto'}
+                      {copied ? 'Copiado' : 'Copiar Todo'}
                     </button>
                   </div>
-                  <div className="p-3.5 bg-slate-900/90 rounded-xl border border-slate-800 text-xs font-mono text-slate-300 leading-relaxed max-h-80 overflow-y-auto whitespace-pre-wrap selection:bg-indigo-600">
-                    {meeting.transcript}
+                  <div className="relative">
+                    <Search className="w-3.5 h-3.5 text-slate-500 absolute left-3 top-2.5" />
+                    <input
+                      type="text"
+                      value={transcriptQuery}
+                      onChange={(e) => setTranscriptQuery(e.target.value)}
+                      placeholder="Buscar palabra o tema dentro de la transcripción..."
+                      className="w-full bg-slate-900 border border-slate-800 rounded-xl pl-8 pr-3 py-2 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-indigo-500"
+                    />
+                  </div>
+                  <div className="p-3.5 bg-slate-900/90 rounded-xl border border-slate-800 text-xs font-mono text-slate-300 leading-relaxed max-h-[52vh] md:max-h-80 overflow-y-auto whitespace-pre-wrap selection:bg-indigo-600">
+                    {transcriptQuery.trim()
+                      ? meeting.transcript
+                          .split(/(?<=[.!?])\s+/)
+                          .filter(s => s.toLowerCase().includes(transcriptQuery.trim().toLowerCase()))
+                          .join('\n\n') || 'Sin coincidencias para esa búsqueda.'
+                      : meeting.transcript}
                   </div>
                 </div>
               )}
@@ -482,11 +524,11 @@ export default function MeetingDetails({ meeting, onUpdateMeeting, onDeleteMeeti
           )}
         </div>
       )}
-    
+
       {/* =================================================================== */}
       {/* SECCIÓN INTERACTIVA: CHAT CON LA IA SOBRE ESTA REUNIÓN ESPECÍFICA  */}
       {/* =================================================================== */}
-      <div className="bg-slate-950/90 border border-indigo-500/30 rounded-3xl p-5 sm:p-6 shadow-2xl space-y-4">
+      <div className={`${mobileSection === 'ask' ? 'block' : 'hidden md:block'} bg-slate-950/90 border border-indigo-500/25 rounded-3xl p-4 sm:p-6 shadow-2xl space-y-4`}>
         {/* Cabecera del Chat */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800/80 pb-3">
           <div className="flex items-center gap-3">
@@ -514,7 +556,7 @@ export default function MeetingDetails({ meeting, onUpdateMeeting, onDeleteMeeti
         {/* Chips de Preguntas Rápidas */}
         <div className="space-y-1.5">
           <span className="text-[11px] font-semibold text-slate-400">Consultas rápidas sugeridas:</span>
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-nowrap md:flex-wrap gap-2 overflow-x-auto pb-1">
             {[
               '¿Cuáles fueron los compromisos y plazos clave?',
               'Redacta un correo ejecutivo de seguimiento',
@@ -526,7 +568,7 @@ export default function MeetingDetails({ meeting, onUpdateMeeting, onDeleteMeeti
                 type="button"
                 onClick={() => askMeetingAi(chip)}
                 disabled={meetingChatLoading}
-                className="text-[11px] px-3 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-indigo-300 border border-indigo-500/20 hover:border-indigo-500/40 transition-all font-medium active:scale-95 disabled:opacity-40 text-left"
+                className="text-[11px] px-3 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-indigo-300 border border-indigo-500/20 hover:border-indigo-500/40 transition-all font-medium active:scale-95 disabled:opacity-40 text-left shrink-0 md:shrink"
               >
                 ⚡ {chip}
               </button>

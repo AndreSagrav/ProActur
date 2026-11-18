@@ -24,6 +24,12 @@
 
         </activity>
 
+        <service
+            android:name=".RecordingForegroundService"
+            android:enabled="true"
+            android:exported="false"
+            android:foregroundServiceType="microphone" />
+
         <provider
             android:name="androidx.core.content.FileProvider"
             android:authorities="${applicationId}.fileprovider"

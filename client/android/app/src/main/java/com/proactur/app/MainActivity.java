@@ -11,6 +11,7 @@ public class MainActivity extends BridgeActivity {
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
+        registerPlugin(RecordingServicePlugin.class);
         super.onCreate(savedInstanceState);
         try {
             // Adquirir WakeLock para evitar que la CPU del teléfono entre en suspensión profunda durante reuniones

@@ -821,7 +821,7 @@ const handleNewNote = (linkedMeeting = null) => {
       {/* =================================================================== */}
       {/* BARRA DE NAVEGACION FLOTANTE ULTRA-PREMIUM (< lg: móvil y tablet) */}
       {/* =================================================================== */}
-      <nav className="lg:hidden fixed bottom-3 left-3 right-3 max-w-lg mx-auto z-50 bg-slate-950/90 backdrop-blur-3xl border border-white/[0.12] rounded-3xl p-1.5 shadow-[0_20px_50px_rgba(0,0,0,0.75)] ring-1 ring-white/[0.05]">
+      <nav className="lg:hidden fixed bottom-[max(0.75rem,env(safe-area-inset-bottom))] left-3 right-3 max-w-lg mx-auto z-50 bg-slate-950/92 backdrop-blur-3xl border border-white/[0.1] rounded-3xl p-1.5 shadow-[0_20px_50px_rgba(0,0,0,0.75)] ring-1 ring-white/[0.05]">
         <div className="grid grid-cols-5 items-center gap-1">
           {/* 1. Centro de Mando */}
           <button
