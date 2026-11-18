@@ -620,7 +620,7 @@ const handleNewNote = (linkedMeeting = null) => {
               </div>
 
               {/* Lista de Reuniones */}
-              <div className={`${recordingState.isRecording ? 'hidden' : 'block'} space-y-2 max-h-[580px] overflow-y-auto pr-1`}>
+              <div className={`${recordingState.isRecording ? 'hidden' : 'block'} space-y-2.5 lg:max-h-[580px] lg:overflow-y-auto pr-1`}>
                 {filteredMeetings.length === 0 ? (
                   <div className="p-8 text-center bg-slate-900/40 border border-slate-800/60 rounded-2xl text-xs text-slate-500">
                     No hay reuniones registradas todavía. Graba o sube un audio para empezar.

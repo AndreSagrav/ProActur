@@ -106,9 +106,9 @@ export default function CalendarView({ onSelectMeeting, onCreateEvent, onEditEve
   const displayEvents = getEventsForDay(displayDay);
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 w-full">
+    <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-5 w-full">
       {/* Calendar Card (7 cols on desktop) */}
-      <div className="lg:col-span-7 bg-slate-900 border border-slate-800 rounded-2xl p-4 sm:p-5 shadow-md flex flex-col justify-between">
+      <div className="lg:col-span-7 bg-slate-900/90 border border-white/[0.08] rounded-3xl p-4 sm:p-5 shadow-xl flex flex-col justify-between">
         {/* Month Navigation */}
         <div className="flex items-center justify-between mb-5">
           <div className="flex items-center gap-3">
@@ -189,8 +189,8 @@ export default function CalendarView({ onSelectMeeting, onCreateEvent, onEditEve
       </div>
 
       {/* Day Events Column (5 cols on desktop, debajo en moviles) */}
-      <div className="lg:col-span-5 bg-slate-900/90 border border-slate-800 rounded-2xl p-4 sm:p-5 shadow-md flex flex-col">
-        <div className="flex items-center justify-between mb-3.5 pb-2.5 border-b border-slate-800/80">
+      <div className="lg:col-span-5 bg-slate-900/90 border border-white/[0.08] rounded-3xl p-4 sm:p-5 shadow-xl flex flex-col">
+        <div className="flex items-center justify-between mb-3.5 pb-2.5 border-b border-white/[0.07]">
           <div>
             <h3 className="text-xs sm:text-sm font-bold text-slate-200 flex items-center gap-2">
               <Calendar className="w-4 h-4 text-indigo-400" />
@@ -204,20 +204,20 @@ export default function CalendarView({ onSelectMeeting, onCreateEvent, onEditEve
             onClick={() => onCreateEvent?.({
               date: new Date(currentYear, currentMonth, displayDay)
             })}
-            className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-indigo-600 hover:bg-indigo-500 text-white shadow-sm transition-all"
+            className="flex items-center gap-1 px-3 py-2 rounded-xl text-xs font-bold bg-indigo-600 hover:bg-indigo-500 text-white shadow-sm transition-all active:scale-95"
           >
             <Plus className="w-3.5 h-3.5" /> Evento
           </button>
         </div>
 
         {displayEvents.length === 0 ? (
-          <div className="p-8 text-center bg-slate-800/20 border border-dashed border-slate-800 rounded-xl my-auto">
+          <div className="p-8 text-center bg-slate-800/20 border border-dashed border-slate-800 rounded-2xl my-auto">
             <Clock className="w-6 h-6 text-slate-600 mx-auto mb-2" />
             <p className="text-xs text-slate-400 font-medium">Sin eventos para este día</p>
             <p className="text-[10px] text-slate-500 mt-0.5">Toca '+ Evento' para agendar reuniones, tareas o seguimientos.</p>
           </div>
         ) : (
-          <div className="space-y-2.5 max-h-[500px] overflow-y-auto pr-1">
+          <div className="space-y-2.5 lg:max-h-[500px] lg:overflow-y-auto pr-1">
             {displayEvents.map(ev => (
                 <div
                   key={ev.id}
@@ -252,7 +252,8 @@ export default function CalendarView({ onSelectMeeting, onCreateEvent, onEditEve
 
                     <button
                       onClick={(e) => handleDeleteEvent(e, ev.id)}
-                      className="p-1 rounded text-slate-600 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-all"
+                      className="p-1.5 rounded-lg text-slate-500 hover:text-red-400 opacity-80 lg:opacity-0 lg:group-hover:opacity-100 transition-all"
+                      title="Eliminar evento"
                     >
                       <X className="w-3.5 h-3.5" />
                     </button>

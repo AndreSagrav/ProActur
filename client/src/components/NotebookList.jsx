@@ -99,7 +99,7 @@ export default function NotebookList({ onSelectNote, onNewNote }) {
   return (
     <div className="flex flex-col h-full space-y-4">
       {/* Top Action Bar */}
-      <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-4 backdrop-blur-xl shadow-xl space-y-3">
+      <div className="bg-slate-900/85 border border-white/[0.08] rounded-3xl p-4 backdrop-blur-xl shadow-xl space-y-3">
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
           <div>
             <h2 className="text-lg font-bold text-slate-100 flex items-center gap-2">
@@ -197,7 +197,7 @@ export default function NotebookList({ onSelectNote, onNewNote }) {
       </div>
 
       {/* Grid of Colorful Canvas Notebooks */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 max-h-[calc(100vh-280px)] overflow-y-auto pr-1">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-5 lg:max-h-[calc(100vh-280px)] lg:overflow-y-auto pr-1">
         {loading ? (
           <div className="col-span-full p-12 text-center text-xs text-slate-500 flex flex-col items-center gap-2">
             <div className="w-6 h-6 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin" />

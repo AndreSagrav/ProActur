@@ -71,7 +71,7 @@ export default function ChatView({ totalMeetings = 0 }) {
   };
 
   return (
-    <div className="bg-slate-900/80 border border-slate-800 rounded-3xl backdrop-blur-xl shadow-2xl flex flex-col h-[calc(100vh-160px)] min-h-[500px] overflow-hidden">
+    <div className="bg-slate-900/85 border border-white/[0.08] rounded-3xl backdrop-blur-xl shadow-2xl flex flex-col h-[calc(100dvh-205px)] lg:h-[calc(100vh-160px)] min-h-[420px] overflow-hidden">
       {/* Chat View Header */}
       <div className="p-4 sm:p-5 border-b border-slate-800 bg-slate-950/60 flex items-center justify-between">
         <div className="flex items-center gap-3">
