@@ -18,18 +18,21 @@ android {
     }
     signingConfigs {
         release {
-            def keystoreFile = file(System.getenv("KEYSTORE_FILE") ?: "${rootDir}/../../android-credentials/signing.keystore")
-            if (keystoreFile.exists()) {
+            def keystorePath = System.getenv("KEYSTORE_FILE")
+            def keystoreFile = keystorePath ? file(keystorePath) : null
+            if (keystoreFile != null && keystoreFile.exists()) {
                 storeFile keystoreFile
-                storePassword System.getenv("KEYSTORE_PASSWORD") ?: "JDHXoL8YUquN"
-                keyAlias System.getenv("KEY_ALIAS") ?: "proactur"
-                keyPassword System.getenv("KEY_PASSWORD") ?: "JDHXoL8YUquN"
+                storePassword System.getenv("KEYSTORE_PASSWORD")
+                keyAlias System.getenv("KEY_ALIAS")
+                keyPassword System.getenv("KEY_PASSWORD")
             }
         }
     }
     buildTypes {
         release {
-            signingConfig signingConfigs.release
+            if (System.getenv("KEYSTORE_FILE")) {
+                signingConfig signingConfigs.release
+            }
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
         }

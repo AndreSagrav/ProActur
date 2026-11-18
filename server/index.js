@@ -12,14 +12,43 @@ const path = require('path');
 const config = require('./config');
 
 const apiRoutes = require('./routes/api');
+const { getAuthStatus, loginHandler, requireApiAuth } = require('./middleware/authMiddleware');
 
 const app = express();
 const PORT = config.PORT;
 
-// Configuración de CORS
-const allowedOrigin = config.ALLOWED_ORIGIN || '*';
+// Cabeceras básicas de seguridad HTTP
+app.use((req, res, next) => {
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('X-Frame-Options', 'DENY');
+  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+  next();
+});
+
+// Configuración de CORS restringida a orígenes confiables (web, Capacitor Android/iOS, dev local)
+const DEFAULT_TRUSTED_ORIGINS = [
+  'https://pro-actur.vercel.app',
+  'capacitor://localhost',
+  'https://localhost',
+  'http://localhost',
+  'http://localhost:5173',
+  'http://localhost:38472',
+  'http://127.0.0.1:5173'
+];
+const envOrigins = (config.ALLOWED_ORIGIN || '')
+  .split(',')
+  .map(o => o.trim())
+  .filter(Boolean);
+const trustedOrigins = new Set([...DEFAULT_TRUSTED_ORIGINS, ...envOrigins]);
+
 app.use(cors({
-  origin: allowedOrigin === '*' ? '*' : allowedOrigin.split(','),
+  origin: (origin, callback) => {
+    // Permitir peticiones sin cabecera Origin (curl/apps nativas/same-origin) o dentro de la whitelist
+    if (!origin || trustedOrigins.has('*') || trustedOrigins.has(origin)) {
+      return callback(null, true);
+    }
+    return callback(new Error('Origen no permitido por CORS'));
+  },
   methods: ['GET', 'POST', 'PATCH', 'DELETE', 'OPTIONS'],
   credentials: true
 }));
@@ -28,9 +57,15 @@ app.use(cors({
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
-// Rutas de API
-app.use('/api', apiRoutes);
-app.use('/', apiRoutes);
+// Endpoints de autenticación y protección de API
+app.get('/api/auth/status', getAuthStatus);
+app.post('/api/auth/login', loginHandler);
+app.get('/auth/status', getAuthStatus);
+app.post('/auth/login', loginHandler);
+
+// Rutas de API protegidas por PIN cuando PROACTUR_ACCESS_PIN está configurado
+app.use('/api', requireApiAuth, apiRoutes);
+app.use('/', requireApiAuth, apiRoutes);
 
 // Servir frontend compilado si existe
 const clientDist = path.join(__dirname, '..', 'client', 'dist');

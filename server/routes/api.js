@@ -1009,7 +1009,7 @@ router.post('/finance/loans/:id/pay', async (req, res) => {
 router.get('/finance/mail-config', async (req, res) => {
   try {
     await bankMailService.syncFromCloud();
-    const config = bankMailService.getConfig();
+    const config = bankMailService.getPublicConfig();
     const logs = bankMailService.getLogs();
     res.json({ config, logs });
   } catch (err) {

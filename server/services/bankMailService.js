@@ -1,9 +1,48 @@
 const fs = require('fs');
 const path = require('path');
 const tls = require('tls');
+const crypto = require('crypto');
 const financeService = require('./financeService');
 const financeCategorizer = require('./financeCategorizer');
 const { getSupabaseClient } = require('./supabaseClient');
+
+function getEncryptionKey() {
+  const seed =
+    process.env.MAIL_CONFIG_SECRET ||
+    process.env.AUTH_SECRET ||
+    process.env.SUPABASE_SERVICE_ROLE_KEY ||
+    process.env.GEMINI_API_KEY ||
+    'proactur-local-fallback-key';
+  return crypto.createHash('sha256').update(String(seed)).digest();
+}
+
+function encryptSecret(plainText) {
+  if (!plainText) return '';
+  if (String(plainText).startsWith('enc:v1:')) return String(plainText);
+  const iv = crypto.randomBytes(12);
+  const cipher = crypto.createCipheriv('aes-256-gcm', getEncryptionKey(), iv);
+  const encrypted = Buffer.concat([cipher.update(String(plainText), 'utf8'), cipher.final()]);
+  const tag = cipher.getAuthTag();
+  return `enc:v1:${iv.toString('hex')}:${tag.toString('hex')}:${encrypted.toString('hex')}`;
+}
+
+function decryptSecret(value) {
+  if (!value) return '';
+  const str = String(value);
+  if (!str.startsWith('enc:v1:')) return str; // Compatibilidad con configuraciones previas en texto plano
+  try {
+    const parts = str.split(':');
+    if (parts.length !== 5) return '';
+    const iv = Buffer.from(parts[2], 'hex');
+    const tag = Buffer.from(parts[3], 'hex');
+    const encrypted = Buffer.from(parts[4], 'hex');
+    const decipher = crypto.createDecipheriv('aes-256-gcm', getEncryptionKey(), iv);
+    decipher.setAuthTag(tag);
+    return Buffer.concat([decipher.update(encrypted), decipher.final()]).toString('utf8');
+  } catch (_) {
+    return '';
+  }
+}
 
 const CONFIG_FILE = process.env.VERCEL
   ? path.join('/tmp', 'mail_config.json')
@@ -127,23 +166,55 @@ class BankMailService {
     try {
       const supabase = getSupabaseClient();
       if (!supabase) return;
-      const { data, error } = await supabase
-        .from('meetings')
-        .select('transcript')
-        .eq('id', '__sys_mail_config__')
+
+      let cloudConfig = null;
+      const { data: settingRow, error: settingErr } = await supabase
+        .from('app_settings')
+        .select('value')
+        .eq('key', 'bank_mail_config')
         .single();
 
-      if (!error && data && data.transcript) {
-        const cloudConfig = JSON.parse(data.transcript);
-        if (cloudConfig && cloudConfig.email) {
-          const current = this.getConfig();
-          const merged = { ...current, ...cloudConfig };
-          try {
-            const dir = path.dirname(CONFIG_FILE);
-            if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-            fs.writeFileSync(CONFIG_FILE, JSON.stringify(merged, null, 2), 'utf8');
-          } catch (_) {}
+      if (!settingErr && settingRow && settingRow.value) {
+        cloudConfig = typeof settingRow.value === 'string' ? JSON.parse(settingRow.value) : settingRow.value;
+      } else if (settingErr && (settingErr.code === 'PGRST205' || String(settingErr.message || '').includes('app_settings'))) {
+        // Fallback temporal mientras no exista la tabla app_settings en Supabase
+        const { data, error } = await supabase
+          .from('meetings')
+          .select('transcript')
+          .eq('id', '__sys_mail_config__')
+          .single();
+        if (!error && data && data.transcript) {
+          cloudConfig = JSON.parse(data.transcript);
         }
+      }
+
+      if (cloudConfig && cloudConfig.email) {
+        const current = this.getConfig();
+        const decryptedCloudPwd = decryptSecret(cloudConfig.appPassword || '');
+        const merged = {
+          ...current,
+          ...cloudConfig,
+          appPassword: encryptSecret(decryptedCloudPwd || current.appPassword || '')
+        };
+        try {
+          const dir = path.dirname(CONFIG_FILE);
+          if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+          fs.writeFileSync(CONFIG_FILE, JSON.stringify(merged, null, 2), 'utf8');
+        } catch (_) {}
+      }
+
+      // Sincronizar logs de conciliación desde app_settings si existen
+      const { data: logsRow, error: logsErr } = await supabase
+        .from('app_settings')
+        .select('value')
+        .eq('key', 'bank_mail_logs')
+        .single();
+      if (!logsErr && logsRow && Array.isArray(logsRow.value)) {
+        try {
+          const dir = path.dirname(LOGS_FILE);
+          if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+          fs.writeFileSync(LOGS_FILE, JSON.stringify(logsRow.value.slice(0, 50), null, 2), 'utf8');
+        } catch (_) {}
       }
     } catch (_) {}
   }
@@ -152,13 +223,40 @@ class BankMailService {
     try {
       const supabase = getSupabaseClient();
       if (!supabase) return;
-      await supabase.from('meetings').upsert({
-        id: '__sys_mail_config__',
-        title: '[SYSTEM] Bank Mail Configuration',
-        summary: 'Cloud persistence for Gmail sync credentials across web & mobile',
-        transcript: JSON.stringify(cfg),
+      const encryptedPayload = {
+        ...cfg,
+        appPassword: encryptSecret(cfg.appPassword || '')
+      };
+      delete encryptedPayload.appPasswordMasked;
+      delete encryptedPayload.hasAppPassword;
+
+      const { error } = await supabase.from('app_settings').upsert({
+        key: 'bank_mail_config',
+        value: encryptedPayload,
         updated_at: new Date().toISOString()
-      }, { onConflict: 'id' });
+      }, { onConflict: 'key' });
+
+      if (error && (error.code === 'PGRST205' || String(error.message || '').includes('app_settings'))) {
+        await supabase.from('meetings').upsert({
+          id: '__sys_mail_config__',
+          title: '[SYSTEM] Bank Mail Configuration',
+          summary: 'Encrypted cloud persistence for Gmail sync credentials',
+          transcript: JSON.stringify(encryptedPayload),
+          updated_at: new Date().toISOString()
+        }, { onConflict: 'id' });
+      }
+    } catch (_) {}
+  }
+
+  async saveLogsToCloud(logs) {
+    try {
+      const supabase = getSupabaseClient();
+      if (!supabase) return;
+      await supabase.from('app_settings').upsert({
+        key: 'bank_mail_logs',
+        value: logs.slice(0, 50),
+        updated_at: new Date().toISOString()
+      }, { onConflict: 'key' });
     } catch (_) {}
   }
 
@@ -193,33 +291,58 @@ class BankMailService {
       if (fs.existsSync(CONFIG_FILE)) {
         const raw = fs.readFileSync(CONFIG_FILE, 'utf8');
         const parsed = JSON.parse(raw);
+        const decryptedPassword = decryptSecret(parsed.appPassword || '');
         return {
           ...DEFAULT_CONFIG,
           ...parsed,
-          appPasswordMasked: parsed.appPassword ? '••••••••••••••••' : ''
+          appPassword: decryptedPassword,
+          hasAppPassword: Boolean(decryptedPassword),
+          appPasswordMasked: decryptedPassword ? '••••••••••••••••' : ''
         };
       }
     } catch (_) {}
-    return DEFAULT_CONFIG;
+    return { ...DEFAULT_CONFIG, hasAppPassword: false, appPasswordMasked: '' };
+  }
+
+  getPublicConfig() {
+    const cfg = this.getConfig();
+    return {
+      ...cfg,
+      appPassword: '',
+      hasAppPassword: Boolean(cfg.appPassword),
+      appPasswordMasked: cfg.appPassword ? '••••••••••••••••' : ''
+    };
   }
 
   async saveConfig(newConfig) {
     const current = this.getConfig();
+    const plainPassword =
+      newConfig.appPassword !== undefined && newConfig.appPassword !== '••••••••••••••••'
+        ? newConfig.appPassword.replace(/\s+/g, '')
+        : current.appPassword;
+
     const updated = {
       ...current,
       email: newConfig.email !== undefined ? newConfig.email.trim() : current.email,
-      appPassword: newConfig.appPassword !== undefined && newConfig.appPassword !== '••••••••••••••••'
-        ? newConfig.appPassword.replace(/\s+/g, '')
-        : current.appPassword,
+      appPassword: plainPassword,
       enabled: newConfig.enabled !== undefined ? !!newConfig.enabled : current.enabled,
       autoRecord: newConfig.autoRecord !== undefined ? !!newConfig.autoRecord : current.autoRecord,
       syncStartDate: newConfig.syncStartDate !== undefined ? newConfig.syncStartDate : current.syncStartDate,
       syncIntervalMinutes: Number(newConfig.syncIntervalMinutes) || 15
     };
 
-    fs.writeFileSync(CONFIG_FILE, JSON.stringify(updated, null, 2), 'utf8');
+    const diskPayload = {
+      ...updated,
+      appPassword: encryptSecret(plainPassword)
+    };
+    delete diskPayload.appPasswordMasked;
+    delete diskPayload.hasAppPassword;
+
+    const dir = path.dirname(CONFIG_FILE);
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(CONFIG_FILE, JSON.stringify(diskPayload, null, 2), 'utf8');
     await this.saveConfigToCloud(updated);
-    return this.getConfig();
+    return this.getPublicConfig();
   }
 
   getLogs() {
@@ -268,8 +391,11 @@ class BankMailService {
         subject: cleanSubject,
         from: cleanFrom
       });
-      const validLogs = logs.filter(l => l.status === 'recorded' || l.status === 'pending_confirmation');
-      fs.writeFileSync(LOGS_FILE, JSON.stringify(validLogs.slice(0, 50), null, 2), 'utf8');
+      const validLogs = logs.filter(l => l.status === 'recorded' || l.status === 'pending_confirmation').slice(0, 50);
+      const dir = path.dirname(LOGS_FILE);
+      if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+      fs.writeFileSync(LOGS_FILE, JSON.stringify(validLogs, null, 2), 'utf8');
+      this.saveLogsToCloud(validLogs);
     } catch (_) {}
   }
 

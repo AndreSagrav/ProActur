@@ -5,7 +5,9 @@ require('dotenv').config();
 module.exports = {
   PORT: process.env.PORT || 3001,
   NODE_ENV: process.env.NODE_ENV || 'production',
-  ALLOWED_ORIGIN: process.env.ALLOWED_ORIGIN || '*',
+  ALLOWED_ORIGIN: process.env.ALLOWED_ORIGIN || '',
+  PROACTUR_ACCESS_PIN: process.env.PROACTUR_ACCESS_PIN || '',
+  AUTH_SECRET: process.env.AUTH_SECRET || '',
 
   SUPABASE_URL: process.env.SUPABASE_URL || '',
   SUPABASE_ANON_KEY: process.env.SUPABASE_ANON_KEY || '',
