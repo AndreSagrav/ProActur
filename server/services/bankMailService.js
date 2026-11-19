@@ -4,7 +4,32 @@ const tls = require('tls');
 const crypto = require('crypto');
 const financeService = require('./financeService');
 const financeCategorizer = require('./financeCategorizer');
+const financeStatementService = require('./financeStatementService');
 const { getSupabaseClient } = require('./supabaseClient');
+
+function extractAttachmentsFromRawMime(rawMime = '') {
+  const attachments = [];
+  if (!rawMime) return attachments;
+
+  // Buscar bloques MIME con Content-Transfer-Encoding: base64 y PDF/Imagen
+  const partRegex = /Content-Type:\s*(application\/pdf|image\/(?:png|jpeg|jpg|webp))[^\r\n]*(?:;[^\r\n]*)*[\s\S]*?Content-Transfer-Encoding:\s*base64[\r\n]+([\s\S]*?)(?=\r?\n--[A-Za-z0-9'()+_,\-./:=? ]+|\r?\n\)\r?\n|$)/gi;
+  let match;
+  while ((match = partRegex.exec(rawMime)) !== null) {
+    const rawMimeType = match[1].toLowerCase() === 'image/jpg' ? 'image/jpeg' : match[1].toLowerCase();
+    const headerBlock = match[0].slice(0, match[0].indexOf('base64'));
+    const nameMatch = headerBlock.match(/(?:filename|name)\s*=\s*"?([^"\r\n;]+)"?/i);
+    const fileName = nameMatch ? nameMatch[1].trim() : (rawMimeType === 'application/pdf' ? 'comprobante.pdf' : 'comprobante.png');
+    const cleanB64 = match[2].replace(/[^A-Za-z0-9+/=]/g, '');
+    if (cleanB64.length > 200) {
+      attachments.push({
+        mimeType: rawMimeType,
+        fileName,
+        fileBase64: cleanB64
+      });
+    }
+  }
+  return attachments;
+}
 
 function getEncryptionKey() {
   const seed =
@@ -461,6 +486,7 @@ class BankMailService {
     else if (lower.includes('davivienda')) entity = 'Davivienda';
     else if (lower.includes('scotiabank')) entity = 'Scotiabank';
     else if (lower.includes('paypal')) entity = 'PayPal';
+    else if (from.includes('sonivision') || lower.includes('sonivision')) entity = 'Sonivision';
 
     let amount = 0;
     let currency = 'CRC';
@@ -601,7 +627,16 @@ class BankMailService {
     }
     merchant = (merchant || entity).replace(/Ciudad\s+y\s+pa[ií]s.*$/i, '').trim();
 
-    if (lower.includes('deposito') || lower.includes('transferencia recibida') || lower.includes('credito a su cuenta') || lower.includes('pago recibido') || lower.includes('sinpe movil recibido')) {
+    if (
+      entity === 'Sonivision' ||
+      lower.includes('deposito') ||
+      lower.includes('transferencia recibida') ||
+      lower.includes('credito a su cuenta') ||
+      lower.includes('pago recibido') ||
+      lower.includes('sinpe movil recibido') ||
+      lower.includes('comprobantes de pago') ||
+      lower.includes('comprobante de pago')
+    ) {
       type = 'ingreso';
     }
 
@@ -854,6 +889,111 @@ class BankMailService {
     });
   }
 
+  isAttachmentCandidate(from = '', subject = '', dateIso = '', config = {}, textRes = {}) {
+    const cleanFrom = decodeMimeWords(from).toLowerCase();
+    const cleanSubj = decodeMimeWords(subject).toLowerCase();
+
+    if (config.syncStartDate && dateIso) {
+      if (dateIso.slice(0, 10) < config.syncStartDate) return false;
+    }
+
+    const emailKey = `${cleanFrom}|${cleanSubj}|${String(dateIso).slice(0, 10)}`;
+    const existingLogs = this.getLogs();
+    if (existingLogs.some(l => l.emailKey === emailKey)) {
+      return false;
+    }
+
+    const isTrustedSender =
+      cleanFrom.includes('sonivision.co.cr') ||
+      cleanFrom.includes('coopenae.fi.cr') ||
+      cleanFrom.includes('baccredomatic') ||
+      cleanFrom.includes('bancopopular') ||
+      cleanFrom.includes('bp.fi.cr') ||
+      cleanFrom.includes('bancobcr') ||
+      cleanFrom.includes('davivienda') ||
+      cleanFrom.includes('scotiabank');
+
+    const looksLikeStatementOrReceipt =
+      cleanSubj.includes('estado de cuenta') ||
+      cleanSubj.includes('comprobante') ||
+      cleanSubj.includes('recibo de pago') ||
+      cleanSubj.includes('liquidaci');
+
+    return (isTrustedSender && (textRes.status === 'discarded' || looksLikeStatementOrReceipt)) || looksLikeStatementOrReceipt;
+  }
+
+  async processEmailAttachments({ from = '', subject = '', date = '', rawMime = '' }) {
+    const cleanFrom = decodeMimeWords(from);
+    const cleanSubj = decodeMimeWords(subject);
+    const lowerFrom = cleanFrom.toLowerCase();
+    const emailKey = `${lowerFrom}|${cleanSubj.toLowerCase()}|${String(date).slice(0, 10)}`;
+
+    const attachments = extractAttachmentsFromRawMime(rawMime);
+    if (attachments.length === 0) return { recorded: 0 };
+
+    const financeData = await financeService.getAllData();
+    const accounts = financeData.accounts || [];
+    const primaryDebit = accounts.find(a => a.type === 'debito') || accounts[0];
+
+    let totalImported = 0;
+
+    for (const att of attachments) {
+      try {
+        const preview = await financeStatementService.previewStatementImport({
+          fileBase64: att.fileBase64,
+          mimeType: att.mimeType,
+          fileName: att.fileName
+        });
+
+        let targetAccountId = preview.matchedAccountId;
+        let sourceAccountId = null;
+        let txs = preview.transactions || [];
+
+        // Regla dedicada: Comprobantes de pago de Sonivision (financiero3@sonivision.co.cr) -> Ingreso a Débito
+        if (lowerFrom.includes('sonivision')) {
+          targetAccountId = primaryDebit?.id || targetAccountId;
+          txs = txs.map(t => ({
+            ...t,
+            type: 'ingreso',
+            category: t.category && t.category !== 'Varios' ? t.category : 'Honorarios Profesionales',
+            merchant: t.merchant || 'Sonivision'
+          }));
+        } else if (preview.documentType === 'payment_receipt' && primaryDebit && targetAccountId !== primaryDebit.id) {
+          sourceAccountId = primaryDebit.id;
+        }
+
+        const readyTxs = txs.filter(t => t.selected && !t.alreadyRecorded && Number(t.amount) > 0);
+        if (readyTxs.length > 0 && targetAccountId) {
+          const applied = await financeStatementService.applyStatementImport({
+            targetAccountId,
+            sourceAccountId,
+            documentType: preview.documentType,
+            statementInfo: preview.statementInfo,
+            transactions: readyTxs
+          });
+          totalImported += applied.importedCount || 0;
+        }
+      } catch (err) {
+        console.warn('[MailAttachment] Error procesando adjunto:', err.message);
+      }
+    }
+
+    if (totalImported > 0) {
+      this.addLog({
+        status: 'recorded',
+        emailKey,
+        from: cleanFrom,
+        subject: `${cleanSubj} [Adjunto procesado: ${totalImported} mov.]`,
+        amount: totalImported,
+        currency: 'MOV',
+        accountName: lowerFrom.includes('sonivision') ? (primaryDebit?.name || 'Débito') : 'Estado/Comprobante',
+        type: lowerFrom.includes('sonivision') ? 'ingreso' : 'gasto'
+      });
+    }
+
+    return { recorded: totalImported };
+  }
+
   /**
    * Sincronización real de correos bancarios vía IMAP SSL
    */
@@ -995,16 +1135,48 @@ class BankMailService {
                 const from = fromMatch ? fromMatch[1].trim() : '';
                 const date = dateMatch ? new Date(dateMatch[1].trim()).toISOString() : new Date().toISOString();
 
+                let textRes = { status: 'discarded' };
                 try {
-                  const res = await this.processIncomingEmail({
+                  textRes = await this.processIncomingEmail({
                     subject,
                     from,
                     date,
                     body: currentChunk
                   });
                   processedCount++;
-                  if (res.status === 'recorded') recordedCount++;
+                  if (textRes.status === 'recorded') recordedCount++;
                 } catch (_) {}
+
+                // Si es de Sonivision, Coopenae o parece estado de cuenta/comprobante con adjunto PDF/imagen
+                if (this.isAttachmentCandidate(from, subject, date, config, textRes)) {
+                  step = 'FETCHING_FULL';
+                  socket._pendingEmailMeta = { subject, from, date, id: msgIds[currentIndex] };
+                  sendCmd(`ff${currentIndex}`, `FETCH ${msgIds[currentIndex]} (BODY.PEEK[])`);
+                } else {
+                  currentIndex++;
+                  fetchNext();
+                }
+              }
+            } else if (step === 'FETCHING_FULL') {
+              const tag = `ff${currentIndex}`;
+              if (buffer.includes(`${tag} OK`) || buffer.length > 4 * 1024 * 1024) {
+                const rawMime = buffer;
+                buffer = '';
+                const meta = socket._pendingEmailMeta || {};
+                socket._pendingEmailMeta = null;
+                step = 'FETCHING';
+
+                if (rawMime.length <= 4 * 1024 * 1024) {
+                  try {
+                    const attRes = await this.processEmailAttachments({
+                      from: meta.from || '',
+                      subject: meta.subject || '',
+                      date: meta.date || new Date().toISOString(),
+                      rawMime
+                    });
+                    recordedCount += attRes.recorded || 0;
+                  } catch (_) {}
+                }
 
                 currentIndex++;
                 fetchNext();
