@@ -287,17 +287,33 @@ class BankMailService {
         } catch (_) {}
       }
 
-      // Sincronizar logs de conciliación desde app_settings si existen
+      // Sincronizar logs de conciliación desde app_settings (o respaldo en meetings)
+      let cloudLogs = null;
       const { data: logsRow, error: logsErr } = await supabase
         .from('app_settings')
         .select('value')
         .eq('key', 'bank_mail_logs')
         .single();
       if (!logsErr && logsRow && Array.isArray(logsRow.value)) {
+        cloudLogs = logsRow.value;
+      } else if (logsErr && (logsErr.code === 'PGRST205' || String(logsErr.message || '').includes('app_settings'))) {
+        const { data: fallbackLogsRow } = await supabase
+          .from('meetings')
+          .select('transcript')
+          .eq('id', '__sys_mail_logs__')
+          .single();
+        if (fallbackLogsRow && fallbackLogsRow.transcript) {
+          try {
+            const parsedLogs = JSON.parse(fallbackLogsRow.transcript);
+            if (Array.isArray(parsedLogs)) cloudLogs = parsedLogs;
+          } catch (_) {}
+        }
+      }
+      if (Array.isArray(cloudLogs)) {
         try {
           const dir = path.dirname(LOGS_FILE);
           if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-          fs.writeFileSync(LOGS_FILE, JSON.stringify(logsRow.value.slice(0, 50), null, 2), 'utf8');
+          fs.writeFileSync(LOGS_FILE, JSON.stringify(cloudLogs.slice(0, 50), null, 2), 'utf8');
         } catch (_) {}
       }
     } catch (_) {}
@@ -336,11 +352,22 @@ class BankMailService {
     try {
       const supabase = getSupabaseClient();
       if (!supabase) return;
-      await supabase.from('app_settings').upsert({
+      const sliced = logs.slice(0, 50);
+      const { error } = await supabase.from('app_settings').upsert({
         key: 'bank_mail_logs',
-        value: logs.slice(0, 50),
+        value: sliced,
         updated_at: new Date().toISOString()
       }, { onConflict: 'key' });
+
+      if (error && (error.code === 'PGRST205' || String(error.message || '').includes('app_settings'))) {
+        await supabase.from('meetings').upsert({
+          id: '__sys_mail_logs__',
+          title: '[SYSTEM] Bank Mail Sync Logs',
+          summary: 'Cloud persistence for email deduplication logs',
+          transcript: JSON.stringify(sliced),
+          updated_at: new Date().toISOString()
+        }, { onConflict: 'id' });
+      }
     } catch (_) {}
   }
 
@@ -497,7 +524,13 @@ class BankMailService {
       'alerta de seguridad',
       'newsletter',
       'promocion especial de bienvenida',
-      'actualizacion de terminos'
+      'actualizacion de terminos',
+      'transaccion declinada',
+      'transacción declinada',
+      'declinada',
+      'transaccion rechazada',
+      'transacción rechazada',
+      'compra denegada'
     ];
     return discardKeywords.some(kw => text.includes(kw));
   }
@@ -699,11 +732,18 @@ class BankMailService {
       type = 'ingreso';
     }
 
-    // Si no logramos monto válido, no se considera transacción contable
+    // Si no logramos monto válido o la entidad/comercio es genérica sin identificador, descartar
     if (!amount || isNaN(amount) || amount <= 0) {
       return {
         matched: false,
         reason: 'No se detectó un monto financiero ejecutable'
+      };
+    }
+
+    if (entity === 'Comercio / Banco' && !last4 && merchant === 'Comercio / Banco') {
+      return {
+        matched: false,
+        reason: 'Entidad o comercio no identificable'
       };
     }
 
@@ -777,16 +817,34 @@ class BankMailService {
       }
     }
 
-    // Si no coincide por last4, buscar por entidad o usar la primera cuenta
+    // Si no coincide por last4, buscar por entidad (incluyendo alias Coopenae <-> Wink) evitando cuentas ahorro/objetivo
+    const nonSavingsAccounts = accounts.filter(a => a.type !== 'ahorro' && a.type !== 'objetivo');
+    const candidatePool = nonSavingsAccounts.length > 0 ? nonSavingsAccounts : accounts;
+
     if (!targetAccount) {
-      targetAccount = accounts.find(a => {
+      const parseEnt = (parsed.entity || '').toLowerCase();
+      if (parseEnt.includes('coopenae') || parseEnt.includes('wink')) {
+        const winkCoopenae = candidatePool.filter(a => {
+          const hay = `${a.entity || ''} ${a.name || ''}`.toLowerCase();
+          return hay.includes('coopenae') || hay.includes('wink');
+        });
+        if (parsed.type === 'gasto' || parsed.isCardPayment) {
+          targetAccount = winkCoopenae.find(a => a.type === 'credito') || winkCoopenae[0];
+        } else {
+          targetAccount = winkCoopenae.find(a => a.type === 'debito') || winkCoopenae[0];
+        }
+      }
+    }
+
+    if (!targetAccount) {
+      targetAccount = candidatePool.find(a => {
         const accEnt = (a.entity || a.name || '').toLowerCase();
         const parseEnt = (parsed.entity || '').toLowerCase();
         return accEnt.includes(parseEnt) || parseEnt.includes(accEnt);
       });
     }
     if (!targetAccount) {
-      targetAccount = accounts[0];
+      targetAccount = candidatePool.find(a => a.type === 'debito') || candidatePool[0];
     }
 
     // CONTROL ESTRICTO Y UNIVERSAL DE DUPLICADOS:

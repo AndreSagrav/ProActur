@@ -138,7 +138,7 @@ Reglas:
     const accounts = financeData.accounts || [];
     const existingTxs = financeData.transactions || [];
 
-    // Detectar cuenta destino automática por accountId, cardLast4 o banco
+    // Detectar cuenta destino automática por accountId, cardLast4 o banco (con alias Coopenae <-> Wink)
     let matchedAccount = accountId ? accounts.find(a => a.id === accountId) : null;
     if (!matchedAccount && parsed.cardLast4) {
       const last4 = String(parsed.cardLast4).trim();
@@ -148,11 +148,24 @@ Reglas:
     }
     if (!matchedAccount && parsed.bank) {
       const bankLower = parsed.bank.toLowerCase();
-      matchedAccount = accounts.find(a =>
-        parsed.documentType === 'credit_card_statement'
-          ? a.type === 'credito' && (a.name || '').toLowerCase().includes(bankLower.split(' ')[0])
-          : (a.name || '').toLowerCase().includes(bankLower.split(' ')[0])
-      );
+      const bankAliases = (bankLower.includes('coopenae') || bankLower.includes('wink'))
+        ? ['coopenae', 'wink']
+        : [bankLower.split(' ')[0]];
+
+      const matchesAlias = (a) => {
+        const hay = `${a.name || ''} ${a.entity || ''}`.toLowerCase();
+        return bankAliases.some(alias => alias && hay.includes(alias));
+      };
+
+      if (parsed.documentType === 'credit_card_statement') {
+        matchedAccount = accounts.find(a => a.type === 'credito' && matchesAlias(a))
+          || accounts.find(a => a.type === 'credito');
+      } else {
+        matchedAccount = accounts.find(a => a.type !== 'ahorro' && a.type !== 'objetivo' && matchesAlias(a));
+      }
+    }
+    if (!matchedAccount && parsed.documentType === 'credit_card_statement') {
+      matchedAccount = accounts.find(a => a.type === 'credito');
     }
 
     const enrichedTransactions = (parsed.transactions || []).map((tx, idx) => {
@@ -161,9 +174,9 @@ Reglas:
       const normMerch = normalizeMerchant(tx.merchant || tx.description);
 
       const duplicate = existingTxs.find(ex => {
-        const sameAmt = Math.abs(Number(ex.amount) - cleanAmount) < 0.02;
+        const sameAmt = Math.abs(Number(ex.amount) - cleanAmount) < 0.5;
         const sameCurr = (ex.currency || 'CRC').toUpperCase() === cleanCurrency;
-        const closeDate = isSameOrCloseDate(ex.date, tx.date, 2);
+        const closeDate = isSameOrCloseDate(ex.date, tx.date, 3);
         const exNorm = normalizeMerchant(ex.merchant || ex.note);
         const similarMerch =
           !normMerch || !exNorm || exNorm.includes(normMerch.slice(0, 6)) || normMerch.includes(exNorm.slice(0, 6));
@@ -192,12 +205,16 @@ Reglas:
       };
     });
 
+    const fallbackAcc = parsed.documentType === 'credit_card_statement'
+      ? (accounts.find(a => a.type === 'credito') || accounts.find(a => a.type === 'debito') || accounts[0])
+      : (accounts.find(a => a.type === 'debito') || accounts[0]);
+
     return {
       documentType: parsed.documentType || 'credit_card_statement',
       bank: parsed.bank || 'Banco',
       cardLast4: parsed.cardLast4 || null,
       accountHint: parsed.accountHint || null,
-      matchedAccountId: matchedAccount?.id || accounts[0]?.id || '',
+      matchedAccountId: matchedAccount?.id || fallbackAcc?.id || '',
       statementInfo: parsed.statementInfo || {},
       transactions: enrichedTransactions,
       summary: {
@@ -223,6 +240,8 @@ Reglas:
     let importedCount = 0;
     let skippedCount = 0;
 
+    const isClosedCreditStatement = documentType === 'credit_card_statement';
+
     for (const item of transactions) {
       if (!item || item.selected === false || Number(item.amount) <= 0) {
         skippedCount++;
@@ -234,8 +253,8 @@ Reglas:
         : (item.date || new Date().toISOString());
 
       if (item.type === 'pago_tarjeta' || documentType === 'payment_receipt') {
-        // 1. Si hay cuenta origen (débito), registrar salida de dinero
-        if (sourceAcc && sourceAcc.id !== targetAccountId) {
+        // 1. Si hay cuenta origen (débito) y es comprobante real de pago, registrar salida de dinero
+        if (sourceAcc && sourceAcc.id !== targetAccountId && !isClosedCreditStatement) {
           await financeService.addTransaction({
             accountId: sourceAcc.id,
             type: 'gasto',
@@ -248,7 +267,7 @@ Reglas:
             date: isoDate
           });
         }
-        // 2. Registrar abono (ingreso que reduce deuda) en la tarjeta de crédito destino
+        // 2. Registrar abono en la tarjeta de crédito destino (sin mutar balance si es histórico de estado de cuenta)
         if (targetAcc) {
           await financeService.addTransaction({
             accountId: targetAcc.id,
@@ -259,6 +278,7 @@ Reglas:
             amount: item.amount,
             currency: item.currency || 'CRC',
             source: 'statement_import',
+            skipBalanceMutation: isClosedCreditStatement,
             date: isoDate
           });
         }
@@ -273,6 +293,7 @@ Reglas:
           amount: item.amount,
           currency: item.currency || 'CRC',
           source: 'statement_import',
+          skipBalanceMutation: isClosedCreditStatement,
           date: isoDate
         });
         importedCount++;

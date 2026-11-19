@@ -197,10 +197,10 @@ class FinanceService {
     const liquidOperatingAccounts = enrichedAccounts.filter(a => a.type === 'debito' || a.type === 'efectivo');
     const liquidBalanceCRC = liquidOperatingAccounts
       .filter(a => (a.currency || 'CRC').toUpperCase() === 'CRC')
-      .reduce((sum, a) => sum + (Number(a.balance) || 0), 0);
+      .reduce((sum, a) => sum + Math.max(0, Number(a.balance) || 0), 0);
     const liquidBalanceUSD = liquidOperatingAccounts
       .filter(a => (a.currency || '').toUpperCase() === 'USD')
-      .reduce((sum, a) => sum + (Number(a.balance) || 0), 0);
+      .reduce((sum, a) => sum + Math.max(0, Number(a.balance) || 0), 0);
 
     const savingsAccounts = enrichedAccounts.filter(a => a.type === 'ahorro' || a.type === 'objetivo' || a.type === 'cdp' || a.type === 'inversion');
     const savingsBalanceCRC = savingsAccounts
@@ -236,11 +236,34 @@ class FinanceService {
     const liquidAccountIds = new Set(enrichedAccounts.filter(a => a.type !== 'credito').map(a => a.id));
     const creditAccountIds = new Set(creditAccounts.map(a => a.id));
 
-    // Egresos líquidos: ÚNICAMENTE los que salen de cuentas de débito o efectivo
-    const liquidExpenses = (data.transactions || []).filter(t => t.type === 'gasto' && liquidAccountIds.has(t.accountId || t.account_id));
-    // Consumos en tarjetas de crédito: deuda asumida en tarjeta (tratamiento diferenciado)
-    const creditExpenses = (data.transactions || []).filter(t => t.type === 'gasto' && creditAccountIds.has(t.accountId || t.account_id));
-    const incomes = (data.transactions || []).filter(t => t.type === 'ingreso');
+    // Filtrar estrictamente por mes y año objetivo en zona horaria Costa Rica (UTC-6)
+    const crNow = new Date(Date.now() - 6 * 3600 * 1000);
+    const targetMonth = month ? Number(month) : (crNow.getUTCMonth() + 1);
+    const targetYear = year ? Number(year) : crNow.getUTCFullYear();
+
+    const monthTransactions = (data.transactions || []).filter(t => {
+      if (!t.date) return false;
+      const d = new Date(t.date);
+      if (isNaN(d.getTime())) return false;
+      const dCr = new Date(d.getTime() - 6 * 3600 * 1000);
+      return dCr.getUTCFullYear() === targetYear && (dCr.getUTCMonth() + 1) === targetMonth;
+    });
+
+    // Egresos líquidos: ÚNICAMENTE los del mes actual que salen de cuentas de débito o efectivo (excluyendo pagos internos de tarjeta)
+    const liquidExpenses = monthTransactions.filter(t =>
+      t.type === 'gasto' &&
+      liquidAccountIds.has(t.accountId || t.account_id) &&
+      t.category !== 'Pago de Tarjeta'
+    );
+    // Consumos en tarjetas de crédito del mes actual
+    const creditExpenses = monthTransactions.filter(t =>
+      t.type === 'gasto' &&
+      creditAccountIds.has(t.accountId || t.account_id)
+    );
+    const incomes = monthTransactions.filter(t =>
+      t.type === 'ingreso' &&
+      t.category !== 'Pago de Tarjeta'
+    );
 
     const monthExpense = liquidExpenses.reduce((acc, t) => acc + (Number(t.amount) || 0), 0);
     const monthCreditExpense = creditExpenses.reduce((acc, t) => acc + (Number(t.amount) || 0), 0);
@@ -664,9 +687,9 @@ class FinanceService {
 
     data.transactions.unshift(newTx);
 
-    // Actualizar saldo de la cuenta correspondiente (con conversión automática de divisa si difiere)
+    // Actualizar saldo de la cuenta correspondiente (salvo importación histórica ya cerrada al corte)
     const targetAccount = data.accounts.find(a => a.id === newTx.accountId);
-    if (targetAccount) {
+    if (targetAccount && !tx.skipBalanceMutation) {
       const EXCHANGE_RATE = 520; // 1 USD ≈ 520 CRC (promedio bancario Costa Rica)
       let effectiveAmount = newTx.amount;
 
@@ -690,9 +713,13 @@ class FinanceService {
           targetAccount.balance = Math.max(0, (Number(targetAccount.balance) || 0) - effectiveAmount);
         }
       } else {
-        // En cuenta de débito: un gasto resta; un ingreso suma
+        // En cuenta de débito/efectivo: nunca bajar de 0 para evitar saldos negativos artificiales por fondeo no registrado
         if (newTx.type === 'gasto') {
-          targetAccount.balance = (Number(targetAccount.balance) || 0) - effectiveAmount;
+          if (targetAccount.type === 'debito' || targetAccount.type === 'efectivo') {
+            targetAccount.balance = Math.max(0, (Number(targetAccount.balance) || 0) - effectiveAmount);
+          } else {
+            targetAccount.balance = (Number(targetAccount.balance) || 0) - effectiveAmount;
+          }
         } else if (newTx.type === 'ingreso') {
           targetAccount.balance = (Number(targetAccount.balance) || 0) + effectiveAmount;
         }
@@ -714,7 +741,7 @@ class FinanceService {
           amount: newTx.amount,
           date: newTx.date
         });
-        if (targetAccount) {
+        if (targetAccount && !tx.skipBalanceMutation) {
           await supabase.from('finance_accounts').update({ balance: targetAccount.balance }).eq('id', targetAccount.id);
         }
       } catch (_) {}

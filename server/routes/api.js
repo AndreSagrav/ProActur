@@ -8,7 +8,7 @@ const config = require('../config');
 const aiService = require('../services/aiService');
 const notionService = require('../services/notionService');
 const storageService = require('../services/storageService');
-const { checkSupabaseStatus, keepAliveSupabase } = require('../services/supabaseClient');
+const { checkSupabaseStatus, keepAliveSupabase, getSupabaseClient } = require('../services/supabaseClient');
 const eventService = require('../services/eventService');
 const noteService = require('../services/noteService');
 const financeService = require('../services/financeService');
@@ -1125,6 +1125,97 @@ router.post('/finance/apply-statement', async (req, res) => {
     res.json(result);
   } catch (err) {
     res.status(500).json({ error: err.message });
+  }
+});
+
+// SANEAMIENTO CONTABLE: elimina duplicados/basura, reasigna Estado de Cuenta Coopenae a Wink Crédito 7017 y restaura saldos reales
+router.post('/finance/repair-ledger', async (req, res) => {
+  try {
+    const supabase = getSupabaseClient();
+    const trashIds = [
+      'tx_1795101095398_cf066',
+      'tx_1795101095201_gnjjw',
+      'tx_1793231976433',
+      'tx_1793231965714',
+      'tx_1795022842924'
+    ];
+
+    const restoredBalances = {
+      acc_1792898165250: 2991.11,
+      acc_1792898166116: 40079.02,
+      acc_1792898165751: 407.76,
+      acc_1792898165885: 0,
+      acc_1792968680319: 100988.62,
+      acc_1792898165999: 5025.84
+    };
+
+    const data = await financeService.getSummary();
+    const reassignedIds = [];
+
+    data.transactions = (data.transactions || []).filter(tx => !trashIds.includes(tx.id));
+    for (const tx of data.transactions) {
+      const note = String(tx.note || '');
+      const accId = tx.accountId || tx.account_id;
+      if (
+        accId === 'acc_1792898165250' &&
+        (note.includes('(Estado de Cuenta)') || note.includes('Abono recibido: ABONO A LA CUENTA'))
+      ) {
+        tx.accountId = 'acc_1792898165999';
+        tx.account_id = 'acc_1792898165999';
+        reassignedIds.push(tx.id);
+      }
+    }
+    for (const acc of data.accounts || []) {
+      if (Object.prototype.hasOwnProperty.call(restoredBalances, acc.id)) {
+        acc.balance = restoredBalances[acc.id];
+      }
+    }
+    financeService.writeLocal({
+      accounts: data.accounts || [],
+      loans: data.loans || [],
+      transactions: data.transactions || [],
+      budgets: data.budgets || []
+    });
+
+    const supabaseErrors = [];
+    if (supabase) {
+      const { error: delErr } = await supabase
+        .from('finance_transactions')
+        .delete()
+        .in('id', trashIds);
+      if (delErr) supabaseErrors.push(`delete: ${delErr.message}`);
+
+      if (reassignedIds.length > 0) {
+        const { error: moveErr } = await supabase
+          .from('finance_transactions')
+          .update({ account_id: 'acc_1792898165999' })
+          .in('id', reassignedIds);
+        if (moveErr) supabaseErrors.push(`reassign: ${moveErr.message}`);
+      }
+
+      for (const [accId, bal] of Object.entries(restoredBalances)) {
+        const { error: balErr } = await supabase
+          .from('finance_accounts')
+          .update({ balance: bal })
+          .eq('id', accId);
+        if (balErr) supabaseErrors.push(`balance(${accId}): ${balErr.message}`);
+      }
+    }
+
+    if (supabaseErrors.length > 0) {
+      return res.status(500).json({ success: false, errors: supabaseErrors });
+    }
+
+    const updatedSummary = await financeService.getSummary();
+    res.json({
+      success: true,
+      deletedCount: trashIds.length,
+      reassignedCount: reassignedIds.length,
+      liquidBalanceCRC: updatedSummary.liquidBalanceCRC,
+      monthExpense: updatedSummary.monthExpense
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
   }
 });
 
