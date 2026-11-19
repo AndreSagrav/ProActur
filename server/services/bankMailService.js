@@ -1135,26 +1135,30 @@ class BankMailService {
                 sendCmd('a003a', `SEARCH SINCE ${sinceStr} FROM "sonivision"`);
               }
             } else if (step === 'WAIT_SEARCH_SONIVISION') {
-              if (buffer.includes('a003a OK')) {
-                parseSearchIds(buffer).forEach(id => priorityIds.add(id));
+              if (/\ba003a (?:OK|NO|BAD)\b/.test(buffer)) {
+                if (buffer.includes('a003a OK')) {
+                  parseSearchIds(buffer).forEach(id => priorityIds.add(id));
+                }
                 buffer = '';
                 step = 'WAIT_SEARCH_COOPENAE';
                 const sinceStr = formatImapSince(config.syncStartDate);
                 sendCmd('a003b', `SEARCH SINCE ${sinceStr} FROM "coopenae"`);
               }
             } else if (step === 'WAIT_SEARCH_COOPENAE') {
-              if (buffer.includes('a003b OK')) {
-                parseSearchIds(buffer).forEach(id => priorityIds.add(id));
+              if (/\ba003b (?:OK|NO|BAD)\b/.test(buffer)) {
+                if (buffer.includes('a003b OK')) {
+                  parseSearchIds(buffer).forEach(id => priorityIds.add(id));
+                }
                 buffer = '';
                 step = 'WAIT_SEARCH';
                 const sinceStr = formatImapSince(config.syncStartDate);
                 sendCmd('a003', `SEARCH SINCE ${sinceStr}`);
               }
             } else if (step === 'WAIT_SEARCH') {
-              if (buffer.includes('a003 OK')) {
-                const allIds = parseSearchIds(buffer);
+              if (/\ba003 (?:OK|NO|BAD)\b/.test(buffer)) {
+                const allIds = buffer.includes('a003 OK') ? parseSearchIds(buffer) : [];
                 buffer = '';
-                const combined = Array.from(new Set([...Array.from(priorityIds), ...allIds.slice(-60)])).sort((a, b) => b - a);
+                const combined = Array.from(new Set([...Array.from(priorityIds), ...allIds.slice(-45)])).slice(0, 60);
                 if (combined.length === 0) {
                   step = 'DONE';
                   await this.saveConfig({ ...config, lastSync: new Date().toISOString() });
@@ -1166,10 +1170,10 @@ class BankMailService {
                 sendCmd('a004', `FETCH ${combined.join(',')} (BODY.PEEK[HEADER.FIELDS (SUBJECT FROM DATE)])`);
               }
             } else if (step === 'WAIT_HEADERS') {
-              if (buffer.includes('a004 OK')) {
+              if (/\ba004 (?:OK|NO|BAD)\b/.test(buffer)) {
                 const rawHeaders = unfoldHeaders(buffer);
                 buffer = '';
-                const entryRegex = /\*\s+(\d+)\s+FETCH\s+\([\s\S]*?(?=\r?\n\*\s+\d+\s+FETCH\s+\(|\r?\na004 OK)/gi;
+                const entryRegex = /\*\s+(\d+)\s+FETCH\s+\([\s\S]*?(?=\r?\n\*\s+\d+\s+FETCH\s+\(|\r?\na004 (?:OK|NO|BAD))/gi;
                 const filteredIds = [];
                 let m;
                 while ((m = entryRegex.exec(rawHeaders)) !== null) {
@@ -1229,8 +1233,8 @@ class BankMailService {
                   if (textRes.status === 'recorded') recordedCount++;
                 } catch (_) {}
 
-                const withinTimeBudget = (Date.now() - startedAt) < 22000;
-                if (withinTimeBudget && attachmentsProcessedThisRun < 4 && this.isAttachmentCandidate(from, subject, date, config, textRes)) {
+                const withinTimeBudget = (Date.now() - startedAt) < 14000;
+                if (withinTimeBudget && attachmentsProcessedThisRun < 2 && this.isAttachmentCandidate(from, subject, date, config, textRes)) {
                   attachmentsProcessedThisRun++;
                   step = 'FETCHING_FULL';
                   socket._pendingEmailMeta = { subject, from, date, id: msgIds[currentIndex] };
@@ -1275,7 +1279,7 @@ class BankMailService {
           });
 
           const fetchNext = () => {
-            if (currentIndex < msgIds.length && (Date.now() - startedAt) < 25000) {
+            if (currentIndex < msgIds.length && (Date.now() - startedAt) < 16000) {
               const id = msgIds[currentIndex];
               const tag = `f${currentIndex}`;
               sendCmd(tag, `FETCH ${id} (BODY.PEEK[]<0.32000>)`);
