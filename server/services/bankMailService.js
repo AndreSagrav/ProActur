@@ -1179,6 +1179,7 @@ class BankMailService {
           };
 
           const fetchNext = () => {
+            debugState.currentIndex = currentIndex;
             if (currentIndex < msgIds.length && (Date.now() - startedAt) < 12000) {
               const id = msgIds[currentIndex];
               const tag = `f${currentIndex}`;
@@ -1274,7 +1275,15 @@ class BankMailService {
 
                 const subject = subjectMatch ? subjectMatch[1].trim() : '';
                 const from = fromMatch ? fromMatch[1].trim() : '';
-                const date = dateMatch ? new Date(dateMatch[1].trim()).toISOString() : new Date().toISOString();
+                let date = new Date().toISOString();
+                if (dateMatch && dateMatch[1]) {
+                  try {
+                    const parsedD = new Date(dateMatch[1].trim());
+                    if (!isNaN(parsedD.getTime())) {
+                      date = parsedD.toISOString();
+                    }
+                  } catch (_) {}
+                }
 
                 if (currentChunk.length <= 3 * 1024 * 1024) {
                   fetchedEmails.push({
