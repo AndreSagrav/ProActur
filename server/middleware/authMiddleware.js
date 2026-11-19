@@ -2,7 +2,7 @@ const crypto = require('crypto');
 const config = require('../config');
 
 const TOKEN_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 días
-const PUBLIC_PATHS = new Set(['/health', '/keep-alive', '/auth/status', '/auth/login']);
+const PUBLIC_PATHS = new Set(['/health', '/keep-alive', '/cron/mail-sync', '/auth/status', '/auth/login']);
 
 function isPinAuthEnabled() {
   return Boolean(config.PROACTUR_ACCESS_PIN && String(config.PROACTUR_ACCESS_PIN).trim().length > 0);

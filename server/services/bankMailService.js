@@ -614,7 +614,10 @@ class BankMailService {
     }
 
     const isSinpe = lower.includes('sinpe');
-    const notePrefix = isSinpe ? (type === 'gasto' ? 'SINPE Móvil' : 'SINPE Recibido') : (type === 'gasto' ? 'Compra' : 'Ingreso');
+    const isCardPayment = /pago\s+de\s+tarjeta|abono\s+a\s+tarjeta|pago\s+realizado\s+a\s+tarjeta|pago\s+tarjeta\s+de\s+cr[eé]dito/i.test(fullText);
+    const notePrefix = isCardPayment
+      ? 'Pago Tarjeta'
+      : (isSinpe ? (type === 'gasto' ? 'SINPE Móvil' : 'SINPE Recibido') : (type === 'gasto' ? 'Compra' : 'Ingreso'));
 
     return {
       matched: true,
@@ -622,10 +625,11 @@ class BankMailService {
       amount,
       currency,
       type,
+      isCardPayment,
       last4,
       merchant,
       note: `${notePrefix}: ${merchant} (${entity})`,
-      category: this.categorizeExpense(merchant, fullText),
+      category: isCardPayment ? 'Pago de Tarjeta' : this.categorizeExpense(merchant, fullText),
       date
     };
   }
@@ -857,6 +861,12 @@ class BankMailService {
     if (this.isSyncing) {
       return { success: true, message: 'Sincronización ya en curso.' };
     }
+    // En Vercel Serverless /tmp inicia vacío en cada cold start: hidratar config y finanzas desde Supabase primero
+    await this.syncFromCloud();
+    try {
+      await financeService.getAllData();
+    } catch (_) {}
+
     const config = this.getConfig();
     if (!config.email || !config.appPassword) {
       return { success: false, error: 'Debe configurar y guardar su correo y Contraseña de Aplicación de Google primero.' };
@@ -875,8 +885,16 @@ class BankMailService {
           this.isSyncing = false;
           try {
             const currentCfg = this.getConfig();
-            currentCfg.lastSync = new Date().toISOString();
-            fs.writeFileSync(CONFIG_FILE, JSON.stringify(currentCfg, null, 2), 'utf8');
+            const diskPayload = {
+              ...currentCfg,
+              lastSync: new Date().toISOString(),
+              appPassword: encryptSecret(currentCfg.appPassword || '')
+            };
+            delete diskPayload.appPasswordMasked;
+            delete diskPayload.hasAppPassword;
+            const dir = path.dirname(CONFIG_FILE);
+            if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+            fs.writeFileSync(CONFIG_FILE, JSON.stringify(diskPayload, null, 2), 'utf8');
           } catch (_) {}
           if (socket) {
             try {
@@ -1005,7 +1023,7 @@ class BankMailService {
             if (currentIndex < msgIds.length) {
               const id = msgIds[currentIndex];
               const tag = `f${currentIndex}`;
-              sendCmd(tag, `FETCH ${id} (BODY.PEEK[HEADER.FIELDS (SUBJECT FROM DATE)] BODY.PEEK[TEXT]<0.14000>)`);
+              sendCmd(tag, `FETCH ${id} (BODY.PEEK[HEADER.FIELDS (SUBJECT FROM DATE)] BODY.PEEK[TEXT]<0.32000>)`);
             } else {
               step = 'DONE';
               this.saveConfig({ ...config, lastSync: new Date().toISOString() });

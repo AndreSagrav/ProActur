@@ -2,6 +2,8 @@ const express = require('express');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
+const crypto = require('crypto');
+const config = require('../config');
 
 const aiService = require('../services/aiService');
 const notionService = require('../services/notionService');
@@ -10,6 +12,7 @@ const { checkSupabaseStatus, keepAliveSupabase } = require('../services/supabase
 const eventService = require('../services/eventService');
 const noteService = require('../services/noteService');
 const financeService = require('../services/financeService');
+const financeStatementService = require('../services/financeStatementService');
 const taskService = require('../services/taskService');
 const assistantService = require('../services/assistantService');
 const edusService = require('../services/edusService');
@@ -40,12 +43,25 @@ const upload = multer({
 router.get('/keep-alive', async (req, res) => {
   try {
     const result = await keepAliveSupabase();
+    let mailSync = null;
+    if (req.query.sync === '1' || req.headers['x-vercel-cron']) {
+      try {
+        await bankMailService.syncFromCloud();
+        const cfg = bankMailService.getConfig();
+        if (cfg.enabled && cfg.email && cfg.appPassword) {
+          mailSync = await bankMailService.syncInbox();
+        }
+      } catch (e) {
+        mailSync = { success: false, error: e.message };
+      }
+    }
     const statusCode = result.success || !result.configured ? 200 : 500;
     res.status(statusCode).json({
       status: result.success ? 'ok' : 'warning',
       timestamp: new Date().toISOString(),
       service: 'ProActur Supabase Keep-Alive',
-      ...result
+      ...result,
+      mailSync
     });
   } catch (err) {
     res.status(500).json({
@@ -55,6 +71,35 @@ router.get('/keep-alive', async (req, res) => {
     });
   }
 });
+
+// Endpoint 24/7 para Vercel Cron o servicio Cron externo (ej. cron-job.org cada 5-15 min)
+async function handleCronMailSync(req, res) {
+  try {
+    const configuredSecret = (config.CRON_SECRET || '').trim();
+    if (configuredSecret) {
+      const authHeader = req.headers.authorization || '';
+      const bearer = authHeader.startsWith('Bearer ') ? authHeader.slice(7).trim() : '';
+      const provided = bearer || String(req.query.secret || '').trim();
+      const hashA = crypto.createHash('sha256').update(provided).digest();
+      const hashB = crypto.createHash('sha256').update(configuredSecret).digest();
+      if (!provided || !crypto.timingSafeEqual(hashA, hashB)) {
+        return res.status(401).json({ success: false, error: 'CRON_SECRET inválido' });
+      }
+    }
+    await bankMailService.syncFromCloud();
+    const cfg = bankMailService.getConfig();
+    if (!cfg.enabled || !cfg.email || !cfg.appPassword) {
+      return res.json({ success: true, skipped: true, reason: 'Sincronización de correo deshabilitada o sin configurar' });
+    }
+    const result = await bankMailService.syncInbox();
+    return res.json({ timestamp: new Date().toISOString(), ...result });
+  } catch (err) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+}
+
+router.get('/cron/mail-sync', handleCronMailSync);
+router.post('/cron/mail-sync', handleCronMailSync);
 
 router.get('/health', async (req, res) => {
   try {
@@ -1039,6 +1084,44 @@ router.post('/finance/mail-test', async (req, res) => {
 router.post('/finance/mail-sync', async (req, res) => {
   try {
     const result = await bankMailService.syncInbox();
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// IMPORTADOR INTELIGENTE DE ESTADOS DE CUENTA (PDF/IMAGEN/CSV) Y COMPROBANTES DE PAGO
+router.post('/finance/parse-statement', async (req, res) => {
+  try {
+    const { fileBase64, mimeType, fileName, accountId } = req.body || {};
+    if (!fileBase64) {
+      return res.status(400).json({ error: 'Debe adjuntar el archivo en base64.' });
+    }
+    const preview = await financeStatementService.previewStatementImport({
+      fileBase64,
+      mimeType,
+      fileName,
+      accountId
+    });
+    res.json({ success: true, ...preview });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post('/finance/apply-statement', async (req, res) => {
+  try {
+    const { targetAccountId, sourceAccountId, documentType, statementInfo, transactions } = req.body || {};
+    if (!targetAccountId) {
+      return res.status(400).json({ error: 'Debe seleccionar una cuenta o tarjeta destino.' });
+    }
+    const result = await financeStatementService.applyStatementImport({
+      targetAccountId,
+      sourceAccountId,
+      documentType,
+      statementInfo,
+      transactions
+    });
     res.json(result);
   } catch (err) {
     res.status(500).json({ error: err.message });

@@ -649,7 +649,7 @@ class FinanceService {
     }
 
     const newTx = {
-      id: 'tx_' + Date.now(),
+      id: tx.id || ('tx_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7)),
       accountId: tx.accountId || data.accounts[0]?.id || 'acc_bac_debito',
       type: cleanType,
       category: finalCategory,

@@ -5,8 +5,10 @@ import {
   PieChart, RefreshCw, X, Mail, ShieldCheck, CheckCircle2,
   Calendar, Clock, DollarSign, Edit3, ChevronRight, Play, AlertTriangle,
   Zap, Bell, ArrowUpRight, ArrowDownRight, Layers, FileSpreadsheet,
-  Coins, ArrowRightLeft, Percent, Sparkles, Receipt, ArrowLeft, ArrowRight
+  Coins, ArrowRightLeft, Percent, Sparkles, Receipt, ArrowLeft, ArrowRight,
+  Upload
 } from 'lucide-react';
+import StatementImportModal from './StatementImportModal';
 
 const API = import.meta.env.VITE_API_URL || '';
 
@@ -60,6 +62,7 @@ const playExecutiveSound = (type = 'success') => {
 
 export default function FinanceView() {
   const [activeTab, setActiveTab] = useState('cuentas'); // 'cuentas' | 'prestamos' | 'contabilidad' | 'gmail'
+  const [showStatementModal, setShowStatementModal] = useState(false);
   const [financeData, setFinanceData] = useState({
     balance: 0,
     creditDebt: 0,
@@ -205,11 +208,44 @@ export default function FinanceView() {
     fetchFinanceData();
     fetchMailData(true);
 
-    const interval = setInterval(() => {
-      fetchMailData(true);
+    // Sincronización de correo cada 60s cuando la app está visible
+    const mailInterval = setInterval(() => {
+      if (typeof document === 'undefined' || document.visibilityState === 'visible') {
+        fetchMailData(true);
+      }
     }, 60 * 1000);
 
-    return () => clearInterval(interval);
+    // Contabilidad en vivo: refresco silencioso cada 12s mientras la ventana esté activa
+    const liveFinanceInterval = setInterval(() => {
+      if (typeof document === 'undefined' || document.visibilityState === 'visible') {
+        fetchFinanceData();
+      }
+    }, 12 * 1000);
+
+    const handleVisibilityOrFocus = () => {
+      if (typeof document === 'undefined' || document.visibilityState === 'visible') {
+        fetchFinanceData();
+      }
+    };
+
+    window.addEventListener('focus', handleVisibilityOrFocus);
+    document.addEventListener('visibilitychange', handleVisibilityOrFocus);
+
+    let channel = null;
+    if (typeof BroadcastChannel !== 'undefined') {
+      channel = new BroadcastChannel('proactur_finance_sync');
+      channel.onmessage = () => {
+        fetchFinanceData();
+      };
+    }
+
+    return () => {
+      clearInterval(mailInterval);
+      clearInterval(liveFinanceInterval);
+      window.removeEventListener('focus', handleVisibilityOrFocus);
+      document.removeEventListener('visibilitychange', handleVisibilityOrFocus);
+      if (channel) channel.close();
+    };
   }, []);
 
   // Transacciones
@@ -760,8 +796,9 @@ export default function FinanceView() {
                 <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-white">
                   Finanzas & Tesorería
                 </h1>
-                <span className="text-[10px] font-semibold tracking-wider uppercase px-2.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/25 shrink-0">
-                  Sincronización Automática
+                <span className="text-[10px] font-semibold tracking-wider uppercase px-2.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/25 shrink-0 flex items-center gap-1.5">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                  En Vivo • Sync 12s
                 </span>
               </div>
               <p className="text-xs sm:text-sm text-slate-400 mt-0.5">
@@ -771,6 +808,14 @@ export default function FinanceView() {
           </div>
 
           <div className="flex items-center gap-2.5 shrink-0 self-start sm:self-auto flex-wrap">
+            <button
+              onClick={() => setShowStatementModal(true)}
+              className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-indigo-300 text-xs font-bold transition-all border border-indigo-500/30 active:scale-95"
+              title="Importar Estado de Cuenta de Tarjeta (PDF/Imagen) o Comprobante de Pago"
+            >
+              <Upload className="w-3.5 h-3.5" />
+              <span>Importar PDF</span>
+            </button>
             <button
               onClick={() => handleOpenSinpeModal('gasto')}
               className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-gradient-to-r from-emerald-600 via-teal-600 to-cyan-600 text-white text-xs font-bold hover:from-emerald-500 hover:to-cyan-500 transition-all shadow-md shadow-emerald-600/25 border border-emerald-400/30 active:scale-95"
@@ -3704,6 +3749,21 @@ export default function FinanceView() {
           </div>
         </div>
       )}
+      <StatementImportModal
+        isOpen={showStatementModal}
+        onClose={() => setShowStatementModal(false)}
+        accounts={financeData.accounts || []}
+        onImported={() => {
+          fetchFinanceData();
+          if (typeof BroadcastChannel !== 'undefined') {
+            try {
+              const ch = new BroadcastChannel('proactur_finance_sync');
+              ch.postMessage({ type: 'updated', at: Date.now() });
+              ch.close();
+            } catch (_) {}
+          }
+        }}
+      />
     </div>
   );
 }
