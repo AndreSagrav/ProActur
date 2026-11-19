@@ -1060,7 +1060,7 @@ class BankMailService {
         });
 
         let socketClosingCleanly = false;
-        let debugState = { step: 'INIT', currentIndex: 0, totalIds: 0, prioCount: 0, bufLen: 0 };
+        let debugState = { step: 'INIT', currentIndex: 0, totalIds: 0, prioCount: 0, bufLen: 0, tail: '' };
 
         socket.on('error', (err) => {
           if (!socketClosingCleanly) {
@@ -1068,11 +1068,11 @@ class BankMailService {
           }
         });
 
-        socket.setTimeout(20000, () => {
+        socket.setTimeout(15000, () => {
           if (!socketClosingCleanly) {
             done({
               success: false,
-              error: `Tiempo de espera agotado (${debugState.step}, idx=${debugState.currentIndex}/${debugState.totalIds}, prio=${debugState.prioCount}, buf=${debugState.bufLen}).`
+              error: `Timeout (${debugState.step}, idx=${debugState.currentIndex}/${debugState.totalIds}, prio=${debugState.prioCount}, buf=${debugState.bufLen}, tail=${debugState.tail}).`
             });
           }
         });
@@ -1201,7 +1201,8 @@ class BankMailService {
               currentIndex,
               totalIds: msgIds.length,
               prioCount: priorityIds.size,
-              bufLen: buffer.length
+              bufLen: buffer.length,
+              tail: buffer.slice(-160).replace(/[\r\n]+/g, ' | ')
             };
 
             if (step === 'WAIT_GREETING' && buffer.includes('* OK')) {
