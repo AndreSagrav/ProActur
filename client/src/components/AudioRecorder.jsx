@@ -1,9 +1,10 @@
 import React, { useState, useRef, useEffect } from 'react';
 import HandwritingCanvas from './HandwritingCanvas';
+import MarkdownText from './MarkdownText';
 import {
   Mic, Square, Play, Upload, FileText, Loader2, Sparkles, Volume2, AlertCircle,
   CheckCircle2, CheckSquare, Clock, Zap, Brain, ShieldAlert, ArrowRight,
-  RotateCcw, ShieldCheck, Trash2, PenTool, Keyboard, BookOpen
+  RotateCcw, ShieldCheck, Trash2, PenTool, Keyboard, BookOpen, Globe, ExternalLink
 } from 'lucide-react';
 
 import {
@@ -1487,7 +1488,17 @@ export default function AudioRecorder({ onMeetingProcessed, onRecordingStatusCha
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
-      setLiveChatMessages(prev => [...prev, { role: 'assistant', text: data.answer || 'No pude procesar la consulta.' }]);
+      setLiveChatMessages(prev => [
+        ...prev,
+        {
+          role: 'assistant',
+          text: data.answer || 'No pude procesar la consulta.',
+          model: data.model || null,
+          provider: data.provider || null,
+          grounded: Boolean(data.grounded),
+          sources: Array.isArray(data.sources) ? data.sources : []
+        }
+      ]);
     } catch (e) {
       setLiveChatMessages(prev => [...prev, { role: 'assistant', text: 'Error conectando con la IA: ' + e.message }]);
     } finally {
@@ -2327,10 +2338,37 @@ export default function AudioRecorder({ onMeetingProcessed, onRecordingStatusCha
                               ✨
                             </div>
                           )}
-                          <div className={`max-w-[85%] rounded-xl px-3 py-2 text-xs leading-relaxed whitespace-pre-wrap ${
-                            m.role === 'user' ? 'bg-indigo-600 text-white' : 'bg-slate-900 border border-slate-800 text-slate-200'
+                          <div className={`max-w-[85%] rounded-xl px-3 py-2 text-xs leading-relaxed ${
+                            m.role === 'user' ? 'bg-indigo-600 text-white whitespace-pre-wrap' : 'bg-slate-900 border border-slate-800 text-slate-200 space-y-1.5'
                           }`}>
-                            {m.text}
+                            {m.role === 'user' ? m.text : <MarkdownText text={m.text} />}
+                            {m.role === 'assistant' && (m.model || m.grounded || (m.sources && m.sources.length > 0)) && (
+                              <div className="pt-1.5 mt-1.5 border-t border-slate-800/80 flex flex-wrap items-center gap-1.5 text-[10px] text-slate-400">
+                                {m.model && (
+                                  <span className="px-1.5 py-0.5 rounded-full bg-slate-950 border border-slate-700/70 text-slate-300 font-mono">
+                                    {m.model}
+                                  </span>
+                                )}
+                                {m.grounded && (
+                                  <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 font-semibold">
+                                    <Globe className="w-2.5 h-2.5" /> Web
+                                  </span>
+                                )}
+                                {Array.isArray(m.sources) && m.sources.slice(0, 2).map((src, sIdx) => (
+                                  <a
+                                    key={sIdx}
+                                    href={src.uri}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-indigo-500/10 border border-indigo-500/25 text-indigo-300 hover:text-indigo-200 truncate max-w-[140px]"
+                                    title={src.title}
+                                  >
+                                    <ExternalLink className="w-2.5 h-2.5 shrink-0" />
+                                    <span className="truncate">{src.title}</span>
+                                  </a>
+                                ))}
+                              </div>
+                            )}
                           </div>
                         </div>
                       ))}

@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Brain, Send, Loader2, Sparkles, MessageSquare, BookOpen, CheckSquare, Calendar, RefreshCw } from 'lucide-react';
+import MarkdownText from './MarkdownText';
 
 const SUGGESTED_QUESTIONS = [
   '¿Qué tareas o entregas tengo pendientes?',
@@ -124,7 +125,7 @@ export default function ChatView({ totalMeetings = 0 }) {
                   : 'bg-slate-950/80 border border-slate-800 text-slate-200'
               }`}
             >
-              <div className="whitespace-pre-line">{msg.text}</div>
+              {msg.role === 'user' ? <div className="whitespace-pre-line">{msg.text}</div> : <MarkdownText text={msg.text} />}
               {(msg.meetingsCount !== undefined || msg.notesCount !== undefined) && (
                 <div className="mt-2.5 pt-2 border-t border-slate-800 text-[10px] text-slate-400 flex items-center gap-2 font-mono">
                   <span>Reuniones: {msg.meetingsCount || 0}</span>

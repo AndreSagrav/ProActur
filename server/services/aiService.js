@@ -18,21 +18,20 @@ class AIService {
    */
   getGeminiModels() {
     return [
+      'gemini-3.8-flash',
       'gemini-3.6-flash',
-      'gemini-3.5-flash',
       'gemini-3.5-flash-lite',
       'gemini-3.1-flash-lite',
       'gemini-flash-lite-latest',
-      'gemini-3-flash-preview',
-      'gemini-3.8-flash'
+      'gemini-3-flash-preview'
     ];
   }
 
   getExecutiveModels() {
     return [
       // 1. Google Gemini (Multicuota con modelos verificados y capacidad multimodal)
+      { provider: 'gemini', model: 'gemini-3.8-flash', name: 'Gemini 3.8 Flash' },
       { provider: 'gemini', model: 'gemini-3.6-flash', name: 'Gemini 3.6 Flash' },
-      { provider: 'gemini', model: 'gemini-3.5-flash', name: 'Gemini 3.5 Flash' },
       { provider: 'gemini', model: 'gemini-3.5-flash-lite', name: 'Gemini 3.5 Flash Lite' },
       { provider: 'gemini', model: 'gemini-3.1-flash-lite', name: 'Gemini 3.1 Flash Lite' },
       { provider: 'gemini', model: 'gemini-flash-lite-latest', name: 'Gemini Flash Lite Latest' },
@@ -499,39 +498,60 @@ Debes responder ÚNICAMENTE con un objeto JSON válido (sin markdown, sin bloque
     if (!text) return 'Transcripción no disponible aún.';
     if (text.length <= maxChars) return text;
 
-    const headSize = Math.floor(maxChars * 0.14); // Apertura
-    const tailSize = Math.floor(maxChars * 0.36); // Lo más reciente
+    // Extraer palabras clave únicas de la pregunta para rescatar fragmentos relevantes del centro
+    const stopWords = new Set([
+      'como', 'cual', 'cuales', 'quien', 'quienes', 'cuando', 'donde', 'porque', 'para',
+      'sobre', 'entre', 'este', 'esta', 'estos', 'estas', 'todo', 'toda', 'todos', 'todas',
+      'algo', 'dijo', 'dijeron', 'hablo', 'hablaron', 'reunion', 'seminario', 'clase',
+      'resumen', 'tema', 'temas', 'selecciona', 'opcion', 'opciones', 'puede', 'puedes',
+      'pueden', 'solo', 'sola', 'parte', 'siempre', 'posible', 'forma', 'elementos',
+      'diferencia', 'siguiente', 'siguientes', 'respuesta', 'correcta', 'incorrecta',
+      'pregunta', 'sistema', 'tambien', 'tiene', 'tienen', 'permite', 'permiten'
+    ]);
+    const keywords = [...new Set(
+      this.normalizeCompareKey(question)
+        .split(' ')
+        .filter(w => w.length >= 4 && !stopWords.has(w))
+    )];
+
+    const hasKeywords = keywords.length > 0;
+    const headSize = Math.floor(maxChars * (hasKeywords ? 0.08 : 0.14)); // Apertura
+    const tailSize = Math.floor(maxChars * (hasKeywords ? 0.12 : 0.36)); // Lo más reciente
     const middleBudget = maxChars - headSize - tailSize;
 
     const head = text.slice(0, headSize);
     const tail = text.slice(-tailSize);
     const middleText = text.slice(headSize, text.length - tailSize);
 
-    // Extraer palabras clave de la pregunta para rescatar fragmentos relevantes del centro
-    const stopWords = new Set(['como', 'cual', 'cuales', 'quien', 'quienes', 'cuando', 'donde', 'porque', 'para', 'sobre', 'entre', 'este', 'esta', 'estos', 'estas', 'todo', 'toda', 'todos', 'todas', 'algo', 'dijo', 'dijeron', 'hablo', 'hablaron', 'reunion', 'seminario', 'clase', 'resumen', 'tema', 'temas']);
-    const keywords = this.normalizeCompareKey(question)
-      .split(' ')
-      .filter(w => w.length >= 4 && !stopWords.has(w));
-
-    const chunkSize = 1800;
+    const chunkSize = 2000;
+    const stride = hasKeywords ? 1200 : chunkSize;
     const chunks = [];
-    for (let i = 0; i < middleText.length; i += chunkSize) {
+    for (let i = 0; i < middleText.length; i += stride) {
       const slice = middleText.slice(i, i + chunkSize);
       const norm = this.normalizeCompareKey(slice);
-      let score = 0;
+      let distinctMatches = 0;
+      let totalHits = 0;
       for (const kw of keywords) {
-        if (norm.includes(kw)) score += 1;
+        if (norm.includes(kw)) {
+          distinctMatches += 1;
+          const matches = norm.split(kw).length - 1;
+          totalHits += Math.min(matches, 3);
+        }
       }
+      const score = distinctMatches * 10 + totalHits;
       chunks.push({ idx: i, slice, score });
+      if (i + chunkSize >= middleText.length) break;
     }
 
-    // Seleccionar los mejores chunks (si no hay keywords, muestrear uniformemente)
+    // Seleccionar los mejores chunks sin solapamiento excesivo
     let selected = [];
-    if (keywords.length > 0 && chunks.some(c => c.score > 0)) {
+    if (hasKeywords && chunks.some(c => c.score > 0)) {
       const ranked = [...chunks].sort((a, b) => b.score - a.score);
       let used = 0;
       for (const c of ranked) {
         if (used + c.slice.length > middleBudget) break;
+        const overlapsExisting = selected.some(s => Math.abs(s.idx - c.idx) < chunkSize * 0.6);
+        if (overlapsExisting) continue;
         selected.push(c);
         used += c.slice.length;
       }
@@ -1385,8 +1405,11 @@ ${recentHistory ? `HISTORIAL RECIENTE:\n${recentHistory}\n` : ''}PREGUNTA DEL US
 
 INSTRUCCIONES:
 1. Responde de forma directa, clara, precisa y en español.
-2. Prioriza lo dicho en la transcripción y notas de esta sesión (citando datos, ejemplos o conclusiones concretas).
-3. Si te hacen una pregunta técnica o de evaluación sobre la tecnología tratada en la sesión cuyo detalle exacto no aparezca literal en el fragmento, acláralo y responde con rigor técnico del dominio sin inventar citas falsas de la reunión.
+2. CERO INVENCIONES: Si un dato, término o afirmación no aparece en la transcripción ni en las notas (o el audio lo transcribió con ruido ASR), dilo con total honestidad. PROHIBIDO inventar citas o justificaciones falsas tipo "En la sesión se explicó que...".
+3. VERIFICACIÓN TÉCNICA Y EXÁMENES: Si te hacen una pregunta técnica, de certificación o de opción múltiple sobre una tecnología tratada en la sesión y el detalle exacto no aparece literal en la grabación (o es ambiguo), verifica con rigor técnico oficial (y búsqueda web cuando esté disponible) para dar la respuesta correcta sin adivinar.
+4. FORMATO:
+   - Si es una pregunta de opción múltiple, inicia directo con **Respuesta correcta: [Letra]. [Texto]** y explica brevemente por qué las demás opciones son incorrectas.
+   - Distingue claramente entre lo que consta en la **Transcripción / Notas** y la **Verificación técnica**.
 `;
   }
 
@@ -1407,47 +1430,98 @@ INSTRUCCIONES:
     }
 
     const baseArgs = { mode: 'live', question, title, summary, keyTopics, keyDecisions, actionItems, proactiveAdvice, userNotes, transcript, history };
-    const fullPrompt = this._buildSessionQueryPrompt({ ...baseArgs, maxTranscriptChars: 55000 });
-    const compactPrompt = this._buildSessionQueryPrompt({ ...baseArgs, maxTranscriptChars: 16000 });
+    const fullPrompt = this._buildSessionQueryPrompt({ ...baseArgs, maxTranscriptChars: 240000 });
+    const compactPrompt = this._buildSessionQueryPrompt({ ...baseArgs, maxTranscriptChars: 32000 });
 
-    return await this._runLongContextQuery(fullPrompt, summary || 'Sesión activa en curso.', compactPrompt);
+    return await this._runLongContextQuery(
+      fullPrompt,
+      summary || 'Sesión activa en curso.',
+      compactPrompt,
+      { useGoogleSearch: true, returnMeta: true }
+    );
   }
 
-  async _runLongContextQuery(prompt, fallbackSummary = '', compactPrompt = null) {
+  async _runLongContextQuery(prompt, fallbackSummary = '', compactPrompt = null, options = {}) {
+    const { useGoogleSearch = false, returnMeta = false } = options;
     const groqOrSmallPrompt = compactPrompt || prompt;
     const models = [
-      ...this.getGeminiModels().slice(0, 4).map(m => ({ provider: 'gemini', model: m, name: `Gemini (${m})` })),
+      ...this.getGeminiModels().slice(0, 4).map((m, idx) => ({
+        provider: 'gemini',
+        model: m,
+        name: `Gemini (${m})`,
+        allowSearch: useGoogleSearch && idx < 2
+      })),
       { provider: 'groq', model: config.GROQ_CHAT_MODEL || 'openai/gpt-oss-120b', name: 'Groq GPT-OSS 120B' },
       { provider: 'groq', model: 'llama-3.3-70b-versatile', name: 'Groq Llama 3.3 70B' },
       { provider: 'groq', model: 'qwen/qwen3.8-27b', name: 'Groq Qwen 3.8 27B' },
-      { provider: 'openrouter', model: 'nvidia/nemotron-3.5-super-vl:free', name: 'Nemotron 3.5 (Free)' },
-      { provider: 'openrouter', model: 'recursive/flint-v1.0:free', name: 'Flint v1.0 (Free)' }
+      { provider: 'openrouter', model: config.OPENROUTER_MODEL || 'deepseek/deepseek-chat', name: 'OpenRouter DeepSeek' },
+      { provider: 'openrouter', model: 'nvidia/nemotron-3.5-super-vl:free', name: 'Nemotron 3.5 (Free)' }
     ];
 
+    const wrapResult = (answer, meta) => (returnMeta ? { answer, ...meta } : answer);
+
     for (const item of models) {
-      const { provider, model, name } = item;
+      const { provider, model, name, allowSearch } = item;
       try {
         if (provider === 'gemini' && config.GEMINI_API_KEY) {
-          const ans = await this.callGeminiText(prompt, '', model);
-          if (ans) return ans;
+          try {
+            const res = await this.callGeminiText(prompt, '', model, {
+              useGoogleSearch: Boolean(allowSearch),
+              timeoutMs: 22000,
+              returnMeta: true
+            });
+            if (res?.text) {
+              return wrapResult(res.text, {
+                model,
+                provider: 'gemini',
+                grounded: Boolean(res.grounded),
+                sources: res.sources || []
+              });
+            }
+          } catch (gErr) {
+            // Si falló por usar la herramienta google_search en este modelo, reintentar sin search antes de degradar
+            if (allowSearch) {
+              console.warn(`[LongContext AI] Reintentando ${name} sin google_search:`, gErr.message);
+              const resPlain = await this.callGeminiText(prompt, '', model, {
+                useGoogleSearch: false,
+                timeoutMs: 18000,
+                returnMeta: true
+              });
+              if (resPlain?.text) {
+                return wrapResult(resPlain.text, {
+                  model,
+                  provider: 'gemini',
+                  grounded: false,
+                  sources: []
+                });
+              }
+            } else {
+              throw gErr;
+            }
+          }
         } else if (provider === 'groq' && config.GROQ_API_KEY) {
-          const ans = await this.callGroq(groqOrSmallPrompt, 'Eres un asistente ejecutivo experto en analizar transcripciones completas y responder preguntas precisas.', model);
-          if (ans) return ans;
+          const ans = await this.callGroq(groqOrSmallPrompt, 'Eres un asistente ejecutivo y técnico experto. Nunca inventes citas falsas de la reunión.', model);
+          if (ans) {
+            return wrapResult(ans, { model, provider: 'groq', grounded: false, sources: [] });
+          }
         } else if (provider === 'openrouter' && config.OPENROUTER_API_KEY) {
-          const ans = await this.callOpenRouter(groqOrSmallPrompt, 'Eres un asistente ejecutivo experto en analizar transcripciones completas y responder preguntas precisas.', model);
-          if (ans) return ans;
+          const ans = await this.callOpenRouter(groqOrSmallPrompt, 'Eres un asistente ejecutivo y técnico experto. Nunca inventes citas falsas de la reunión.', model);
+          if (ans) {
+            return wrapResult(ans, { model, provider: 'openrouter', grounded: false, sources: [] });
+          }
         }
       } catch (err) {
         console.warn(`[LongContext AI] Error con ${name}:`, err.message);
       }
     }
 
-    return fallbackSummary
+    const fallbackText = fallbackSummary
       ? `No fue posible consultar a los modelos remotos en este instante. Resumen acumulado disponible:\n\n${fallbackSummary}`
       : 'No fue posible consultar a los modelos remotos en este instante. Verifica tu conexión e intenta de nuevo.';
+    return wrapResult(fallbackText, { model: 'fallback', provider: 'local', grounded: false, sources: [] });
   }
 
-  async askMeeting(question, meeting) {
+  async askMeeting(question, meeting, history = []) {
     if (!meeting) throw new Error('Se requiere información de la reunión');
 
     const title = meeting.title || 'Reunión sin título';
@@ -1464,13 +1538,19 @@ INSTRUCCIONES:
       keyDecisions: meeting.keyDecisions || [],
       actionItems: meeting.actionItems || [],
       proactiveAdvice: meeting.proactiveAdvice || [],
-      transcript: meeting.transcript || 'Transcripción no disponible'
+      transcript: meeting.transcript || 'Transcripción no disponible',
+      history: Array.isArray(history) ? history : []
     };
 
-    const fullPrompt = this._buildSessionQueryPrompt({ ...baseArgs, maxTranscriptChars: 65000 });
-    const compactPrompt = this._buildSessionQueryPrompt({ ...baseArgs, maxTranscriptChars: 16000 });
+    const fullPrompt = this._buildSessionQueryPrompt({ ...baseArgs, maxTranscriptChars: 240000 });
+    const compactPrompt = this._buildSessionQueryPrompt({ ...baseArgs, maxTranscriptChars: 32000 });
 
-    return await this._runLongContextQuery(fullPrompt, `He revisado el registro de "${title}". Sobre tu consulta: ${summary}`, compactPrompt);
+    return await this._runLongContextQuery(
+      fullPrompt,
+      `He revisado el registro de "${title}". Sobre tu consulta: ${summary}`,
+      compactPrompt,
+      { useGoogleSearch: true, returnMeta: true }
+    );
   }
 
 
@@ -1723,9 +1803,15 @@ Devuelve ÚNICAMENTE un objeto JSON válido (sin markdown) con esta estructura e
     }
   }
 
-  async callGeminiText(prompt, systemPrompt = '', model = null) {
+  async callGeminiText(prompt, systemPrompt = '', model = null, options = {}) {
     const key = config.GEMINI_API_KEY;
     if (!key) throw new Error('GEMINI_API_KEY no configurada');
+
+    const {
+      useGoogleSearch = false,
+      timeoutMs = 20000,
+      returnMeta = false
+    } = options;
 
     const targetModel = model || this.geminiModel || 'gemini-3.6-flash';
     const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${targetModel}:generateContent`;
@@ -1734,8 +1820,16 @@ Devuelve ÚNICAMENTE un objeto JSON válido (sin markdown) con esta estructura e
     const fullText = systemPrompt ? `${systemPrompt}\n\n${prompt}` : prompt;
     contents.push({ parts: [{ text: fullText }] });
 
+    const body = {
+      contents,
+      generationConfig: { temperature: 0.2 }
+    };
+    if (useGoogleSearch) {
+      body.tools = [{ google_search: {} }];
+    }
+
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 9500);
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
 
     try {
       const res = await fetch(endpoint, {
@@ -1744,10 +1838,7 @@ Devuelve ÚNICAMENTE un objeto JSON válido (sin markdown) con esta estructura e
           'Content-Type': 'application/json',
           'x-goog-api-key': key
         },
-        body: JSON.stringify({
-          contents,
-          generationConfig: { temperature: 0.2 }
-        }),
+        body: JSON.stringify(body),
         signal: controller.signal
       });
       clearTimeout(timer);
@@ -1758,7 +1849,34 @@ Devuelve ÚNICAMENTE un objeto JSON válido (sin markdown) con esta estructura e
       }
 
       const data = await res.json();
-      return data.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || null;
+      const candidate = data.candidates?.[0];
+      const text = (candidate?.content?.parts || [])
+        .map(p => p?.text || '')
+        .join('')
+        .trim() || null;
+
+      if (!returnMeta) return text;
+
+      const groundingMeta = candidate?.groundingMetadata;
+      const rawChunks = Array.isArray(groundingMeta?.groundingChunks) ? groundingMeta.groundingChunks : [];
+      const seenUris = new Set();
+      const sources = [];
+      for (const chunk of rawChunks) {
+        const uri = chunk?.web?.uri;
+        if (!uri || seenUris.has(uri)) continue;
+        seenUris.add(uri);
+        sources.push({
+          title: chunk.web.title || uri,
+          uri
+        });
+        if (sources.length >= 5) break;
+      }
+
+      return {
+        text,
+        grounded: Boolean(sources.length > 0 || (Array.isArray(groundingMeta?.webSearchQueries) && groundingMeta.webSearchQueries.length > 0)),
+        sources
+      };
     } catch (err) {
       clearTimeout(timer);
       throw err;

@@ -3,8 +3,9 @@ import {
   CheckSquare, Square, ExternalLink, Share2, CheckCircle2,
   AlertTriangle, ChevronDown, ChevronUp, Calendar, User, Clock,
   Lightbulb, Target, FileText, Loader2, Trash2, BookOpen, CalendarPlus,
-  Copy, Check, Volume2, Brain, Send, Sparkles, MessageSquare, CornerDownLeft, GitMerge, Search
+  Copy, Check, Volume2, Brain, Send, Sparkles, MessageSquare, CornerDownLeft, GitMerge, Search, Globe
 } from 'lucide-react';
+import MarkdownText from './MarkdownText';
 
 const API = import.meta.env.VITE_API_URL || '';
 
@@ -109,12 +110,18 @@ export default function MeetingDetails({ meeting, onUpdateMeeting, onDeleteMeeti
     setMeetingChatLoading(true);
 
     try {
+      const recentHistory = meetingChatMessages
+        .filter(m => m && m.text)
+        .slice(-6)
+        .map(m => ({ role: m.role, text: m.text }));
+
       const res = await fetch(`${API}/api/meetings/${meeting.id}/ask`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           question: q,
-          meetingData: meeting
+          meetingData: meeting,
+          history: recentHistory
         })
       });
 
@@ -123,7 +130,14 @@ export default function MeetingDetails({ meeting, onUpdateMeeting, onDeleteMeeti
 
       setMeetingChatMessages(prev => [
         ...prev,
-        { role: 'assistant', text: data.answer || 'No obtuve respuesta sobre ese punto en esta sesión.' }
+        {
+          role: 'assistant',
+          text: data.answer || 'No obtuve respuesta sobre ese punto en esta sesión.',
+          model: data.model || null,
+          provider: data.provider || null,
+          grounded: Boolean(data.grounded),
+          sources: Array.isArray(data.sources) ? data.sources : []
+        }
       ]);
     } catch (err) {
       setMeetingChatMessages(prev => [
@@ -586,13 +600,40 @@ export default function MeetingDetails({ meeting, onUpdateMeeting, onDeleteMeeti
                 </div>
               )}
               <div
-                className={`max-w-[85%] sm:max-w-[75%] rounded-2xl px-4 py-3 text-xs sm:text-sm leading-relaxed whitespace-pre-wrap ${
+                className={`max-w-[85%] sm:max-w-[75%] rounded-2xl px-4 py-3 text-xs sm:text-sm leading-relaxed ${
                   msg.role === 'user'
-                    ? 'bg-gradient-to-r from-indigo-600 to-blue-600 text-white shadow-md shadow-indigo-600/20 font-medium'
-                    : 'bg-slate-950/90 border border-slate-800/90 text-slate-200 font-sans shadow-sm'
+                    ? 'bg-gradient-to-r from-indigo-600 to-blue-600 text-white shadow-md shadow-indigo-600/20 font-medium whitespace-pre-wrap'
+                    : 'bg-slate-950/90 border border-slate-800/90 text-slate-200 font-sans shadow-sm space-y-2'
                 }`}
               >
-                {msg.text}
+                {msg.role === 'user' ? msg.text : <MarkdownText text={msg.text} />}
+                {msg.role === 'assistant' && (msg.model || msg.grounded || (msg.sources && msg.sources.length > 0)) && (
+                  <div className="pt-2 mt-2 border-t border-slate-800/80 flex flex-wrap items-center gap-1.5 text-[10px] text-slate-400">
+                    {msg.model && (
+                      <span className="px-2 py-0.5 rounded-full bg-slate-900 border border-slate-700/70 text-slate-300 font-mono">
+                        {msg.model}
+                      </span>
+                    )}
+                    {msg.grounded && (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 font-semibold">
+                        <Globe className="w-2.5 h-2.5" /> Verificado en Web
+                      </span>
+                    )}
+                    {Array.isArray(msg.sources) && msg.sources.slice(0, 3).map((src, sIdx) => (
+                      <a
+                        key={sIdx}
+                        href={src.uri}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-indigo-500/10 border border-indigo-500/25 text-indigo-300 hover:text-indigo-200 truncate max-w-[180px]"
+                        title={src.title}
+                      >
+                        <ExternalLink className="w-2.5 h-2.5 shrink-0" />
+                        <span className="truncate">{src.title}</span>
+                      </a>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
           ))}

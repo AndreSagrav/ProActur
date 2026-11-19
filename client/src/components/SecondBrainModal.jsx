@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { X, Brain, Send, Loader2, Sparkles, MessageSquare, BookOpen, CheckSquare, Calendar } from 'lucide-react';
+import MarkdownText from './MarkdownText';
 
 const SUGGESTED_QUESTIONS = [
   '¿Qué tareas o entregas tengo pendientes?',
@@ -109,7 +110,7 @@ export default function SecondBrainModal({ isOpen, onClose, totalMeetings }) {
                     : 'bg-slate-800/90 border border-slate-700/80 text-slate-200'
                 }`}
               >
-                <div className="whitespace-pre-line">{msg.text}</div>
+                {msg.role === 'user' ? <div className="whitespace-pre-line">{msg.text}</div> : <MarkdownText text={msg.text} />}
                 {(msg.meetingsCount !== undefined || msg.notesCount !== undefined) && (
                   <div className="mt-2 pt-2 border-t border-slate-700/60 text-[10px] text-slate-400 flex items-center gap-2">
                     <span>Indexado: {msg.meetingsCount || 0} reuniones</span>

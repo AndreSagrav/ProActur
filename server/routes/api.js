@@ -331,7 +331,7 @@ router.post('/meetings/live-ask', async (req, res) => {
       }
     }
 
-    const answer = await aiService.askLiveSession({
+    const result = await aiService.askLiveSession({
       question,
       title: finalTitle,
       transcript: finalTranscript,
@@ -344,9 +344,14 @@ router.post('/meetings/live-ask', async (req, res) => {
       history: history || []
     });
 
+    const answer = typeof result === 'string' ? result : result?.answer;
     res.json({
       question,
       answer,
+      model: result?.model || null,
+      provider: result?.provider || null,
+      grounded: Boolean(result?.grounded),
+      sources: Array.isArray(result?.sources) ? result.sources : [],
       transcriptLength: finalTranscript.length
     });
   } catch (err) {
@@ -868,7 +873,7 @@ router.patch('/notes/:id/favorite', async (req, res) => {
 // Preguntar a la IA sobre una reunión específica
 router.post('/meetings/:id/ask', async (req, res) => {
   try {
-    const { question, meetingData } = req.body;
+    const { question, meetingData, history } = req.body;
     if (!question || !question.trim()) {
       return res.status(400).json({ error: 'Pregunta requerida' });
     }
@@ -882,10 +887,15 @@ router.post('/meetings/:id/ask', async (req, res) => {
       return res.status(404).json({ error: 'Reunión no encontrada' });
     }
 
-    const answer = await aiService.askMeeting(question, meeting);
+    const result = await aiService.askMeeting(question, meeting, history || []);
+    const answer = typeof result === 'string' ? result : result?.answer;
     res.json({
       question,
       answer,
+      model: result?.model || null,
+      provider: result?.provider || null,
+      grounded: Boolean(result?.grounded),
+      sources: Array.isArray(result?.sources) ? result.sources : [],
       meetingId: req.params.id,
       meetingTitle: meeting.title
     });
