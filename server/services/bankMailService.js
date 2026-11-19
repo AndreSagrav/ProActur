@@ -1060,16 +1060,20 @@ class BankMailService {
         });
 
         let socketClosingCleanly = false;
+        let debugState = { step: 'INIT', currentIndex: 0, totalIds: 0, prioCount: 0, bufLen: 0 };
 
         socket.on('error', (err) => {
           if (!socketClosingCleanly) {
-            done({ success: false, error: `Error IMAP: ${err.message}` });
+            done({ success: false, error: `Error IMAP (${debugState.step}): ${err.message}` });
           }
         });
 
-        socket.setTimeout(25000, () => {
+        socket.setTimeout(20000, () => {
           if (!socketClosingCleanly) {
-            done({ success: false, error: 'Tiempo de espera agotado durante la sincronización.' });
+            done({
+              success: false,
+              error: `Tiempo de espera agotado (${debugState.step}, idx=${debugState.currentIndex}/${debugState.totalIds}, prio=${debugState.prioCount}, buf=${debugState.bufLen}).`
+            });
           }
         });
 
@@ -1192,6 +1196,13 @@ class BankMailService {
           socket.on('data', (chunk) => {
             if (socketClosingCleanly) return;
             buffer += chunk.toString();
+            debugState = {
+              step,
+              currentIndex,
+              totalIds: msgIds.length,
+              prioCount: priorityIds.size,
+              bufLen: buffer.length
+            };
 
             if (step === 'WAIT_GREETING' && buffer.includes('* OK')) {
               buffer = '';
