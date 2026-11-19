@@ -1196,6 +1196,7 @@ class BankMailService {
 
           socket.on('data', (chunk) => {
             if (socketClosingCleanly) return;
+            try {
             buffer += chunk.toString();
             debugState = {
               step,
@@ -1263,8 +1264,12 @@ class BankMailService {
               }
             } else if (step === 'FETCHING') {
               const tag = `f${currentIndex}`;
-              const tagDoneRegex = new RegExp(`\\b${tag} (?:OK|NO|BAD)\\b`);
-              if (tagDoneRegex.test(buffer) || buffer.length > 3 * 1024 * 1024) {
+              if (
+                buffer.includes(`${tag} OK`) ||
+                buffer.includes(`${tag} NO`) ||
+                buffer.includes(`${tag} BAD`) ||
+                buffer.length > 3 * 1024 * 1024
+              ) {
                 const currentChunk = buffer;
                 buffer = '';
                 const unfolded = unfoldHeaders(currentChunk);
@@ -1298,6 +1303,9 @@ class BankMailService {
                 currentIndex++;
                 fetchNext();
               }
+            }
+            } catch (dataErr) {
+              done({ success: false, error: `IMAP dataErr (${step}): ${dataErr.message}` });
             }
           });
         });
