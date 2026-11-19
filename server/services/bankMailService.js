@@ -11,7 +11,51 @@ function extractAttachmentsFromRawMime(rawMime = '') {
   const attachments = [];
   if (!rawMime) return attachments;
 
-  // Buscar bloques MIME con Content-Transfer-Encoding: base64 (PDF, Imágenes u octet-stream con extensión .pdf/.png/.jpg)
+  // 1. Parser MIME estándar por boundary (independiente del orden de cabeceras)
+  const boundaryMatches = [...rawMime.matchAll(/boundary\s*=\s*"?([^"\r\n;]+)"?/gi)];
+  const boundaries = Array.from(new Set(boundaryMatches.map(m => m[1].trim()).filter(Boolean)));
+
+  for (const boundary of boundaries) {
+    const parts = rawMime.split(`--${boundary}`);
+    for (const part of parts) {
+      const splitIdx = part.search(/\r?\n\r?\n/);
+      if (splitIdx === -1) continue;
+      const headersRaw = unfoldHeaders(part.slice(0, splitIdx));
+      const bodyRaw = part.slice(splitIdx).trim();
+
+      if (!/Content-Transfer-Encoding:\s*base64/i.test(headersRaw)) continue;
+      const ctMatch = headersRaw.match(/Content-Type:\s*([^;\r\n]+)/i);
+      const detectedType = ctMatch ? ctMatch[1].trim().toLowerCase() : '';
+      const nameMatch = headersRaw.match(/(?:filename\*?=|name\*?=)\s*"?([^"\r\n;]+)"?/i);
+      const fileName = nameMatch ? decodeMimeWords(nameMatch[1].trim()) : '';
+
+      let rawMimeType = detectedType === 'image/jpg' ? 'image/jpeg' : detectedType;
+      if (rawMimeType === 'application/x-pdf') rawMimeType = 'application/pdf';
+      if (rawMimeType === 'application/octet-stream' || !rawMimeType) {
+        if (/\.pdf$/i.test(fileName)) rawMimeType = 'application/pdf';
+        else if (/\.png$/i.test(fileName)) rawMimeType = 'image/png';
+        else if (/\.(jpe?g)$/i.test(fileName)) rawMimeType = 'image/jpeg';
+        else if (/\.webp$/i.test(fileName)) rawMimeType = 'image/webp';
+      }
+
+      if (!['application/pdf', 'image/png', 'image/jpeg', 'image/webp'].includes(rawMimeType)) {
+        continue;
+      }
+
+      const cleanB64 = bodyRaw.replace(/--[\s\S]*$/, '').replace(/[^A-Za-z0-9+/=]/g, '');
+      if (cleanB64.length > 200 && !attachments.some(a => a.fileBase64.slice(0, 64) === cleanB64.slice(0, 64))) {
+        attachments.push({
+          mimeType: rawMimeType,
+          fileName: fileName || (rawMimeType === 'application/pdf' ? 'comprobante.pdf' : 'comprobante.png'),
+          fileBase64: cleanB64
+        });
+      }
+    }
+  }
+
+  if (attachments.length > 0) return attachments;
+
+  // 2. Fallback regex si no hubo boundary explícito
   const partRegex = /Content-Type:\s*(application\/(?:pdf|x-pdf|octet-stream)|image\/(?:png|jpeg|jpg|webp))[^\r\n]*(?:;[^\r\n]*|\r?\n[ \t]+[^\r\n]*)*[\s\S]*?Content-Transfer-Encoding:\s*base64[\r\n]+([\s\S]*?)(?=\r?\n--[A-Za-z0-9'()+_,\-./:=? ]+|\r?\n\)\r?\n|$)/gi;
   let match;
   while ((match = partRegex.exec(rawMime)) !== null) {
@@ -27,7 +71,7 @@ function extractAttachmentsFromRawMime(rawMime = '') {
       else if (/\.png$/i.test(fileName)) rawMimeType = 'image/png';
       else if (/\.(jpe?g)$/i.test(fileName)) rawMimeType = 'image/jpeg';
       else if (/\.webp$/i.test(fileName)) rawMimeType = 'image/webp';
-      else continue; // Ignorar octet-stream que no sea PDF ni imagen
+      else continue;
     }
 
     const cleanB64 = match[2].replace(/[^A-Za-z0-9+/=]/g, '');
@@ -951,7 +995,23 @@ class BankMailService {
     const lowerFrom = cleanFrom.toLowerCase();
     const emailKey = `${lowerFrom}|${cleanSubj.toLowerCase()}|${String(date).slice(0, 10)}`;
 
-    const attachments = extractAttachmentsFromRawMime(rawMime);
+    let attachments = extractAttachmentsFromRawMime(rawMime);
+    // Si es un correo de Coopenae o Sonivision sin adjunto binario, analizar su cuerpo HTML/texto con Gemini
+    if (attachments.length === 0 && (lowerFrom.includes('coopenae') || lowerFrom.includes('sonivision'))) {
+      const cleanHtmlText = decodeEmailBody(rawMime)
+        .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, ' ')
+        .replace(/<[^>]+>/g, ' ')
+        .replace(/&nbsp;/gi, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+      if (cleanHtmlText.length > 60) {
+        attachments = [{
+          mimeType: 'text/plain',
+          fileName: 'correo_bancario.txt',
+          fileBase64: Buffer.from(`From: ${cleanFrom}\nSubject: ${cleanSubj}\nDate: ${date}\n\n${cleanHtmlText}`, 'utf8').toString('base64')
+        }];
+      }
+    }
     if (attachments.length === 0) return { recorded: 0 };
 
     const financeData = await financeService.getAllData();
@@ -1270,13 +1330,12 @@ class BankMailService {
               if (buffer.includes('a002 OK')) {
                 buffer = '';
                 step = 'WAIT_SEARCH_SONIVISION';
-                const sinceStr = formatImapSince(config.syncStartDate);
-                sendCmd('a003a', `SEARCH SINCE ${sinceStr} FROM "sonivision"`);
+                sendCmd('a003a', 'SEARCH FROM "sonivision"');
               }
             } else if (step === 'WAIT_SEARCH_SONIVISION') {
               if (/\ba003a (?:OK|NO|BAD)\b/.test(buffer)) {
                 if (buffer.includes('a003a OK')) {
-                  parseSearchIds(buffer).forEach(id => priorityIds.add(id));
+                  parseSearchIds(buffer).slice(-5).forEach(id => priorityIds.add(id));
                 }
                 buffer = '';
                 step = 'WAIT_SEARCH_COOPENAE';
