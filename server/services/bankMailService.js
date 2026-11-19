@@ -1247,50 +1247,10 @@ class BankMailService {
               if (/\ba003 (?:OK|NO|BAD)\b/.test(buffer)) {
                 const allIds = buffer.includes('a003 OK') ? parseSearchIds(buffer) : [];
                 buffer = '';
-                const recentIds = allIds.slice(-25);
-                if (recentIds.length === 0 && priorityIds.size === 0) {
-                  step = 'DONE';
-                  finishImapAndProcess();
-                  return;
-                }
-                if (recentIds.length === 0) {
-                  msgIds = Array.from(priorityIds).sort((a, b) => b - a);
-                  step = 'FETCHING';
-                  fetchNext();
-                  return;
-                }
-                step = 'WAIT_HEADERS';
-                const minId = recentIds[0];
-                const maxId = recentIds[recentIds.length - 1];
-                sendCmd('a004', `FETCH ${minId}:${maxId} (BODY.PEEK[HEADER.FIELDS (SUBJECT FROM DATE)])`);
-              }
-            } else if (step === 'WAIT_HEADERS') {
-              if (/\ba004 (?:OK|NO|BAD)\b/.test(buffer)) {
-                const rawHeaders = unfoldHeaders(buffer);
-                buffer = '';
-                const entryRegex = /\*\s+(\d+)\s+FETCH\s+\([\s\S]*?(?=\r?\n\*\s+\d+\s+FETCH\s+\(|\r?\na004 (?:OK|NO|BAD))/gi;
-                const filteredSet = new Set(Array.from(priorityIds));
-                let m;
-                while ((m = entryRegex.exec(rawHeaders)) !== null) {
-                  const seqId = Number(m[1]);
-                  const block = m[0];
-                  const subjM = block.match(/Subject:\s*([^\r\n]+)/i);
-                  const fromM = block.match(/From:\s*([^\r\n]+)/i);
-                  const dateM = block.match(/Date:\s*([^\r\n]+)/i);
-                  const subj = subjM ? subjM[1].trim() : '';
-                  const frm = fromM ? fromM[1].trim() : '';
-                  const dt = dateM ? dateM[1].trim() : '';
-                  if (isFinancialHeader(frm, subj, dt)) {
-                    filteredSet.add(seqId);
-                  }
-                }
-                // Priorizar Sonivision y Coopenae primero, luego del más reciente al más antiguo
-                msgIds = Array.from(filteredSet).sort((a, b) => {
-                  const pA = priorityIds.has(a) ? 1 : 0;
-                  const pB = priorityIds.has(b) ? 1 : 0;
-                  if (pA !== pB) return pB - pA;
-                  return b - a;
-                });
+                // Priorizar Sonivision y Coopenae primero, luego los 30 más recientes desde syncStartDate
+                const prioSorted = Array.from(priorityIds).sort((a, b) => b - a);
+                const recentSorted = allIds.slice(-30).reverse();
+                msgIds = Array.from(new Set([...prioSorted, ...recentSorted]));
                 if (msgIds.length === 0) {
                   step = 'DONE';
                   finishImapAndProcess();
