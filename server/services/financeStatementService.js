@@ -134,7 +134,7 @@ Reglas:
 
   async previewStatementImport({ fileBase64, mimeType, fileName, accountId }) {
     const parsed = await this.parseStatementWithGemini({ fileBase64, mimeType, fileName });
-    const financeData = await financeService.getAllData();
+    const financeData = await financeService.getSummary();
     const accounts = financeData.accounts || [];
     const existingTxs = financeData.transactions || [];
 
@@ -215,7 +215,7 @@ Reglas:
     statementInfo,
     transactions = []
   }) {
-    const financeData = await financeService.getAllData();
+    const financeData = await financeService.getSummary();
     const accounts = financeData.accounts || [];
     const targetAcc = accounts.find(a => a.id === targetAccountId);
     const sourceAcc = sourceAccountId ? accounts.find(a => a.id === sourceAccountId) : null;

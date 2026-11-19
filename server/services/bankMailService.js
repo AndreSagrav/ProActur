@@ -753,7 +753,7 @@ class BankMailService {
 
     let localData = financeService.readLocal();
     if (!localData || !Array.isArray(localData.accounts) || localData.accounts.length === 0) {
-      localData = await financeService.getAllData();
+      localData = await financeService.getSummary();
     }
     const accounts = localData.accounts || [];
     const transactions = localData.transactions || [];
@@ -996,8 +996,9 @@ class BankMailService {
     const emailKey = `${lowerFrom}|${cleanSubj.toLowerCase()}|${String(date).slice(0, 10)}`;
 
     let attachments = extractAttachmentsFromRawMime(rawMime);
-    // Si es un correo de Coopenae o Sonivision sin adjunto binario, analizar su cuerpo HTML/texto con Gemini
-    if (attachments.length === 0 && (lowerFrom.includes('coopenae') || lowerFrom.includes('sonivision'))) {
+    // Si es un correo transaccional de Coopenae o Sonivision sin adjunto binario (excluyendo boletines de info.coopenae), analizar cuerpo HTML con Gemini
+    const isMarketingMail = lowerFrom.includes('info.coopenae') || lowerFrom.includes('comunicacion@');
+    if (attachments.length === 0 && !isMarketingMail && (lowerFrom.includes('coopenaevirtual') || lowerFrom.includes('sonivision'))) {
       const cleanHtmlText = decodeEmailBody(rawMime)
         .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, ' ')
         .replace(/<[^>]+>/g, ' ')
@@ -1014,7 +1015,7 @@ class BankMailService {
     }
     if (attachments.length === 0) return { recorded: 0 };
 
-    const financeData = await financeService.getAllData();
+    const financeData = await financeService.getSummary();
     const accounts = financeData.accounts || [];
     const primaryDebit = accounts.find(a => a.type === 'debito') || accounts[0];
 
@@ -1087,7 +1088,7 @@ class BankMailService {
     // En Vercel Serverless /tmp inicia vacío en cada cold start: hidratar config y finanzas desde Supabase primero
     await this.syncFromCloud();
     try {
-      await financeService.getAllData();
+      await financeService.getSummary();
     } catch (_) {}
 
     const config = this.getConfig();
