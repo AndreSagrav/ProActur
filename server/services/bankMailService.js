@@ -1130,20 +1130,32 @@ class BankMailService {
             } else if (step === 'WAIT_SELECT') {
               if (buffer.includes('a002 OK')) {
                 buffer = '';
+                step = 'WAIT_SEARCH_SONIVISION';
+                const sinceStr = formatImapSince(config.syncStartDate);
+                sendCmd('a003a', `SEARCH SINCE ${sinceStr} FROM "sonivision"`);
+              }
+            } else if (step === 'WAIT_SEARCH_SONIVISION') {
+              if (buffer.includes('a003a OK')) {
+                parseSearchIds(buffer).forEach(id => priorityIds.add(id));
+                buffer = '';
+                step = 'WAIT_SEARCH_COOPENAE';
+                const sinceStr = formatImapSince(config.syncStartDate);
+                sendCmd('a003b', `SEARCH SINCE ${sinceStr} FROM "coopenae"`);
+              }
+            } else if (step === 'WAIT_SEARCH_COOPENAE') {
+              if (buffer.includes('a003b OK')) {
+                parseSearchIds(buffer).forEach(id => priorityIds.add(id));
+                buffer = '';
                 step = 'WAIT_SEARCH';
                 const sinceStr = formatImapSince(config.syncStartDate);
                 sendCmd('a003', `SEARCH SINCE ${sinceStr}`);
               }
             } else if (step === 'WAIT_SEARCH') {
               if (buffer.includes('a003 OK')) {
-                const searchMatch = buffer.match(/\* SEARCH ([\d\s]+)/);
-                let allIds = [];
-                if (searchMatch && searchMatch[1].trim()) {
-                  allIds = searchMatch[1].trim().split(/\s+/).map(Number).filter(n => !isNaN(n));
-                }
+                const allIds = parseSearchIds(buffer);
                 buffer = '';
-                const recentIds = allIds.slice(-60).reverse();
-                if (recentIds.length === 0) {
+                const combined = Array.from(new Set([...Array.from(priorityIds), ...allIds.slice(-60)])).sort((a, b) => b - a);
+                if (combined.length === 0) {
                   step = 'DONE';
                   await this.saveConfig({ ...config, lastSync: new Date().toISOString() });
                   sendCmd('a999', 'LOGOUT');
@@ -1151,11 +1163,11 @@ class BankMailService {
                   return;
                 }
                 step = 'WAIT_HEADERS';
-                sendCmd('a004', `FETCH ${recentIds.join(',')} (BODY.PEEK[HEADER.FIELDS (SUBJECT FROM DATE)])`);
+                sendCmd('a004', `FETCH ${combined.join(',')} (BODY.PEEK[HEADER.FIELDS (SUBJECT FROM DATE)])`);
               }
             } else if (step === 'WAIT_HEADERS') {
               if (buffer.includes('a004 OK')) {
-                const rawHeaders = buffer;
+                const rawHeaders = unfoldHeaders(buffer);
                 buffer = '';
                 const entryRegex = /\*\s+(\d+)\s+FETCH\s+\([\s\S]*?(?=\r?\n\*\s+\d+\s+FETCH\s+\(|\r?\na004 OK)/gi;
                 const filteredIds = [];
@@ -1169,11 +1181,17 @@ class BankMailService {
                   const subj = subjM ? subjM[1].trim() : '';
                   const frm = fromM ? fromM[1].trim() : '';
                   const dt = dateM ? dateM[1].trim() : '';
-                  if (isFinancialHeader(frm, subj, dt)) {
+                  if (priorityIds.has(seqId) || isFinancialHeader(frm, subj, dt)) {
                     filteredIds.push(seqId);
                   }
                 }
-                msgIds = filteredIds.sort((a, b) => b - a);
+                // Priorizar Sonivision y Coopenae primero, luego del más reciente al más antiguo
+                msgIds = filteredIds.sort((a, b) => {
+                  const pA = priorityIds.has(a) ? 1 : 0;
+                  const pB = priorityIds.has(b) ? 1 : 0;
+                  if (pA !== pB) return pB - pA;
+                  return b - a;
+                });
                 if (msgIds.length === 0) {
                   step = 'DONE';
                   await this.saveConfig({ ...config, lastSync: new Date().toISOString() });
@@ -1189,10 +1207,11 @@ class BankMailService {
               if (buffer.includes(`${tag} OK`)) {
                 const currentChunk = buffer;
                 buffer = '';
+                const unfolded = unfoldHeaders(currentChunk);
 
-                const subjectMatch = currentChunk.match(/Subject:\s*([^\r\n]+)/i);
-                const fromMatch = currentChunk.match(/From:\s*([^\r\n]+)/i);
-                const dateMatch = currentChunk.match(/Date:\s*([^\r\n]+)/i);
+                const subjectMatch = unfolded.match(/Subject:\s*([^\r\n]+)/i);
+                const fromMatch = unfolded.match(/From:\s*([^\r\n]+)/i);
+                const dateMatch = unfolded.match(/Date:\s*([^\r\n]+)/i);
 
                 const subject = subjectMatch ? subjectMatch[1].trim() : '';
                 const from = fromMatch ? fromMatch[1].trim() : '';
@@ -1210,9 +1229,8 @@ class BankMailService {
                   if (textRes.status === 'recorded') recordedCount++;
                 } catch (_) {}
 
-                // Máximo 2 adjuntos pesados con Gemini por corrida y presupuesto de 18s para evitar timeout en Vercel
-                const withinTimeBudget = (Date.now() - startedAt) < 18000;
-                if (withinTimeBudget && attachmentsProcessedThisRun < 2 && this.isAttachmentCandidate(from, subject, date, config, textRes)) {
+                const withinTimeBudget = (Date.now() - startedAt) < 22000;
+                if (withinTimeBudget && attachmentsProcessedThisRun < 4 && this.isAttachmentCandidate(from, subject, date, config, textRes)) {
                   attachmentsProcessedThisRun++;
                   step = 'FETCHING_FULL';
                   socket._pendingEmailMeta = { subject, from, date, id: msgIds[currentIndex] };
@@ -1257,10 +1275,10 @@ class BankMailService {
           });
 
           const fetchNext = () => {
-            if (currentIndex < msgIds.length && (Date.now() - startedAt) < 20000) {
+            if (currentIndex < msgIds.length && (Date.now() - startedAt) < 25000) {
               const id = msgIds[currentIndex];
               const tag = `f${currentIndex}`;
-              sendCmd(tag, `FETCH ${id} (BODY.PEEK[HEADER.FIELDS (SUBJECT FROM DATE)] BODY.PEEK[TEXT]<0.32000>)`);
+              sendCmd(tag, `FETCH ${id} (BODY.PEEK[]<0.32000>)`);
             } else {
               step = 'DONE';
               this.saveConfig({ ...config, lastSync: new Date().toISOString() });
