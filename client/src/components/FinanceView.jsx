@@ -71,12 +71,15 @@ export default function FinanceView() {
     budgetLimit: 0,
     accounts: [],
     loans: [],
-    recentTransactions: []
+    recentTransactions: [],
+    creditTransactions: [],
+    savingsTransactions: []
   });
   const [statements, setStatements] = useState(null);
   const [loading, setLoading] = useState(true);
   const [filterAccountId, setFilterAccountId] = useState('all');
   const [filterType, setFilterType] = useState('all');
+  const [ledgerScope, setLedgerScope] = useState('liquido'); // 'liquido' | 'credito' | 'reservas'
   const [searchQuery, setSearchQuery] = useState('');
 
   // Modales
@@ -85,6 +88,25 @@ export default function FinanceView() {
   const [editingAccount, setEditingAccount] = useState(null);
   const [showLoanModal, setShowLoanModal] = useState(false);
   const [editingLoan, setEditingLoan] = useState(null);
+  const [reserveModal, setReserveModal] = useState({
+    open: false,
+    account: null,
+    mode: 'add',
+    amount: '',
+    note: '',
+    sourceDebitId: ''
+  });
+  const [reserveSaving, setReserveSaving] = useState(false);
+  const [cardPayModal, setCardPayModal] = useState({
+    open: false,
+    card: null,
+    sourceAccountId: '',
+    amount: '',
+    currency: 'CRC',
+    note: '',
+    date: new Date().toISOString().slice(0, 10)
+  });
+  const [cardPaySaving, setCardPaySaving] = useState(false);
 
   // Estados Gmail
   const [mailConfig, setMailConfig] = useState({ email: '', appPassword: '', enabled: false, autoRecord: true });
@@ -392,9 +414,9 @@ export default function FinanceView() {
         creditLimit: defaultType === 'credito' ? '1344000' : '',
         creditLimitUSD: defaultType === 'credito' ? '3000' : '',
         cashPaymentCRC: defaultType === 'credito' ? '0' : '',
-        cashPaymentUSD: defaultType === 'credito' ? '68.99' : '',
+        cashPaymentUSD: defaultType === 'credito' ? '0' : '',
         minPaymentCRC: defaultType === 'credito' ? '0' : '',
-        minPaymentUSD: defaultType === 'credito' ? '5.00' : '',
+        minPaymentUSD: defaultType === 'credito' ? '0' : '',
         cutOffDay: defaultType === 'credito' ? '13' : '',
         paymentDueDay: defaultType === 'credito' ? '2' : '',
         color: defaultType === 'credito' ? '#06b6d4' : (defaultType === 'objetivo' || defaultType === 'cdp' ? '#6366f1' : '#0ea5e9'),
@@ -490,6 +512,169 @@ export default function FinanceView() {
       }
     } catch (err) {
       console.error('[Delete Account Error]', err);
+    }
+  };
+
+  const handleOpenReserveModal = (account, mode = 'add') => {
+    const defaultDebit = (financeData.accounts || []).find(a => a.type === 'debito');
+    setReserveModal({
+      open: true,
+      account,
+      mode,
+      amount: '',
+      note: mode === 'add' ? `Aporte a ${account.name}` : `Retiro de ${account.name}`,
+      sourceDebitId: defaultDebit?.id || ''
+    });
+  };
+
+  const handleApplyReserveAdjustment = async (e) => {
+    e.preventDefault();
+    const { account, mode, amount, note, sourceDebitId } = reserveModal;
+    const amt = Math.abs(parseFloat(amount) || 0);
+    if (!account || amt <= 0 || reserveSaving) return;
+
+    setReserveSaving(true);
+    try {
+      const currentBal = Number(account.balance) || 0;
+      const newBalance = mode === 'add' ? currentBal + amt : Math.max(0, currentBal - amt);
+
+      // 1. Actualizar saldo de la reserva en Supabase
+      await fetch(`${API}/api/finance/accounts/${account.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...account, balance: newBalance })
+      });
+
+      // 2. Registrar asiento histórico en la cuenta de reserva
+      await fetch(`${API}/api/finance/transactions`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          accountId: account.id,
+          type: mode === 'add' ? 'ingreso' : 'gasto',
+          category: 'Reservas y Ahorros',
+          note: note?.trim() || (mode === 'add' ? `Aporte a reserva ${account.name}` : `Retiro de reserva ${account.name}`),
+          amount: amt,
+          currency: account.currency || 'CRC',
+          source: 'manual',
+          skipBalanceMutation: true,
+          date: new Date().toISOString()
+        })
+      });
+
+      // 3. Si vinculó cuenta débito origen/destino, reflejar el traslado
+      if (sourceDebitId && sourceDebitId !== account.id) {
+        await fetch(`${API}/api/finance/transactions`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            accountId: sourceDebitId,
+            type: mode === 'add' ? 'gasto' : 'ingreso',
+            category: 'Reservas y Ahorros',
+            note: mode === 'add'
+              ? `Traslado hacia reserva ${account.name}`
+              : `Ingreso devuelto desde reserva ${account.name}`,
+            amount: amt,
+            currency: account.currency || 'CRC',
+            source: 'manual',
+            date: new Date().toISOString()
+          })
+        });
+      }
+
+      playExecutiveSound('success');
+      setReserveModal(prev => ({ ...prev, open: false }));
+      fetchFinanceData();
+    } catch (err) {
+      console.error('[Reserve Adjustment Error]', err);
+    } finally {
+      setReserveSaving(false);
+    }
+  };
+
+  const handleOpenCardPayModal = (card) => {
+    const winkDebit = (financeData.accounts || []).find(a =>
+      a.type === 'debito' && (a.name || '').toLowerCase().includes('wink')
+    ) || (financeData.accounts || []).find(a => a.type === 'debito');
+
+    setCardPayModal({
+      open: true,
+      card,
+      sourceAccountId: winkDebit?.id || '',
+      amount: '',
+      currency: 'CRC',
+      note: `Pago Tarjeta ${card.name}`,
+      date: new Date().toISOString().slice(0, 10)
+    });
+  };
+
+  const handleApplyCardPayment = async (e) => {
+    e.preventDefault();
+    const { card, sourceAccountId, amount, currency, note, date } = cardPayModal;
+    const amt = Math.abs(parseFloat(amount) || 0);
+    if (!card || amt <= 0 || cardPaySaving) return;
+
+    setCardPaySaving(true);
+    try {
+      const isoDate = date ? `${date}T12:00:00.000Z` : new Date().toISOString();
+      if (sourceAccountId) {
+        await fetch(`${API}/api/finance/transactions`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            accountId: sourceAccountId,
+            type: 'gasto',
+            category: 'Pago de Tarjeta',
+            merchant: card.name,
+            note: note?.trim() || `Pago a ${card.name}`,
+            amount: amt,
+            currency: currency || 'CRC',
+            source: 'manual',
+            date: isoDate
+          })
+        });
+      }
+      await fetch(`${API}/api/finance/transactions`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          accountId: card.id,
+          type: 'ingreso',
+          category: 'Pago de Tarjeta',
+          merchant: 'Abono a Tarjeta',
+          note: `Abono recibido${sourceAccountId ? ' desde cuenta débito' : ''}: ${note?.trim() || card.name}`,
+          amount: amt,
+          currency: currency || 'CRC',
+          source: 'manual',
+          date: isoDate
+        })
+      });
+
+      // Descontar saldo al vencimiento si estaba pendiente
+      const cashCRC = Number(card.cashPaymentCRC) || 0;
+      const cashUSD = Number(card.cashPaymentUSD) || 0;
+      const cardUpdates = {};
+      if (currency === 'USD' && cashUSD > 0) {
+        cardUpdates.cashPaymentUSD = Math.max(0, +(cashUSD - amt).toFixed(2));
+        cardUpdates.debtUSD = Math.max(0, +((Number(card.debtUSD) || 0) - amt).toFixed(2));
+      } else if (currency === 'CRC' && cashCRC > 0) {
+        cardUpdates.cashPaymentCRC = Math.max(0, +(cashCRC - amt).toFixed(2));
+      }
+      if (Object.keys(cardUpdates).length > 0) {
+        await fetch(`${API}/api/finance/accounts/${card.id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ...card, ...cardUpdates })
+        });
+      }
+
+      playExecutiveSound('success');
+      setCardPayModal(prev => ({ ...prev, open: false }));
+      fetchFinanceData();
+    } catch (err) {
+      console.error('[Card Payment Error]', err);
+    } finally {
+      setCardPaySaving(false);
     }
   };
 
@@ -763,8 +948,15 @@ export default function FinanceView() {
     }
   };
 
-  const filteredTransactions = (financeData.recentTransactions || []).filter(tx => {
-    if (filterAccountId !== 'all' && tx.accountId !== filterAccountId) return false;
+  const scopedTransactions = ledgerScope === 'credito'
+    ? (financeData.creditTransactions || [])
+    : ledgerScope === 'reservas'
+      ? (financeData.savingsTransactions || [])
+      : (financeData.recentTransactions || []);
+
+  const filteredTransactions = scopedTransactions.filter(tx => {
+    const txAccId = tx.accountId || tx.account_id;
+    if (filterAccountId !== 'all' && txAccId !== filterAccountId) return false;
     if (filterType !== 'all' && tx.type !== filterType) return false;
     if (searchQuery) {
       const q = searchQuery.toLowerCase();
@@ -947,7 +1139,7 @@ export default function FinanceView() {
               <div>
                 <span className="text-[10px] text-slate-400 block font-medium">Pago Pendiente Tarjeta</span>
                 <span className="font-bold text-rose-400 font-mono text-[11px]">
-                  ${(Number(financeData.creditDueUSD !== undefined ? financeData.creditDueUSD : financeData.creditDebtUSD) || 68.99).toFixed(2)} USD (₡0)
+                  ${(Number(financeData.creditDueUSD ?? financeData.creditDebtUSD) || 0).toFixed(2)} USD (₡{(Number(financeData.creditDueCRC ?? 0)).toLocaleString()})
                 </span>
               </div>
               <div>
@@ -985,32 +1177,45 @@ export default function FinanceView() {
                 if (el) el.scrollIntoView({ behavior: 'smooth' });
                 else setActiveTab('prestamos');
               }}
-              className="p-6 rounded-3xl bg-slate-900/60 backdrop-blur-md border border-white/10 hover:border-rose-500/30 transition-all shadow-sm cursor-pointer group"
+              className="p-6 rounded-3xl bg-slate-900/60 backdrop-blur-md border border-white/10 hover:border-cyan-500/30 transition-all shadow-sm cursor-pointer group"
             >
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-xs font-medium text-slate-400 group-hover:text-rose-300 transition-colors">
-                  Pago Pendiente Tarjeta
-                </span>
-                <span className="text-[10px] text-rose-400 font-mono font-bold bg-rose-500/10 px-2 py-0.5 rounded-full border border-rose-500/20">
-                  Vence: 2 Nov
-                </span>
-              </div>
-              <div className="flex flex-wrap items-baseline gap-2">
-                <span className="text-2xl md:text-3xl font-bold font-mono text-emerald-400 tracking-tight flex items-center gap-1.5">
-                  <CheckCircle2 className="w-6 h-6 text-emerald-400 inline" /> ₡0 CRC
-                </span>
-                <span className="text-sm md:text-base font-bold font-mono text-rose-400 bg-rose-500/10 px-2.5 py-1 rounded-lg border border-rose-500/20">
-                  ${(Number(financeData.creditDueUSD !== undefined ? financeData.creditDueUSD : financeData.creditDebtUSD) || 68.99).toFixed(2)} USD
-                </span>
-              </div>
-              <div className="text-[11px] font-medium flex items-center justify-between mt-2 pt-2 border-t border-white/5">
-                <span className="text-emerald-400 flex items-center gap-1 font-semibold">
-                  ✓ Colones al día (Pago recibido)
-                </span>
-                <span className="text-slate-400 text-[10px]">
-                  Mínimo: $5.00 USD
-                </span>
-              </div>
+              {(() => {
+                const dueCRC = Number(financeData.creditDueCRC ?? 0) || 0;
+                const dueUSD = Number(financeData.creditDueUSD ?? financeData.creditDebtUSD ?? 0) || 0;
+                const primaryCard = (financeData.accounts || []).find(a => a.type === 'credito');
+                return (
+                  <>
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-xs font-medium text-slate-400 group-hover:text-cyan-300 transition-colors">
+                        Pago Pendiente Tarjeta
+                      </span>
+                      <span className="text-[10px] text-cyan-400 font-mono font-bold bg-cyan-500/10 px-2 py-0.5 rounded-full border border-cyan-500/20">
+                        Pago: Día {primaryCard?.paymentDueDay || 2}
+                      </span>
+                    </div>
+                    <div className="flex flex-wrap items-baseline gap-2">
+                      <span className={`text-2xl md:text-3xl font-bold font-mono tracking-tight flex items-center gap-1.5 ${dueCRC === 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                        {dueCRC === 0 && <CheckCircle2 className="w-6 h-6 text-emerald-400 inline" />} ₡{dueCRC.toLocaleString()} CRC
+                      </span>
+                      <span className={`text-sm md:text-base font-bold font-mono px-2.5 py-1 rounded-lg border ${
+                        dueUSD === 0
+                          ? 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20'
+                          : 'text-rose-400 bg-rose-500/10 border-rose-500/20'
+                      }`}>
+                        ${dueUSD.toFixed(2)} USD
+                      </span>
+                    </div>
+                    <div className="text-[11px] font-medium flex items-center justify-between mt-2 pt-2 border-t border-white/5">
+                      <span className="text-emerald-400 flex items-center gap-1 font-semibold">
+                        {dueCRC === 0 && dueUSD === 0 ? '✓ Período al día (Cancelado)' : 'Módulo independiente'}
+                      </span>
+                      <span className="text-slate-400 text-[10px]">
+                        Consumo ciclo: ₡{(Number(primaryCard?.balance) || 0).toLocaleString()}
+                      </span>
+                    </div>
+                  </>
+                );
+              })()}
             </div>
 
             <div className="p-6 rounded-3xl bg-slate-900/60 backdrop-blur-md border border-white/10 hover:border-white/20 transition-all shadow-sm flex flex-col justify-between">
@@ -1346,6 +1551,17 @@ export default function FinanceView() {
                                 >
                                   <Edit3 className="w-3.5 h-3.5" />
                                 </button>
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleDeleteAccount(acc.id);
+                                  }}
+                                  className="p-1.5 rounded-lg text-slate-400 hover:text-rose-400 bg-slate-950/60 hover:bg-rose-500/10 transition-all border border-white/10"
+                                  title="Eliminar Reserva o Meta"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
                               </div>
                             </div>
 
@@ -1417,6 +1633,30 @@ export default function FinanceView() {
                                 </span>
                               )}
                             </div>
+
+                            <div className="grid grid-cols-2 gap-2 pt-3 mt-2.5 border-t border-white/10">
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleOpenReserveModal(acc, 'add');
+                                }}
+                                className="flex items-center justify-center gap-1 py-1.5 px-2.5 rounded-xl bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-300 border border-emerald-500/30 text-[11px] font-bold transition-all active:scale-95"
+                              >
+                                <Plus className="w-3.5 h-3.5" />
+                                <span>Agregar</span>
+                              </button>
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleOpenReserveModal(acc, 'remove');
+                                }}
+                                className="flex items-center justify-center gap-1 py-1.5 px-2.5 rounded-xl bg-rose-500/15 hover:bg-rose-500/25 text-rose-300 border border-rose-500/30 text-[11px] font-bold transition-all active:scale-95"
+                              >
+                                <span>- Quitar</span>
+                              </button>
+                            </div>
                           </div>
                         </div>
                       );
@@ -1454,15 +1694,16 @@ export default function FinanceView() {
                     .map(card => {
                       const limitCRC = card.creditLimit || 1344000;
                       const limitUSD = card.creditLimitUSD || 3000;
-                      const debtCRC = Number(card.balance) || 5025.84;
-                      const debtUSD = card.debtUSD !== undefined ? Number(card.debtUSD) : 69.15;
+                      const debtCRC = Number(card.balance) || 0;
+                      const debtUSD = card.debtUSD !== undefined && card.debtUSD !== null ? Number(card.debtUSD) : 0;
                       const availCRC = card.availableCredit !== undefined && card.availableCredit !== null ? Number(card.availableCredit) : Math.max(0, limitCRC - debtCRC);
                       const availUSD = card.availableCreditUSD !== undefined && card.availableCreditUSD !== null ? Number(card.availableCreditUSD) : Math.max(0, limitUSD - debtUSD);
                       const cashPayCRC = card.cashPaymentCRC !== undefined && card.cashPaymentCRC !== null ? Number(card.cashPaymentCRC) : 0;
-                      const cashPayUSD = card.cashPaymentUSD || 68.99;
+                      const cashPayUSD = card.cashPaymentUSD !== undefined && card.cashPaymentUSD !== null ? Number(card.cashPaymentUSD) : 0;
                       const minPayCRC = card.minPaymentCRC !== undefined && card.minPaymentCRC !== null ? Number(card.minPaymentCRC) : 0;
-                      const minPayUSD = card.minPaymentUSD || 5.00;
-                      const points = card.rewardPoints || 110;
+                      const minPayUSD = card.minPaymentUSD !== undefined && card.minPaymentUSD !== null ? Number(card.minPaymentUSD) : 0;
+                      const points = card.rewardPoints || 0;
+                      const cardTxs = (financeData.creditTransactions || []).filter(t => (t.accountId || t.account_id) === card.id);
 
                       return (
                         <div
@@ -1489,13 +1730,23 @@ export default function FinanceView() {
                               </div>
                             </div>
 
-                            <button
-                              onClick={() => handleOpenAccountModal(card)}
-                              className="self-start sm:self-auto flex items-center gap-1.5 text-xs px-3.5 py-1.5 rounded-xl bg-slate-950/60 hover:bg-white/10 text-slate-300 hover:text-white border border-white/10 transition-all font-medium"
-                            >
-                              <Edit3 className="w-3.5 h-3.5" />
-                              <span>Ajustar Estado de Cuenta</span>
-                            </button>
+                            <div className="flex items-center gap-2 self-start sm:self-auto flex-wrap">
+                              <button
+                                type="button"
+                                onClick={() => handleOpenCardPayModal(card)}
+                                className="flex items-center gap-1.5 text-xs px-3.5 py-1.5 rounded-xl bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-300 border border-emerald-500/30 transition-all font-bold"
+                              >
+                                <CheckCircle2 className="w-3.5 h-3.5" />
+                                <span>Registrar Pago</span>
+                              </button>
+                              <button
+                                onClick={() => handleOpenAccountModal(card)}
+                                className="flex items-center gap-1.5 text-xs px-3.5 py-1.5 rounded-xl bg-slate-950/60 hover:bg-white/10 text-slate-300 hover:text-white border border-white/10 transition-all font-medium"
+                              >
+                                <Edit3 className="w-3.5 h-3.5" />
+                                <span>Ajustar Estado de Cuenta</span>
+                              </button>
+                            </div>
                           </div>
 
                           {/* BLOQUE DUAL DE ESTADO DE CUENTA: COLONES Y DÓLARES */}
@@ -1503,7 +1754,7 @@ export default function FinanceView() {
                             <div className="flex items-center justify-between">
                               <span className="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center gap-2">
                                 <AlertCircle className="w-4 h-4 text-cyan-400" />
-                                Estado de Cuenta al Vencimiento (Día {card.paymentDueDay || 2} de Noviembre)
+                                Estado de Cuenta al Vencimiento (Día {card.paymentDueDay || 2} de cada mes)
                               </span>
                               <span className="text-[10px] text-slate-400 font-mono">
                                 Corte: {card.cutOffDay || 13} de cada mes
@@ -1568,7 +1819,7 @@ export default function FinanceView() {
                                     </span>
                                   ) : (
                                     <span className="text-[10px] font-bold text-rose-400 bg-rose-500/15 px-2.5 py-0.5 rounded-full border border-rose-500/30">
-                                      Pendiente 2 Nov
+                                      Pendiente Día {card.paymentDueDay || 2}
                                     </span>
                                   )}
                                 </div>
@@ -1576,14 +1827,14 @@ export default function FinanceView() {
                                 <div className="grid grid-cols-2 gap-3 pt-3">
                                   <div>
                                     <span className="text-[10px] text-slate-400 block font-medium">Pago de Contado:</span>
-                                    <span className="text-lg font-bold font-mono text-rose-400 tracking-tight">
+                                    <span className={`text-lg font-bold font-mono tracking-tight ${cashPayUSD > 0 ? 'text-rose-400' : 'text-emerald-400'}`}>
                                       ${cashPayUSD.toFixed(2)} USD
                                     </span>
                                     <span className="text-[10px] text-slate-500 block">Cero intereses</span>
                                   </div>
                                   <div>
                                     <span className="text-[10px] text-slate-400 block font-medium">Pago Mínimo:</span>
-                                    <span className="text-lg font-bold font-mono text-amber-400 tracking-tight">
+                                    <span className={`text-lg font-bold font-mono tracking-tight ${minPayUSD > 0 ? 'text-amber-400' : 'text-slate-300'}`}>
                                       ${minPayUSD.toFixed(2)} USD
                                     </span>
                                     <span className="text-[10px] text-slate-500 block">Para no caer en mora</span>
@@ -1628,12 +1879,14 @@ export default function FinanceView() {
                               </span>
                               <div className="text-xs font-mono text-slate-300 space-y-1 pt-0.5">
                                 <div className="flex items-center justify-between">
-                                  <span className="text-slate-400">Corte 13 Oct:</span>
-                                  <span className="text-emerald-400 font-semibold">Liquidado en CRC</span>
+                                  <span className="text-slate-400">Corte Día {card.cutOffDay || 13}:</span>
+                                  <span className="text-emerald-400 font-semibold">
+                                    {cashPayCRC === 0 && cashPayUSD === 0 ? 'Período Al Día' : 'Con saldo pendiente'}
+                                  </span>
                                 </div>
                                 <div className="flex items-center justify-between">
-                                  <span className="text-slate-400">Próx. Corte:</span>
-                                  <span className="text-white font-bold">13 de Noviembre</span>
+                                  <span className="text-slate-400">Consumo Ciclo CRC:</span>
+                                  <span className="text-white font-bold">₡{debtCRC.toLocaleString()}</span>
                                 </div>
                               </div>
                             </div>
@@ -1663,6 +1916,48 @@ export default function FinanceView() {
                                 <span className="font-semibold text-amber-300">{points} pts</span>
                               </div>
                             </div>
+                          </div>
+
+                          {/* MOVIMIENTOS Y PAGOS PROPIOS DE ESTA TARJETA (INDEPENDIENTE DEL GASTO LÍQUIDO) */}
+                          <div className="pt-4 border-t border-white/10 space-y-2.5">
+                            <div className="flex items-center justify-between">
+                              <span className="text-xs font-bold text-cyan-300 uppercase tracking-wider">
+                                Historial Independiente de Tarjeta ({cardTxs.length})
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setLedgerScope('credito');
+                                  setFilterAccountId(card.id);
+                                  setActiveTab('movimientos');
+                                }}
+                                className="text-[11px] font-semibold text-cyan-400 hover:text-cyan-300"
+                              >
+                                Ver libro completo →
+                              </button>
+                            </div>
+                            {cardTxs.length === 0 ? (
+                              <p className="text-xs text-slate-500">Sin consumos ni abonos registrados aún.</p>
+                            ) : (
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-2 max-h-56 overflow-y-auto pr-1">
+                                {cardTxs.slice(0, 12).map(tx => {
+                                  const isPayment = tx.type === 'ingreso' || tx.category === 'Pago de Tarjeta';
+                                  return (
+                                    <div key={tx.id} className="flex items-center justify-between gap-2 p-2.5 rounded-xl bg-slate-950/60 border border-white/5 text-xs">
+                                      <div className="min-w-0">
+                                        <div className="font-medium text-slate-200 truncate">{tx.note || tx.merchant}</div>
+                                        <div className="text-[10px] text-slate-400">
+                                          {new Date(tx.date).toLocaleDateString('es-CR')} • {tx.category}
+                                        </div>
+                                      </div>
+                                      <span className={`font-mono font-bold shrink-0 ${isPayment ? 'text-emerald-400' : 'text-rose-400'}`}>
+                                        {isPayment ? '+' : '-'}₡{Number(tx.amount || 0).toLocaleString()}
+                                      </span>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            )}
                           </div>
                         </div>
                       );
@@ -1700,16 +1995,57 @@ export default function FinanceView() {
           <div className="p-4 sm:p-7 md:p-8 rounded-3xl bg-slate-900/60 backdrop-blur-md border border-white/10 space-y-6 shadow-sm">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
               <div>
-                <h3 className="font-bold text-white text-lg flex items-center gap-2.5">
-                  Movimientos Contables
+                <h3 className="font-bold text-white text-lg flex items-center gap-2.5 flex-wrap">
+                  <span>
+                    {ledgerScope === 'credito'
+                      ? 'Movimientos Tarjeta de Crédito (Independiente)'
+                      : ledgerScope === 'reservas'
+                        ? 'Movimientos de Reservas / Ahorros'
+                        : 'Movimientos Contables Líquidos (Débito)'}
+                  </span>
                   {filterAccountId !== 'all' && (
                     <span className="text-xs px-3 py-1 rounded-full bg-sky-500/20 text-sky-400 border border-sky-500/30 font-medium">
                       Filtrado por cuenta
                     </span>
                   )}
                 </h3>
-                <p className="text-xs text-slate-400 mt-0.5">
-                  {filteredTransactions.length} asientos registrados en el sistema
+                <div className="flex flex-wrap items-center gap-2 mt-2">
+                  <button
+                    type="button"
+                    onClick={() => { setLedgerScope('liquido'); setFilterAccountId('all'); }}
+                    className={`px-3 py-1 rounded-xl text-xs font-bold transition-all border ${
+                      ledgerScope === 'liquido'
+                        ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
+                        : 'bg-slate-950/60 text-slate-400 border-white/10 hover:text-white'
+                    }`}
+                  >
+                    Cuentas Líquidas ({(financeData.recentTransactions || []).length})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { setLedgerScope('credito'); setFilterAccountId('all'); }}
+                    className={`px-3 py-1 rounded-xl text-xs font-bold transition-all border ${
+                      ledgerScope === 'credito'
+                        ? 'bg-cyan-500/20 text-cyan-300 border-cyan-500/40'
+                        : 'bg-slate-950/60 text-slate-400 border-white/10 hover:text-white'
+                    }`}
+                  >
+                    Tarjeta de Crédito ({(financeData.creditTransactions || []).length})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { setLedgerScope('reservas'); setFilterAccountId('all'); }}
+                    className={`px-3 py-1 rounded-xl text-xs font-bold transition-all border ${
+                      ledgerScope === 'reservas'
+                        ? 'bg-indigo-500/20 text-indigo-300 border-indigo-500/40'
+                        : 'bg-slate-950/60 text-slate-400 border-white/10 hover:text-white'
+                    }`}
+                  >
+                    Reservas / Ahorros ({(financeData.savingsTransactions || []).length})
+                  </button>
+                </div>
+                <p className="text-xs text-slate-400 mt-1.5">
+                  {filteredTransactions.length} asientos registrados en esta vista
                 </p>
               </div>
 
@@ -1938,17 +2274,17 @@ export default function FinanceView() {
                   .map(card => {
                     const limitCRC = card.creditLimit || 1344000;
                     const limitUSD = card.creditLimitUSD || 3000;
-                    const debtCRC = Number(card.balance) || 5025.84;
-                    const debtUSD = card.debtUSD !== undefined ? Number(card.debtUSD) : 69.15;
+                    const debtCRC = Number(card.balance) || 0;
+                    const debtUSD = card.debtUSD !== undefined && card.debtUSD !== null ? Number(card.debtUSD) : 0;
                     const availCRC = card.availableCredit !== undefined && card.availableCredit !== null ? Number(card.availableCredit) : Math.max(0, limitCRC - debtCRC);
                     const availUSD = card.availableCreditUSD !== undefined && card.availableCreditUSD !== null ? Number(card.availableCreditUSD) : Math.max(0, limitUSD - debtUSD);
                     const cashPayCRC = card.cashPaymentCRC !== undefined && card.cashPaymentCRC !== null ? Number(card.cashPaymentCRC) : 0;
-                    const cashPayUSD = card.cashPaymentUSD || 68.99;
+                    const cashPayUSD = card.cashPaymentUSD !== undefined && card.cashPaymentUSD !== null ? Number(card.cashPaymentUSD) : 0;
                     const minPayCRC = card.minPaymentCRC !== undefined && card.minPaymentCRC !== null ? Number(card.minPaymentCRC) : 0;
-                    const minPayUSD = card.minPaymentUSD || 5.00;
+                    const minPayUSD = card.minPaymentUSD !== undefined && card.minPaymentUSD !== null ? Number(card.minPaymentUSD) : 0;
                     const rateCRC = card.interestRateCRC || 32;
                     const rateUSD = card.interestRateUSD || 27.5;
-                    const points = card.rewardPoints || 110;
+                    const points = card.rewardPoints || 0;
 
                     return (
                       <div
@@ -1979,7 +2315,15 @@ export default function FinanceView() {
                             </div>
                           </div>
 
-                          <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <button
+                              type="button"
+                              onClick={() => handleOpenCardPayModal(card)}
+                              className="flex items-center gap-1.5 text-xs px-3.5 py-2 rounded-xl bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-300 border border-emerald-500/30 transition-all font-bold"
+                            >
+                              <CheckCircle2 className="w-3.5 h-3.5" />
+                              <span>Registrar Pago</span>
+                            </button>
                             <button
                               onClick={() => handleOpenAccountModal(card)}
                               className="flex items-center gap-2 text-xs px-3.5 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white border border-white/10 transition-all shadow-sm font-medium"
@@ -1995,7 +2339,7 @@ export default function FinanceView() {
                           <div className="flex items-center justify-between">
                             <span className="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center gap-2">
                               <AlertCircle className="w-4 h-4 text-cyan-400" />
-                              Estado de Cuenta al Vencimiento (Día {card.paymentDueDay || 2} de Noviembre)
+                              Estado de Cuenta al Vencimiento (Día {card.paymentDueDay || 2} de cada mes)
                             </span>
                             <span className="text-[10px] text-slate-400 font-mono">
                               Corte: {card.cutOffDay || 13} de cada mes
@@ -2060,7 +2404,7 @@ export default function FinanceView() {
                                   </span>
                                 ) : (
                                   <span className="text-[10px] font-bold text-rose-400 bg-rose-500/15 px-2.5 py-0.5 rounded-full border border-rose-500/30">
-                                    Pendiente 2 Nov
+                                    Pendiente Día {card.paymentDueDay || 2}
                                   </span>
                                 )}
                               </div>
@@ -2068,14 +2412,14 @@ export default function FinanceView() {
                               <div className="grid grid-cols-2 gap-3 pt-3">
                                 <div>
                                   <span className="text-[10px] text-slate-400 block font-medium">Pago de Contado:</span>
-                                  <span className="text-lg font-bold font-mono text-rose-400 tracking-tight">
+                                  <span className={`text-lg font-bold font-mono tracking-tight ${cashPayUSD > 0 ? 'text-rose-400' : 'text-emerald-400'}`}>
                                     ${cashPayUSD.toFixed(2)} USD
                                   </span>
                                   <span className="text-[10px] text-slate-500 block">Cero intereses</span>
                                 </div>
                                 <div>
                                   <span className="text-[10px] text-slate-400 block font-medium">Pago Mínimo:</span>
-                                  <span className="text-lg font-bold font-mono text-amber-400 tracking-tight">
+                                  <span className={`text-lg font-bold font-mono tracking-tight ${minPayUSD > 0 ? 'text-amber-400' : 'text-slate-300'}`}>
                                     ${minPayUSD.toFixed(2)} USD
                                   </span>
                                   <span className="text-[10px] text-slate-500 block">Para no caer en mora</span>
@@ -2120,12 +2464,14 @@ export default function FinanceView() {
                             </span>
                             <div className="text-xs font-mono text-slate-300 space-y-1 pt-0.5">
                               <div className="flex items-center justify-between">
-                                <span className="text-slate-400">Corte 13 Oct:</span>
-                                <span className="text-emerald-400 font-semibold">Liquidado en CRC</span>
+                                <span className="text-slate-400">Corte Día {card.cutOffDay || 13}:</span>
+                                <span className="text-emerald-400 font-semibold">
+                                  {cashPayCRC === 0 && cashPayUSD === 0 ? 'Período Al Día' : 'Con saldo pendiente'}
+                                </span>
                               </div>
                               <div className="flex items-center justify-between">
-                                <span className="text-slate-400">Próx. Corte:</span>
-                                <span className="text-white font-bold">13 de Noviembre</span>
+                                <span className="text-slate-400">Consumo Ciclo CRC:</span>
+                                <span className="text-white font-bold">₡{debtCRC.toLocaleString()}</span>
                               </div>
                             </div>
                           </div>
@@ -3749,6 +4095,202 @@ export default function FinanceView() {
           </div>
         </div>
       )}
+      {/* MODAL: AGREGAR / QUITAR EN RESERVAS Y AHORROS */}
+      {reserveModal.open && reserveModal.account && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="w-full max-w-md rounded-3xl bg-slate-900 border border-white/15 p-6 space-y-5 shadow-2xl">
+            <div className="flex items-center justify-between border-b border-white/10 pb-3">
+              <div>
+                <h3 className="font-bold text-white text-base">
+                  {reserveModal.mode === 'add' ? 'Agregar Fondos a Reserva' : 'Retirar Fondos de Reserva'}
+                </h3>
+                <p className="text-xs text-indigo-300 mt-0.5">
+                  {reserveModal.account.name} • Actual: {(reserveModal.account.currency === 'USD' ? '$' : '₡')}
+                  {(Number(reserveModal.account.balance) || 0).toLocaleString()}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setReserveModal(prev => ({ ...prev, open: false }))}
+                className="p-1.5 rounded-lg text-slate-400 hover:text-white"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleApplyReserveAdjustment} className="space-y-4">
+              <div>
+                <label className="block text-xs font-medium text-slate-400 mb-1.5">
+                  Monto ({reserveModal.account.currency || 'CRC'})
+                </label>
+                <input
+                  type="number"
+                  step="0.01"
+                  required
+                  autoFocus
+                  value={reserveModal.amount}
+                  onChange={(e) => setReserveModal(prev => ({ ...prev, amount: e.target.value }))}
+                  placeholder="0.00"
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-white/10 text-white font-mono text-sm focus:border-indigo-500 outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-slate-400 mb-1.5">
+                  {reserveModal.mode === 'add' ? 'Cuenta Débito Origen (opcional)' : 'Cuenta Débito Destino (opcional)'}
+                </label>
+                <select
+                  value={reserveModal.sourceDebitId}
+                  onChange={(e) => setReserveModal(prev => ({ ...prev, sourceDebitId: e.target.value }))}
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-white/10 text-white text-xs"
+                >
+                  <option value="">Ajustar solo la reserva (sin mover cuentas débito)</option>
+                  {(financeData.accounts || []).filter(a => a.type === 'debito' || a.type === 'efectivo').map(a => (
+                    <option key={a.id} value={a.id}>
+                      {a.name} ({a.currency} {Number(a.balance || 0).toLocaleString()})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-slate-400 mb-1.5">Detalle / Concepto</label>
+                <input
+                  type="text"
+                  value={reserveModal.note}
+                  onChange={(e) => setReserveModal(prev => ({ ...prev, note: e.target.value }))}
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-white/10 text-white text-xs focus:border-indigo-500 outline-none"
+                />
+              </div>
+
+              <div className="flex gap-2.5 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setReserveModal(prev => ({ ...prev, open: false }))}
+                  className="flex-1 py-2.5 rounded-xl bg-slate-800 border border-white/10 text-slate-300 text-xs font-medium"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={reserveSaving}
+                  className={`flex-1 py-2.5 rounded-xl text-white text-xs font-bold shadow-lg ${
+                    reserveModal.mode === 'add'
+                      ? 'bg-emerald-600 hover:bg-emerald-500'
+                      : 'bg-rose-600 hover:bg-rose-500'
+                  }`}
+                >
+                  {reserveSaving ? 'Guardando...' : (reserveModal.mode === 'add' ? '+ Confirmar Aporte' : '- Confirmar Retiro')}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: REGISTRAR PAGO DE TARJETA DE CRÉDITO */}
+      {cardPayModal.open && cardPayModal.card && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="w-full max-w-md rounded-3xl bg-slate-900 border border-white/15 p-6 space-y-5 shadow-2xl">
+            <div className="flex items-center justify-between border-b border-white/10 pb-3">
+              <div>
+                <h3 className="font-bold text-white text-base">Pagar Tarjeta de Crédito</h3>
+                <p className="text-xs text-cyan-300 mt-0.5">{cardPayModal.card.name}</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setCardPayModal(prev => ({ ...prev, open: false }))}
+                className="p-1.5 rounded-lg text-slate-400 hover:text-white"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleApplyCardPayment} className="space-y-4">
+              <div>
+                <label className="block text-xs font-medium text-slate-400 mb-1.5">Cuenta Débito que Paga</label>
+                <select
+                  value={cardPayModal.sourceAccountId}
+                  onChange={(e) => setCardPayModal(prev => ({ ...prev, sourceAccountId: e.target.value }))}
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-white/10 text-white text-xs"
+                >
+                  <option value="">Solo registrar abono en tarjeta</option>
+                  {(financeData.accounts || []).filter(a => a.type === 'debito' || a.type === 'efectivo').map(a => (
+                    <option key={a.id} value={a.id}>
+                      {a.name} ({a.currency} {Number(a.balance || 0).toLocaleString()})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-slate-400 mb-1.5">Monto</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    required
+                    autoFocus
+                    value={cardPayModal.amount}
+                    onChange={(e) => setCardPayModal(prev => ({ ...prev, amount: e.target.value }))}
+                    placeholder="0.00"
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-white/10 text-white font-mono text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-slate-400 mb-1.5">Moneda</label>
+                  <select
+                    value={cardPayModal.currency}
+                    onChange={(e) => setCardPayModal(prev => ({ ...prev, currency: e.target.value }))}
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-white/10 text-white text-xs"
+                  >
+                    <option value="CRC">CRC (₡)</option>
+                    <option value="USD">USD ($)</option>
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-slate-400 mb-1.5">Fecha del Pago</label>
+                <input
+                  type="date"
+                  value={cardPayModal.date}
+                  onChange={(e) => setCardPayModal(prev => ({ ...prev, date: e.target.value }))}
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-white/10 text-white text-xs"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-slate-400 mb-1.5">Nota</label>
+                <input
+                  type="text"
+                  value={cardPayModal.note}
+                  onChange={(e) => setCardPayModal(prev => ({ ...prev, note: e.target.value }))}
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-white/10 text-white text-xs"
+                />
+              </div>
+
+              <div className="flex gap-2.5 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setCardPayModal(prev => ({ ...prev, open: false }))}
+                  className="flex-1 py-2.5 rounded-xl bg-slate-800 border border-white/10 text-slate-300 text-xs font-medium"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={cardPaySaving}
+                  className="flex-1 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-lg"
+                >
+                  {cardPaySaving ? 'Aplicando...' : 'Aplicar Pago'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
       <StatementImportModal
         isOpen={showStatementModal}
         onClose={() => setShowStatementModal(false)}

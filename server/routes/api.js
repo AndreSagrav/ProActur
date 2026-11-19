@@ -1128,7 +1128,7 @@ router.post('/finance/apply-statement', async (req, res) => {
   }
 });
 
-// SANEAMIENTO CONTABLE: elimina duplicados/basura, reasigna Estado de Cuenta Coopenae a Wink Crédito 7017 y restaura saldos reales
+// SANEAMIENTO CONTABLE: elimina duplicados/basura, reasigna Estado de Cuenta Coopenae a Wink Crédito 7017, registra pagos desde Wink Débito 1081 y restaura saldos reales
 router.post('/finance/repair-ledger', async (req, res) => {
   try {
     const supabase = getSupabaseClient();
@@ -1137,12 +1137,14 @@ router.post('/finance/repair-ledger', async (req, res) => {
       'tx_1795101095201_gnjjw',
       'tx_1793231976433',
       'tx_1793231965714',
-      'tx_1795022842924'
+      'tx_1795022842924',
+      'tx_1795099082623_6ne5a'
     ];
 
+    // Wink Débito 1081 (40,079.02 al 25 oct) menos pago período anterior USD del 2 nov ($68.99 @ 520 = 35,874.80) = 4,204.22
     const restoredBalances = {
       acc_1792898165250: 2991.11,
-      acc_1792898166116: 40079.02,
+      acc_1792898166116: 4204.22,
       acc_1792898165751: 407.76,
       acc_1792898165885: 0,
       acc_1792968680319: 100988.62,
@@ -1164,10 +1166,59 @@ router.post('/finance/repair-ledger', async (req, res) => {
         tx.account_id = 'acc_1792898165999';
         reassignedIds.push(tx.id);
       }
+      if (tx.id === 'tx_1795099081432_xpu4j') {
+        tx.amount = 22765;
+        tx.category = 'Pago de Tarjeta';
+        tx.note = 'Abono recibido desde Wink Débito 1081: Pago contado CRC período anterior (₡22,765.00)';
+      }
+      if (tx.id === 'tx_1795099081530_k09py') {
+        tx.amount = 35874.80;
+        tx.category = 'Pago de Tarjeta';
+        tx.note = 'Abono recibido desde Wink Débito 1081: Pago contado USD período anterior ($68.99 USD @ ₡520)';
+      }
     }
+
+    const debitPayOct21 = {
+      id: 'tx_wink_pay_oct21',
+      account_id: 'acc_1792898166116',
+      type: 'gasto',
+      category: 'Pago de Tarjeta',
+      note: 'Pago Tarjeta Wink Crédito 7017 (Período anterior CRC)',
+      amount: 22765,
+      date: '2026-10-21T12:00:00+00:00'
+    };
+    const debitPayNov02 = {
+      id: 'tx_wink_pay_nov02',
+      account_id: 'acc_1792898166116',
+      type: 'gasto',
+      category: 'Pago de Tarjeta',
+      note: 'Pago Tarjeta Wink Crédito 7017: Cancelación período anterior ($68.99 USD @ ₡520)',
+      amount: 35874.80,
+      date: '2026-11-02T12:00:00+00:00'
+    };
+
+    for (const payTx of [debitPayNov02, debitPayOct21]) {
+      const idx = data.transactions.findIndex(t => t.id === payTx.id);
+      const localTx = {
+        ...payTx,
+        accountId: payTx.account_id,
+        currency: 'CRC',
+        source: 'statement_import'
+      };
+      if (idx === -1) data.transactions.push(localTx);
+      else data.transactions[idx] = localTx;
+    }
+
     for (const acc of data.accounts || []) {
       if (Object.prototype.hasOwnProperty.call(restoredBalances, acc.id)) {
         acc.balance = restoredBalances[acc.id];
+      }
+      if (acc.id === 'acc_1792898165999') {
+        acc.cashPaymentUSD = 0;
+        acc.minPaymentUSD = 0;
+        acc.debtUSD = 0;
+        acc.cashPaymentCRC = 0;
+        acc.minPaymentCRC = 0;
       }
     }
     financeService.writeLocal({
@@ -1193,6 +1244,31 @@ router.post('/finance/repair-ledger', async (req, res) => {
         if (moveErr) supabaseErrors.push(`reassign: ${moveErr.message}`);
       }
 
+      const { error: octCreditErr } = await supabase
+        .from('finance_transactions')
+        .update({
+          amount: 22765,
+          category: 'Pago de Tarjeta',
+          note: 'Abono recibido desde Wink Débito 1081: Pago contado CRC período anterior (₡22,765.00)'
+        })
+        .eq('id', 'tx_1795099081432_xpu4j');
+      if (octCreditErr) supabaseErrors.push(`octCredit: ${octCreditErr.message}`);
+
+      const { error: novCreditErr } = await supabase
+        .from('finance_transactions')
+        .update({
+          amount: 35874.80,
+          category: 'Pago de Tarjeta',
+          note: 'Abono recibido desde Wink Débito 1081: Pago contado USD período anterior ($68.99 USD @ ₡520)'
+        })
+        .eq('id', 'tx_1795099081530_k09py');
+      if (novCreditErr) supabaseErrors.push(`novCredit: ${novCreditErr.message}`);
+
+      const { error: upsertPayErr } = await supabase
+        .from('finance_transactions')
+        .upsert([debitPayOct21, debitPayNov02], { onConflict: 'id' });
+      if (upsertPayErr) supabaseErrors.push(`upsertPays: ${upsertPayErr.message}`);
+
       for (const [accId, bal] of Object.entries(restoredBalances)) {
         const { error: balErr } = await supabase
           .from('finance_accounts')
@@ -1200,6 +1276,8 @@ router.post('/finance/repair-ledger', async (req, res) => {
           .eq('id', accId);
         if (balErr) supabaseErrors.push(`balance(${accId}): ${balErr.message}`);
       }
+
+      await financeService.saveAccountsMetaToCloud(supabase, data.accounts || []);
     }
 
     if (supabaseErrors.length > 0) {
@@ -1212,6 +1290,7 @@ router.post('/finance/repair-ledger', async (req, res) => {
       deletedCount: trashIds.length,
       reassignedCount: reassignedIds.length,
       liquidBalanceCRC: updatedSummary.liquidBalanceCRC,
+      creditDueUSD: updatedSummary.creditDueUSD,
       monthExpense: updatedSummary.monthExpense
     });
   } catch (err) {

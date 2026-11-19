@@ -14,9 +14,72 @@ const INITIAL_FINANCES = {
   budgets: []
 };
 
+const META_FIELDS = [
+  'last4', 'entity', 'initialBalance', 'creditLimit', 'creditLimitUSD',
+  'cutOffDay', 'paymentDueDay', 'debtUSD', 'availableCredit', 'availableCreditUSD',
+  'cashPaymentCRC', 'cashPaymentUSD', 'minPaymentCRC', 'minPaymentUSD',
+  'interestRateCRC', 'interestRateUSD', 'rewardPoints', 'dueDate',
+  'interestRate', 'yieldAmount', 'yieldFrequency', 'yieldAccountId'
+];
+
 class FinanceService {
   constructor() {
     this.ensureLocalFileExists();
+  }
+
+  async loadAccountsMetaFromCloud(supabase) {
+    if (!supabase) return {};
+    try {
+      const { data: row, error } = await supabase
+        .from('app_settings')
+        .select('value')
+        .eq('key', 'finance_accounts_meta')
+        .single();
+      if (!error && row && row.value) {
+        return typeof row.value === 'string' ? JSON.parse(row.value) : row.value;
+      }
+      if (error && (error.code === 'PGRST205' || String(error.message || '').includes('app_settings'))) {
+        const { data: fallbackRow } = await supabase
+          .from('meetings')
+          .select('transcript')
+          .eq('id', '__sys_accounts_meta__')
+          .single();
+        if (fallbackRow && fallbackRow.transcript) {
+          return JSON.parse(fallbackRow.transcript);
+        }
+      }
+    } catch (_) {}
+    return {};
+  }
+
+  async saveAccountsMetaToCloud(supabase, accounts = []) {
+    if (!supabase || !Array.isArray(accounts)) return;
+    try {
+      const metaMap = {};
+      for (const acc of accounts) {
+        if (!acc || !acc.id) continue;
+        const entry = {};
+        for (const f of META_FIELDS) {
+          if (acc[f] !== undefined) entry[f] = acc[f];
+        }
+        metaMap[acc.id] = entry;
+      }
+      const { error } = await supabase.from('app_settings').upsert({
+        key: 'finance_accounts_meta',
+        value: metaMap,
+        updated_at: new Date().toISOString()
+      }, { onConflict: 'key' });
+
+      if (error && (error.code === 'PGRST205' || String(error.message || '').includes('app_settings'))) {
+        await supabase.from('meetings').upsert({
+          id: '__sys_accounts_meta__',
+          title: '[SYSTEM] Finance Accounts Metadata',
+          summary: 'Extended credit card, reserve & bank account metadata',
+          transcript: JSON.stringify(metaMap),
+          updated_at: new Date().toISOString()
+        }, { onConflict: 'id' });
+      }
+    } catch (_) {}
   }
 
   ensureLocalFileExists() {
@@ -76,7 +139,8 @@ class FinanceService {
       try {
         const { data: supaAccounts } = await supabase.from('finance_accounts').select('*');
         const { data: supaLoans } = await supabase.from('finance_loans').select('*');
-        const { data: supaTx } = await supabase.from('finance_transactions').select('*').order('date', { ascending: false }).limit(50);
+        const { data: supaTx } = await supabase.from('finance_transactions').select('*').order('date', { ascending: false }).limit(200);
+        const cloudMeta = await this.loadAccountsMetaFromCloud(supabase);
         
         if (supaAccounts && supaAccounts.length > 0) {
           const localAccounts = data.accounts || [];
@@ -90,27 +154,29 @@ class FinanceService {
           } catch (_) {}
 
           const mapped = supaAccounts.map(sa => {
-            const local = localAccounts.find(la => la.id === sa.id);
+            const local = localAccounts.find(la => la.id === sa.id) || {};
+            const meta = cloudMeta[sa.id] || {};
             return {
               ...local,
+              ...meta,
               ...sa,
-              last4: sa.last4 || local?.last4,
-              entity: sa.entity || local?.entity || (sa.name.includes('BAC') ? 'BAC Credomatic' : sa.name.includes('Popular') ? 'Banco Popular' : sa.name.includes('Wink') ? 'Wink' : 'Banco'),
-              initialBalance: sa.initial_balance !== undefined ? sa.initial_balance : (local?.initialBalance || 0),
-              creditLimit: sa.credit_limit !== undefined ? sa.credit_limit : (local?.creditLimit || (sa.type === 'credito' ? 1344000 : null)),
-              cutOffDay: sa.cut_off_day !== undefined ? sa.cut_off_day : (local?.cutOffDay || (sa.type === 'credito' ? 13 : null)),
-              paymentDueDay: sa.payment_due_day !== undefined ? sa.payment_due_day : (local?.paymentDueDay || (sa.type === 'credito' ? 2 : null)),
-              debtUSD: local?.debtUSD ?? 0,
-              creditLimitUSD: local?.creditLimitUSD ?? (sa.type === 'credito' ? 3000 : null),
-              availableCredit: local?.availableCredit ?? (local?.creditLimit ? Math.max(0, local.creditLimit - (sa.balance || 0)) : null),
-              availableCreditUSD: local?.availableCreditUSD ?? null,
-              cashPaymentCRC: local?.cashPaymentCRC ?? 0,
-              cashPaymentUSD: local?.cashPaymentUSD ?? 0,
-              minPaymentCRC: local?.minPaymentCRC ?? 0,
-              minPaymentUSD: local?.minPaymentUSD ?? 0,
-              interestRateCRC: local?.interestRateCRC ?? 32,
-              interestRateUSD: local?.interestRateUSD ?? 27.5,
-              rewardPoints: local?.rewardPoints ?? 0
+              last4: sa.last4 || meta.last4 || local.last4 || '',
+              entity: sa.entity || meta.entity || local.entity || (sa.name.includes('BAC') ? 'BAC Credomatic' : sa.name.includes('Popular') ? 'Banco Popular' : sa.name.includes('Wink') ? 'Wink' : 'Banco'),
+              initialBalance: sa.initial_balance !== undefined ? sa.initial_balance : (meta.initialBalance ?? local.initialBalance ?? 0),
+              creditLimit: sa.credit_limit !== undefined ? sa.credit_limit : (meta.creditLimit ?? local.creditLimit ?? (sa.type === 'credito' ? 1344000 : null)),
+              cutOffDay: sa.cut_off_day !== undefined ? sa.cut_off_day : (meta.cutOffDay ?? local.cutOffDay ?? (sa.type === 'credito' ? 13 : null)),
+              paymentDueDay: sa.payment_due_day !== undefined ? sa.payment_due_day : (meta.paymentDueDay ?? local.paymentDueDay ?? (sa.type === 'credito' ? 2 : null)),
+              debtUSD: meta.debtUSD ?? local.debtUSD ?? 0,
+              creditLimitUSD: meta.creditLimitUSD ?? local.creditLimitUSD ?? (sa.type === 'credito' ? 3000 : null),
+              availableCredit: meta.availableCredit ?? local.availableCredit ?? ((meta.creditLimit || local.creditLimit) ? Math.max(0, (meta.creditLimit || local.creditLimit) - (sa.balance || 0)) : null),
+              availableCreditUSD: meta.availableCreditUSD ?? local.availableCreditUSD ?? null,
+              cashPaymentCRC: meta.cashPaymentCRC ?? local.cashPaymentCRC ?? 0,
+              cashPaymentUSD: meta.cashPaymentUSD ?? local.cashPaymentUSD ?? 0,
+              minPaymentCRC: meta.minPaymentCRC ?? local.minPaymentCRC ?? 0,
+              minPaymentUSD: meta.minPaymentUSD ?? local.minPaymentUSD ?? 0,
+              interestRateCRC: meta.interestRateCRC ?? local.interestRateCRC ?? 32,
+              interestRateUSD: meta.interestRateUSD ?? local.interestRateUSD ?? 27.5,
+              rewardPoints: meta.rewardPoints ?? local.rewardPoints ?? 0
             };
           });
 
@@ -285,6 +351,15 @@ class FinanceService {
       };
     });
 
+    const allTransactions = data.transactions || [];
+    const savingsAccountIds = new Set(savingsAccounts.map(a => a.id));
+    const liquidTransactions = allTransactions.filter(t => {
+      const aid = t.accountId || t.account_id;
+      return !creditAccountIds.has(aid) && !savingsAccountIds.has(aid);
+    });
+    const creditTransactions = allTransactions.filter(t => creditAccountIds.has(t.accountId || t.account_id));
+    const savingsTransactions = allTransactions.filter(t => savingsAccountIds.has(t.accountId || t.account_id));
+
     return {
       balance: liquidBalanceCRC,
       balanceCRC: liquidBalanceCRC,
@@ -310,8 +385,11 @@ class FinanceService {
       budgetLimit,
       accounts: enrichedAccounts,
       loans: enrichedLoans,
-      recentTransactions: (data.transactions || []).slice(0, 30),
-      transactions: data.transactions || []
+      // Mantener las transacciones líquidas completamente independientes de tarjetas de crédito
+      recentTransactions: liquidTransactions.slice(0, 60),
+      creditTransactions: creditTransactions.slice(0, 100),
+      savingsTransactions: savingsTransactions.slice(0, 60),
+      transactions: allTransactions
     };
   }
 
@@ -353,6 +431,7 @@ class FinanceService {
           currency: newAcc.currency,
           color: newAcc.color
         });
+        await this.saveAccountsMetaToCloud(supabase, data.accounts);
       } catch (_) {}
     }
 
@@ -414,6 +493,7 @@ class FinanceService {
           currency: data.accounts[idx].currency,
           color: data.accounts[idx].color
         });
+        await this.saveAccountsMetaToCloud(supabase, data.accounts);
       } catch (_) {}
     }
 
@@ -813,17 +893,24 @@ class FinanceService {
     const totalLiabilities = totalShortTermDebt + totalLongTermDebt;
     const netWorth = totalLiquidAssets - totalLiabilities;
 
-    // 3. Estado de Resultados (P&L)
-    const incomeItems = transactions.filter(t => t.type === 'ingreso');
-    const expenseItems = transactions.filter(t => t.type === 'gasto');
+    // 3. Estado de Resultados (P&L estrictamente líquido, separado de Tarjeta de Crédito)
+    const liquidIncomes = transactions.filter(t => t.type === 'ingreso' && t.category !== 'Pago de Tarjeta');
+    const liquidExpenseItems = transactions.filter(t => t.type === 'gasto' && t.category !== 'Pago de Tarjeta');
 
-    const grossRevenue = incomeItems.reduce((sum, t) => sum + (Number(t.amount) || 0), 0);
-    const operatingExpenses = expenseItems
+    const grossRevenue = liquidIncomes.reduce((sum, t) => sum + (Number(t.amount) || 0), 0);
+    const operatingExpenses = liquidExpenseItems
       .filter(t => !t.category?.toLowerCase().includes('financiero') && !t.category?.toLowerCase().includes('interes'))
       .reduce((sum, t) => sum + (Number(t.amount) || 0), 0);
-    const financialCosts = expenseItems
+    const financialCosts = liquidExpenseItems
       .filter(t => t.category?.toLowerCase().includes('financiero') || t.category?.toLowerCase().includes('interes'))
       .reduce((sum, t) => sum + (Number(t.amount) || 0), 0);
+
+    const creditTxs = summary.creditTransactions || [];
+    const creditCardSummary = {
+      totalConsumed: creditTxs.filter(t => t.type === 'gasto').reduce((s, t) => s + (Number(t.amount) || 0), 0),
+      totalPaid: creditTxs.filter(t => t.type === 'ingreso').reduce((s, t) => s + (Number(t.amount) || 0), 0),
+      transactionsCount: creditTxs.length
+    };
 
     const totalExpenses = operatingExpenses + financialCosts;
     const netProfit = grossRevenue - totalExpenses;
@@ -860,7 +947,8 @@ class FinanceService {
         totalOutflow: totalExpenses,
         netCashFlow: grossRevenue - totalExpenses,
         endingBalance: totalLiquidAssets
-      }
+      },
+      creditCardSummary
     };
   }
 }

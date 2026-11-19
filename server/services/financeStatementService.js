@@ -234,8 +234,29 @@ Reglas:
   }) {
     const financeData = await financeService.getSummary();
     const accounts = financeData.accounts || [];
+    const existingTxs = financeData.transactions || [];
     const targetAcc = accounts.find(a => a.id === targetAccountId);
-    const sourceAcc = sourceAccountId ? accounts.find(a => a.id === sourceAccountId) : null;
+    let sourceAcc = sourceAccountId ? accounts.find(a => a.id === sourceAccountId) : null;
+
+    // Auto-vincular cuenta de débito origen si es pago de tarjeta y no se pasó sourceAccountId explícito
+    if (!sourceAcc && targetAcc && targetAcc.type === 'credito') {
+      const targetEntity = `${targetAcc.name || ''} ${targetAcc.entity || ''}`.toLowerCase();
+      if (targetEntity.includes('wink') || targetEntity.includes('coopenae')) {
+        sourceAcc = accounts.find(a =>
+          a.type === 'debito' &&
+          a.currency === 'CRC' &&
+          `${a.name || ''} ${a.entity || ''}`.toLowerCase().includes('wink')
+        );
+      } else {
+        const prefix = targetEntity.split(' ')[0];
+        if (prefix) {
+          sourceAcc = accounts.find(a =>
+            a.type === 'debito' &&
+            `${a.name || ''} ${a.entity || ''}`.toLowerCase().includes(prefix)
+          );
+        }
+      }
+    }
 
     let importedCount = 0;
     let skippedCount = 0;
@@ -253,19 +274,33 @@ Reglas:
         : (item.date || new Date().toISOString());
 
       if (item.type === 'pago_tarjeta' || documentType === 'payment_receipt') {
-        // 1. Si hay cuenta origen (débito) y es comprobante real de pago, registrar salida de dinero
-        if (sourceAcc && sourceAcc.id !== targetAccountId && !isClosedCreditStatement) {
-          await financeService.addTransaction({
-            accountId: sourceAcc.id,
-            type: 'gasto',
-            category: 'Pago de Tarjeta',
-            merchant: targetAcc ? targetAcc.name : (item.merchant || 'Tarjeta de Crédito'),
-            note: `Pago Tarjeta: ${item.description || item.merchant || 'Abono'}`,
-            amount: item.amount,
-            currency: item.currency || 'CRC',
-            source: 'statement_import',
-            date: isoDate
+        // 1. Registrar espejo del pago en cuenta débito origen (ej. Wink Débito 1081) si no existe duplicado
+        if (sourceAcc && sourceAcc.id !== targetAccountId) {
+          const effectiveCRC = (item.currency || 'CRC').toUpperCase() === 'USD'
+            ? +(Number(item.amount) * 520).toFixed(2)
+            : Number(item.amount);
+          const alreadyInDebit = existingTxs.some(ex => {
+            const exAcc = ex.accountId || ex.account_id;
+            if (exAcc !== sourceAcc.id || ex.type !== 'gasto') return false;
+            const sameAmt = Math.abs(Number(ex.amount) - Number(item.amount)) < 1 || Math.abs(Number(ex.amount) - effectiveCRC) < 50;
+            return sameAmt && isSameOrCloseDate(ex.date, isoDate, 3);
           });
+          if (!alreadyInDebit) {
+            const accCreated = sourceAcc.createdAt || sourceAcc.created_at || '';
+            const predatesAccount = accCreated && isoDate.slice(0, 10) < String(accCreated).slice(0, 10);
+            await financeService.addTransaction({
+              accountId: sourceAcc.id,
+              type: 'gasto',
+              category: 'Pago de Tarjeta',
+              merchant: targetAcc ? targetAcc.name : (item.merchant || 'Tarjeta de Crédito'),
+              note: `Pago Tarjeta ${targetAcc?.name || ''}: ${item.description || item.merchant || 'Abono'}`,
+              amount: item.amount,
+              currency: item.currency || 'CRC',
+              source: 'statement_import',
+              skipBalanceMutation: isClosedCreditStatement && predatesAccount,
+              date: isoDate
+            });
+          }
         }
         // 2. Registrar abono en la tarjeta de crédito destino (sin mutar balance si es histórico de estado de cuenta)
         if (targetAcc) {
@@ -274,7 +309,7 @@ Reglas:
             type: 'ingreso',
             category: 'Pago de Tarjeta',
             merchant: item.merchant || 'Abono a Tarjeta',
-            note: `Abono recibido: ${item.description || item.merchant || 'Pago de tarjeta'}`,
+            note: `Abono recibido${sourceAcc ? ` desde ${sourceAcc.name}` : ''}: ${item.description || item.merchant || 'Pago de tarjeta'}`,
             amount: item.amount,
             currency: item.currency || 'CRC',
             source: 'statement_import',
