@@ -1059,16 +1059,22 @@ class BankMailService {
           rejectUnauthorized: false
         });
 
+        let socketClosingCleanly = false;
+
         socket.on('error', (err) => {
-          done({ success: false, error: `Error IMAP: ${err.message}` });
+          if (!socketClosingCleanly) {
+            done({ success: false, error: `Error IMAP: ${err.message}` });
+          }
         });
 
-        socket.setTimeout(45000, () => {
-          done({ success: false, error: 'Tiempo de espera agotado durante la sincronización.' });
+        socket.setTimeout(25000, () => {
+          if (!socketClosingCleanly) {
+            done({ success: false, error: 'Tiempo de espera agotado durante la sincronización.' });
+          }
         });
 
         socket.on('end', () => {
-          if (!resolved) {
+          if (!resolved && !socketClosingCleanly) {
             done({ success: true, processed: processedCount, recorded: recordedCount, message: 'Sincronización finalizada.' });
           }
         });
@@ -1077,9 +1083,16 @@ class BankMailService {
           let buffer = '';
           let step = 'WAIT_GREETING';
           let msgIds = [];
+          let priorityIds = new Set();
           let currentIndex = 0;
-          let attachmentsProcessedThisRun = 0;
+          const fetchedEmails = [];
           const startedAt = Date.now();
+
+          const parseSearchIds = (raw) => {
+            const m = raw.match(/\* SEARCH ([\d\s]+)/);
+            if (!m || !m[1].trim()) return [];
+            return m[1].trim().split(/\s+/).map(Number).filter(n => !isNaN(n));
+          };
 
           const formatImapSince = (isoOrDate) => {
             const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -1112,7 +1125,72 @@ class BankMailService {
             try { socket.write(`${tag} ${cmd}\r\n`); } catch (_) {}
           };
 
-          socket.on('data', async (chunk) => {
+          const finishImapAndProcess = async () => {
+            if (socketClosingCleanly) return;
+            socketClosingCleanly = true;
+            try {
+              sendCmd('a999', 'LOGOUT');
+              socket.destroy();
+            } catch (_) {}
+
+            let attachmentsProcessed = 0;
+            for (const item of fetchedEmails) {
+              if ((Date.now() - startedAt) > 22000) break;
+              try {
+                const textRes = await this.processIncomingEmail({
+                  subject: item.subject,
+                  from: item.from,
+                  date: item.date,
+                  body: item.rawBody
+                });
+                processedCount++;
+                if (textRes.status === 'recorded') recordedCount++;
+
+                if (
+                  attachmentsProcessed < 3 &&
+                  this.isAttachmentCandidate(item.from, item.subject, item.date, config, textRes)
+                ) {
+                  attachmentsProcessed++;
+                  const attRes = await this.processEmailAttachments({
+                    from: item.from,
+                    subject: item.subject,
+                    date: item.date,
+                    rawMime: item.rawBody
+                  });
+                  recordedCount += attRes.recorded || 0;
+                }
+              } catch (_) {}
+            }
+
+            try {
+              await this.saveConfig({ ...config, lastSync: new Date().toISOString() });
+            } catch (_) {}
+
+            done({
+              success: true,
+              processed: processedCount,
+              recorded: recordedCount,
+              message: `Sincronización completada: ${processedCount} correos bancarios analizados, ${recordedCount} comprobantes contabilizados.`
+            });
+          };
+
+          const fetchNext = () => {
+            if (currentIndex < msgIds.length && (Date.now() - startedAt) < 12000) {
+              const id = msgIds[currentIndex];
+              const tag = `f${currentIndex}`;
+              if (priorityIds.has(id)) {
+                sendCmd(tag, `FETCH ${id} (BODY.PEEK[])`);
+              } else {
+                sendCmd(tag, `FETCH ${id} (BODY.PEEK[]<0.32000>)`);
+              }
+            } else {
+              step = 'DONE';
+              finishImapAndProcess();
+            }
+          };
+
+          socket.on('data', (chunk) => {
+            if (socketClosingCleanly) return;
             buffer += chunk.toString();
 
             if (step === 'WAIT_GREETING' && buffer.includes('* OK')) {
@@ -1161,9 +1239,7 @@ class BankMailService {
                 const combined = Array.from(new Set([...Array.from(priorityIds), ...allIds.slice(-45)])).slice(0, 60);
                 if (combined.length === 0) {
                   step = 'DONE';
-                  await this.saveConfig({ ...config, lastSync: new Date().toISOString() });
-                  sendCmd('a999', 'LOGOUT');
-                  done({ success: true, processed: 0, recorded: 0, message: 'Buzón sincronizado. No hay correos nuevos desde la fecha configurada.' });
+                  finishImapAndProcess();
                   return;
                 }
                 step = 'WAIT_HEADERS';
@@ -1198,9 +1274,7 @@ class BankMailService {
                 });
                 if (msgIds.length === 0) {
                   step = 'DONE';
-                  await this.saveConfig({ ...config, lastSync: new Date().toISOString() });
-                  sendCmd('a999', 'LOGOUT');
-                  done({ success: true, processed: 0, recorded: 0, message: 'Buzón sincronizado. No se encontraron nuevos correos bancarios.' });
+                  finishImapAndProcess();
                   return;
                 }
                 step = 'FETCHING';
@@ -1208,7 +1282,8 @@ class BankMailService {
               }
             } else if (step === 'FETCHING') {
               const tag = `f${currentIndex}`;
-              if (buffer.includes(`${tag} OK`)) {
+              const tagDoneRegex = new RegExp(`\\b${tag} (?:OK|NO|BAD)\\b`);
+              if (tagDoneRegex.test(buffer) || buffer.length > 3 * 1024 * 1024) {
                 const currentChunk = buffer;
                 buffer = '';
                 const unfolded = unfoldHeaders(currentChunk);
@@ -1221,82 +1296,21 @@ class BankMailService {
                 const from = fromMatch ? fromMatch[1].trim() : '';
                 const date = dateMatch ? new Date(dateMatch[1].trim()).toISOString() : new Date().toISOString();
 
-                let textRes = { status: 'discarded' };
-                try {
-                  textRes = await this.processIncomingEmail({
+                if (currentChunk.length <= 3 * 1024 * 1024) {
+                  fetchedEmails.push({
+                    id: msgIds[currentIndex],
                     subject,
                     from,
                     date,
-                    body: currentChunk
+                    rawBody: currentChunk
                   });
-                  processedCount++;
-                  if (textRes.status === 'recorded') recordedCount++;
-                } catch (_) {}
-
-                const withinTimeBudget = (Date.now() - startedAt) < 14000;
-                if (withinTimeBudget && attachmentsProcessedThisRun < 2 && this.isAttachmentCandidate(from, subject, date, config, textRes)) {
-                  attachmentsProcessedThisRun++;
-                  step = 'FETCHING_FULL';
-                  socket._pendingEmailMeta = { subject, from, date, id: msgIds[currentIndex] };
-                  sendCmd(`ff${currentIndex}`, `FETCH ${msgIds[currentIndex]} (BODY.PEEK[])`);
-                } else {
-                  currentIndex++;
-                  fetchNext();
-                }
-              }
-            } else if (step === 'FETCHING_FULL') {
-              const tag = `ff${currentIndex}`;
-              if (buffer.includes(`${tag} OK`) || buffer.length > 4 * 1024 * 1024) {
-                const rawMime = buffer;
-                buffer = '';
-                const meta = socket._pendingEmailMeta || {};
-                socket._pendingEmailMeta = null;
-                step = 'FETCHING';
-
-                if (rawMime.length <= 4 * 1024 * 1024) {
-                  try {
-                    const attRes = await this.processEmailAttachments({
-                      from: meta.from || '',
-                      subject: meta.subject || '',
-                      date: meta.date || new Date().toISOString(),
-                      rawMime
-                    });
-                    recordedCount += attRes.recorded || 0;
-                  } catch (_) {}
                 }
 
                 currentIndex++;
                 fetchNext();
               }
-            } else if (step === 'DONE') {
-              done({
-                success: true,
-                processed: processedCount,
-                recorded: recordedCount,
-                message: `Sincronización completada: ${processedCount} correos bancarios analizados, ${recordedCount} comprobantes contabilizados.`
-              });
             }
           });
-
-          const fetchNext = () => {
-            if (currentIndex < msgIds.length && (Date.now() - startedAt) < 16000) {
-              const id = msgIds[currentIndex];
-              const tag = `f${currentIndex}`;
-              sendCmd(tag, `FETCH ${id} (BODY.PEEK[]<0.32000>)`);
-            } else {
-              step = 'DONE';
-              this.saveConfig({ ...config, lastSync: new Date().toISOString() });
-              sendCmd('a999', 'LOGOUT');
-              setTimeout(() => {
-                done({
-                  success: true,
-                  processed: processedCount,
-                  recorded: recordedCount,
-                  message: `Sincronización completada: ${processedCount} correos bancarios analizados, ${recordedCount} comprobantes contabilizados.`
-                });
-              }, 400);
-            }
-          };
         });
       } catch (err) {
         done({ success: false, error: `Error de inicialización TLS: ${err.message}` });
