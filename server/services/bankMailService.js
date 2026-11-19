@@ -1063,7 +1063,7 @@ class BankMailService {
           done({ success: false, error: `Error IMAP: ${err.message}` });
         });
 
-        socket.setTimeout(25000, () => {
+        socket.setTimeout(45000, () => {
           done({ success: false, error: 'Tiempo de espera agotado durante la sincronización.' });
         });
 
@@ -1078,6 +1078,35 @@ class BankMailService {
           let step = 'WAIT_GREETING';
           let msgIds = [];
           let currentIndex = 0;
+          let attachmentsProcessedThisRun = 0;
+          const startedAt = Date.now();
+
+          const formatImapSince = (isoOrDate) => {
+            const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+            const d = isoOrDate ? new Date(isoOrDate) : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+            const safeD = isNaN(d.getTime()) ? new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) : d;
+            return `${String(safeD.getUTCDate()).padStart(2, '0')}-${months[safeD.getUTCMonth()]}-${safeD.getUTCFullYear()}`;
+          };
+
+          const isFinancialHeader = (fromRaw = '', subjectRaw = '', dateStr = '') => {
+            const f = decodeMimeWords(fromRaw).toLowerCase();
+            const s = decodeMimeWords(subjectRaw).toLowerCase();
+            const combined = `${f} ${s}`;
+            if (this.isDiscardable(s, f)) return false;
+
+            const d = dateStr ? new Date(dateStr) : null;
+            if (config.syncStartDate && d && !isNaN(d.getTime())) {
+              if (d.toISOString().slice(0, 10) < config.syncStartDate) return false;
+            }
+
+            const financialHints = [
+              'bac', 'credomatic', 'popular', 'bp.fi.cr', 'wink', 'holawink',
+              'coopeande', 'coopenae', 'bcr', 'bancobcr', 'davivienda', 'scotiabank',
+              'paypal', 'sonivision', 'sinpe', 'comprobante', 'estado de cuenta',
+              'transaccion', 'compra', 'transferencia', 'deposito', 'pago', 'tarjeta', 'recibo'
+            ];
+            return financialHints.some(kw => combined.includes(kw));
+          };
 
           const sendCmd = (tag, cmd) => {
             try { socket.write(`${tag} ${cmd}\r\n`); } catch (_) {}
@@ -1102,20 +1131,54 @@ class BankMailService {
               if (buffer.includes('a002 OK')) {
                 buffer = '';
                 step = 'WAIT_SEARCH';
-                sendCmd('a003', 'SEARCH ALL');
+                const sinceStr = formatImapSince(config.syncStartDate);
+                sendCmd('a003', `SEARCH SINCE ${sinceStr}`);
               }
             } else if (step === 'WAIT_SEARCH') {
               if (buffer.includes('a003 OK')) {
                 const searchMatch = buffer.match(/\* SEARCH ([\d\s]+)/);
+                let allIds = [];
                 if (searchMatch && searchMatch[1].trim()) {
-                  const allIds = searchMatch[1].trim().split(/\s+/).map(Number).filter(n => !isNaN(n));
-                  msgIds = allIds.slice(-50).reverse();
+                  allIds = searchMatch[1].trim().split(/\s+/).map(Number).filter(n => !isNaN(n));
                 }
                 buffer = '';
-                if (msgIds.length === 0) {
-                  sendCmd('a999', 'LOGOUT');
+                const recentIds = allIds.slice(-60).reverse();
+                if (recentIds.length === 0) {
                   step = 'DONE';
-                  done({ success: true, processed: 0, recorded: 0, message: 'Buzón sincronizado. No hay mensajes en la bandeja de entrada.' });
+                  await this.saveConfig({ ...config, lastSync: new Date().toISOString() });
+                  sendCmd('a999', 'LOGOUT');
+                  done({ success: true, processed: 0, recorded: 0, message: 'Buzón sincronizado. No hay correos nuevos desde la fecha configurada.' });
+                  return;
+                }
+                step = 'WAIT_HEADERS';
+                sendCmd('a004', `FETCH ${recentIds.join(',')} (BODY.PEEK[HEADER.FIELDS (SUBJECT FROM DATE)])`);
+              }
+            } else if (step === 'WAIT_HEADERS') {
+              if (buffer.includes('a004 OK')) {
+                const rawHeaders = buffer;
+                buffer = '';
+                const entryRegex = /\*\s+(\d+)\s+FETCH\s+\([\s\S]*?(?=\r?\n\*\s+\d+\s+FETCH\s+\(|\r?\na004 OK)/gi;
+                const filteredIds = [];
+                let m;
+                while ((m = entryRegex.exec(rawHeaders)) !== null) {
+                  const seqId = Number(m[1]);
+                  const block = m[0];
+                  const subjM = block.match(/Subject:\s*([^\r\n]+)/i);
+                  const fromM = block.match(/From:\s*([^\r\n]+)/i);
+                  const dateM = block.match(/Date:\s*([^\r\n]+)/i);
+                  const subj = subjM ? subjM[1].trim() : '';
+                  const frm = fromM ? fromM[1].trim() : '';
+                  const dt = dateM ? dateM[1].trim() : '';
+                  if (isFinancialHeader(frm, subj, dt)) {
+                    filteredIds.push(seqId);
+                  }
+                }
+                msgIds = filteredIds.sort((a, b) => b - a);
+                if (msgIds.length === 0) {
+                  step = 'DONE';
+                  await this.saveConfig({ ...config, lastSync: new Date().toISOString() });
+                  sendCmd('a999', 'LOGOUT');
+                  done({ success: true, processed: 0, recorded: 0, message: 'Buzón sincronizado. No se encontraron nuevos correos bancarios.' });
                   return;
                 }
                 step = 'FETCHING';
@@ -1147,8 +1210,10 @@ class BankMailService {
                   if (textRes.status === 'recorded') recordedCount++;
                 } catch (_) {}
 
-                // Si es de Sonivision, Coopenae o parece estado de cuenta/comprobante con adjunto PDF/imagen
-                if (this.isAttachmentCandidate(from, subject, date, config, textRes)) {
+                // Máximo 2 adjuntos pesados con Gemini por corrida y presupuesto de 18s para evitar timeout en Vercel
+                const withinTimeBudget = (Date.now() - startedAt) < 18000;
+                if (withinTimeBudget && attachmentsProcessedThisRun < 2 && this.isAttachmentCandidate(from, subject, date, config, textRes)) {
+                  attachmentsProcessedThisRun++;
                   step = 'FETCHING_FULL';
                   socket._pendingEmailMeta = { subject, from, date, id: msgIds[currentIndex] };
                   sendCmd(`ff${currentIndex}`, `FETCH ${msgIds[currentIndex]} (BODY.PEEK[])`);
@@ -1186,13 +1251,13 @@ class BankMailService {
                 success: true,
                 processed: processedCount,
                 recorded: recordedCount,
-                message: `Sincronización completada: ${processedCount} correos analizados, ${recordedCount} comprobantes contabilizados.`
+                message: `Sincronización completada: ${processedCount} correos bancarios analizados, ${recordedCount} comprobantes contabilizados.`
               });
             }
           });
 
           const fetchNext = () => {
-            if (currentIndex < msgIds.length) {
+            if (currentIndex < msgIds.length && (Date.now() - startedAt) < 20000) {
               const id = msgIds[currentIndex];
               const tag = `f${currentIndex}`;
               sendCmd(tag, `FETCH ${id} (BODY.PEEK[HEADER.FIELDS (SUBJECT FROM DATE)] BODY.PEEK[TEXT]<0.32000>)`);
@@ -1205,9 +1270,9 @@ class BankMailService {
                   success: true,
                   processed: processedCount,
                   recorded: recordedCount,
-                  message: `Sincronización completada: ${processedCount} correos analizados, ${recordedCount} comprobantes contabilizados.`
+                  message: `Sincronización completada: ${processedCount} correos bancarios analizados, ${recordedCount} comprobantes contabilizados.`
                 });
-              }, 600);
+              }, 400);
             }
           };
         });
