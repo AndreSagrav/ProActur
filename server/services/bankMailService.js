@@ -131,6 +131,10 @@ function decodeQuotedPrintable(str) {
     });
 }
 
+function unfoldHeaders(raw = '') {
+  return String(raw || '').replace(/\r?\n[ \t]+/g, ' ');
+}
+
 function decodeEmailBody(raw) {
   if (!raw) return '';
   let text = raw;
