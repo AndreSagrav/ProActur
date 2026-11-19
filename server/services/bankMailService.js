@@ -1404,7 +1404,17 @@ class BankMailService {
             } else if (step === 'WAIT_SEARCH_COOPENAE') {
               if (/\ba003b (?:OK|NO|BAD)\b/.test(buffer)) {
                 if (buffer.includes('a003b OK')) {
-                  parseSearchIds(buffer).forEach(id => priorityIds.add(id));
+                  parseSearchIds(buffer).slice(-5).forEach(id => priorityIds.add(id));
+                }
+                buffer = '';
+                step = 'WAIT_SEARCH_POPULAR';
+                const sinceStr = formatImapSince(config.syncStartDate);
+                sendCmd('a003c', `SEARCH SINCE ${sinceStr} TEXT "popular"`);
+              }
+            } else if (step === 'WAIT_SEARCH_POPULAR') {
+              if (/\ba003c (?:OK|NO|BAD)\b/.test(buffer)) {
+                if (buffer.includes('a003c OK')) {
+                  parseSearchIds(buffer).slice(-5).forEach(id => priorityIds.add(id));
                 }
                 buffer = '';
                 step = 'WAIT_SEARCH';
@@ -1415,10 +1425,11 @@ class BankMailService {
               if (/\ba003 (?:OK|NO|BAD)\b/.test(buffer)) {
                 const allIds = buffer.includes('a003 OK') ? parseSearchIds(buffer) : [];
                 buffer = '';
-                // Priorizar Sonivision y Coopenae primero, luego los 30 más recientes desde syncStartDate
-                const prioSorted = Array.from(priorityIds).sort((a, b) => b - a);
+                // Priorizar los 8 correos más recientes primero (para procesar envíos nuevos al instante) y luego bancos prioritarios
                 const recentSorted = allIds.slice(-30).reverse();
-                msgIds = Array.from(new Set([...prioSorted, ...recentSorted]));
+                recentSorted.slice(0, 6).forEach(id => priorityIds.add(id));
+                const prioSorted = Array.from(priorityIds).sort((a, b) => b - a);
+                msgIds = Array.from(new Set([...recentSorted.slice(0, 8), ...prioSorted, ...recentSorted]));
                 if (msgIds.length === 0) {
                   step = 'DONE';
                   finishImapAndProcess();
