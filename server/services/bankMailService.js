@@ -11,19 +11,30 @@ function extractAttachmentsFromRawMime(rawMime = '') {
   const attachments = [];
   if (!rawMime) return attachments;
 
-  // Buscar bloques MIME con Content-Transfer-Encoding: base64 y PDF/Imagen
-  const partRegex = /Content-Type:\s*(application\/pdf|image\/(?:png|jpeg|jpg|webp))[^\r\n]*(?:;[^\r\n]*)*[\s\S]*?Content-Transfer-Encoding:\s*base64[\r\n]+([\s\S]*?)(?=\r?\n--[A-Za-z0-9'()+_,\-./:=? ]+|\r?\n\)\r?\n|$)/gi;
+  // Buscar bloques MIME con Content-Transfer-Encoding: base64 (PDF, Imágenes u octet-stream con extensión .pdf/.png/.jpg)
+  const partRegex = /Content-Type:\s*(application\/(?:pdf|x-pdf|octet-stream)|image\/(?:png|jpeg|jpg|webp))[^\r\n]*(?:;[^\r\n]*|\r?\n[ \t]+[^\r\n]*)*[\s\S]*?Content-Transfer-Encoding:\s*base64[\r\n]+([\s\S]*?)(?=\r?\n--[A-Za-z0-9'()+_,\-./:=? ]+|\r?\n\)\r?\n|$)/gi;
   let match;
   while ((match = partRegex.exec(rawMime)) !== null) {
-    const rawMimeType = match[1].toLowerCase() === 'image/jpg' ? 'image/jpeg' : match[1].toLowerCase();
+    const detectedType = match[1].toLowerCase();
     const headerBlock = match[0].slice(0, match[0].indexOf('base64'));
-    const nameMatch = headerBlock.match(/(?:filename|name)\s*=\s*"?([^"\r\n;]+)"?/i);
-    const fileName = nameMatch ? nameMatch[1].trim() : (rawMimeType === 'application/pdf' ? 'comprobante.pdf' : 'comprobante.png');
+    const nameMatch = headerBlock.match(/(?:filename\*?=|name\*?=)\s*"?([^"\r\n;]+)"?/i);
+    const fileName = nameMatch ? decodeMimeWords(nameMatch[1].trim()) : '';
+
+    let rawMimeType = detectedType === 'image/jpg' ? 'image/jpeg' : detectedType;
+    if (rawMimeType === 'application/x-pdf') rawMimeType = 'application/pdf';
+    if (rawMimeType === 'application/octet-stream') {
+      if (/\.pdf$/i.test(fileName)) rawMimeType = 'application/pdf';
+      else if (/\.png$/i.test(fileName)) rawMimeType = 'image/png';
+      else if (/\.(jpe?g)$/i.test(fileName)) rawMimeType = 'image/jpeg';
+      else if (/\.webp$/i.test(fileName)) rawMimeType = 'image/webp';
+      else continue; // Ignorar octet-stream que no sea PDF ni imagen
+    }
+
     const cleanB64 = match[2].replace(/[^A-Za-z0-9+/=]/g, '');
     if (cleanB64.length > 200) {
       attachments.push({
         mimeType: rawMimeType,
-        fileName,
+        fileName: fileName || (rawMimeType === 'application/pdf' ? 'comprobante.pdf' : 'comprobante.png'),
         fileBase64: cleanB64
       });
     }
@@ -1150,6 +1161,7 @@ class BankMailService {
             } catch (_) {}
 
             let attachmentsProcessed = 0;
+            const diagnostics = [];
             for (const item of fetchedEmails) {
               if ((Date.now() - startedAt) > 26000) break;
               try {
@@ -1162,19 +1174,40 @@ class BankMailService {
                 processedCount++;
                 if (textRes.status === 'recorded') recordedCount++;
 
-                const hasAttachment = extractAttachmentsFromRawMime(item.rawBody).length > 0;
+                const foundAtts = extractAttachmentsFromRawMime(item.rawBody);
+                const hasAttachment = foundAtts.length > 0;
+                let attRecorded = 0;
+                let attErr = null;
+
                 if (
                   attachmentsProcessed < 5 &&
                   (hasAttachment || this.isAttachmentCandidate(item.from, item.subject, item.date, config, textRes))
                 ) {
                   attachmentsProcessed++;
-                  const attRes = await this.processEmailAttachments({
-                    from: item.from,
-                    subject: item.subject,
-                    date: item.date,
-                    rawMime: item.rawBody
+                  try {
+                    const attRes = await this.processEmailAttachments({
+                      from: item.from,
+                      subject: item.subject,
+                      date: item.date,
+                      rawMime: item.rawBody
+                    });
+                    attRecorded = attRes.recorded || 0;
+                    recordedCount += attRecorded;
+                  } catch (e) {
+                    attErr = e.message;
+                  }
+                }
+
+                if (diagnostics.length < 12) {
+                  diagnostics.push({
+                    from: decodeMimeWords(item.from).slice(0, 50),
+                    subject: decodeMimeWords(item.subject).slice(0, 60),
+                    textStatus: textRes.status,
+                    textReason: textRes.reason || null,
+                    attCount: foundAtts.length,
+                    attRecorded,
+                    attErr
                   });
-                  recordedCount += attRes.recorded || 0;
                 }
               } catch (_) {}
             }
@@ -1187,6 +1220,7 @@ class BankMailService {
               success: true,
               processed: processedCount,
               recorded: recordedCount,
+              diagnostics,
               message: `Sincronización completada: ${processedCount} correos bancarios analizados, ${recordedCount} comprobantes contabilizados.`
             });
           };
