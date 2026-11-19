@@ -696,7 +696,10 @@ class BankMailService {
       }
     }
 
-    const localData = financeService.readLocal();
+    let localData = financeService.readLocal();
+    if (!localData || !Array.isArray(localData.accounts) || localData.accounts.length === 0) {
+      localData = await financeService.getAllData();
+    }
     const accounts = localData.accounts || [];
     const transactions = localData.transactions || [];
 
@@ -803,7 +806,12 @@ class BankMailService {
       // Registrar en log como pendiente de confirmación
       this.addLog({
         status: 'pending_confirmation',
+        from: decodeMimeWords(emailData.from || ''),
         subject: decodeMimeWords(emailData.subject),
+        amount: parsed.amount,
+        currency: parsed.currency,
+        accountName: targetAccount ? targetAccount.name : 'No asignada',
+        type: parsed.type,
         parsed,
         suggestedAccount: targetAccount ? targetAccount.name : 'No asignada'
       });
@@ -1143,7 +1151,7 @@ class BankMailService {
 
             let attachmentsProcessed = 0;
             for (const item of fetchedEmails) {
-              if ((Date.now() - startedAt) > 22000) break;
+              if ((Date.now() - startedAt) > 26000) break;
               try {
                 const textRes = await this.processIncomingEmail({
                   subject: item.subject,
@@ -1154,9 +1162,10 @@ class BankMailService {
                 processedCount++;
                 if (textRes.status === 'recorded') recordedCount++;
 
+                const hasAttachment = extractAttachmentsFromRawMime(item.rawBody).length > 0;
                 if (
-                  attachmentsProcessed < 3 &&
-                  this.isAttachmentCandidate(item.from, item.subject, item.date, config, textRes)
+                  attachmentsProcessed < 5 &&
+                  (hasAttachment || this.isAttachmentCandidate(item.from, item.subject, item.date, config, textRes))
                 ) {
                   attachmentsProcessed++;
                   const attRes = await this.processEmailAttachments({
@@ -1278,9 +1287,9 @@ class BankMailService {
                 buffer = '';
                 const unfolded = unfoldHeaders(currentChunk);
 
-                const subjectMatch = unfolded.match(/Subject:\s*([^\r\n]+)/i);
-                const fromMatch = unfolded.match(/From:\s*([^\r\n]+)/i);
-                const dateMatch = unfolded.match(/Date:\s*([^\r\n]+)/i);
+                const subjectMatch = unfolded.match(/^Subject:\s*([^\r\n]+)/im);
+                const fromMatch = unfolded.match(/^From:\s*([^\r\n]+)/im);
+                const dateMatch = unfolded.match(/^Date:\s*([^\r\n]+)/im);
 
                 const subject = subjectMatch ? subjectMatch[1].trim() : '';
                 const from = fromMatch ? fromMatch[1].trim() : '';
